@@ -1,36 +1,207 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ComfyPipeline
 
-## Getting Started
+ローカルの ComfyUI に接続し、**LoRA ごとの量産・吟味ワークフロー**を効率化するための Web UI です。  
+シーン・ポーズ・追加プロンプトなどの微細な変化を与えた画像を大量生成し、その場で比較・選別できます。
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 主な用途
+
+- 特定の LoRA に対して複数のシーン・ポーズ・構図パターンを一括キューに流し、大量生成する
+- 追加プロンプトの「ランダム1行」モードで、1生成ごとに異なるタグを試しながらベストを探す
+- ランダム構図モードで構図タグをシャッフルし、多彩なアングルの画像を効率よく吟味する
+- 一括キュープリセットとして設定を保存しておき、次回は1クリックで同じ量産を再現する
+
+---
+
+## セットアップ
+
+### 前提
+
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) がローカルで起動していること
+- Node.js 18 以上、pnpm
+
+### ComfyUI 側の設定
+
+プレビュー画像をリアルタイム受信するため、ComfyUI の起動オプションに以下を追加してください。
+
+```bat
+--preview-method auto
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### インストール
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+git clone <このリポジトリ>
+cd comfy-pipeline
+pnpm install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`.env.example` をコピーして `.env.local` を作成し、環境に合わせて編集します。
 
-## Learn More
+```bash
+cp .env.example .env.local
+```
 
-To learn more about Next.js, take a look at the following resources:
+```env
+COMFYUI_URL=http://localhost:8188
+NEXT_PUBLIC_COMFYUI_URL=http://localhost:8188
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# ComfyUI の output ディレクトリへの絶対パス
+# Windows: C:/Users/yourname/ComfyUI/output
+# Mac/Linux: /home/yourname/ComfyUI/output
+COMFYUI_OUTPUT_DIR=C:/path/to/ComfyUI/output
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 起動
 
-## Deploy on Vercel
+```bash
+pnpm dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+ブラウザで `http://localhost:3000` を開きます。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 画面構成
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  ヘッダー: 接続状態 / 生成状態 / エクスポート / インポート              │
+├──────────────────┬────────────────────────┬──────────────────────┤
+│  左パネル          │  センター (プレビュー)   │  右パネル              │
+│  LoRA 設定         │  ライブプレビュー        │  キュー                │
+│  プロンプト設定     │  完成画像ストリップ       │  ギャラリー             │
+│  サンプラー設定     │  進捗バー               │                       │
+│  ランダム構図       │  キュー追加 / 中断       │                       │
+│  タグ DB 設定       │  一括キューボタン        │                       │
+└──────────────────┴────────────────────────┴──────────────────────┘
+```
+
+---
+
+## 機能詳細
+
+### LoRA 設定
+
+可変 LoRA をリスト管理します。名前・強度・CLIP 強度・トリガーワードを設定し、生成時にリストから1つ選択して使用します。
+
+### プロンプトビルダー
+
+プリセットを組み合わせてポジティブプロンプトを構築します。
+
+| カテゴリ | 選択方式 | 用途 |
+|---|---|---|
+| 身体的特徴 | 複数可 | 髪色・体型など固定の外見特徴 |
+| 人数 | 1択 | solo / 2girls など |
+| ポーズ | 1択 | cowgirl position など |
+| シーン | 1択 | 背景・場所 |
+| その他 | 複数可 | blush / embarrassed など |
+
+各プリセットには LoRA を紐付けることができ、そのプリセット選択時にシーン専用 LoRA を自動で適用できます。  
+プリセットはドラッグ＆ドロップで並び替え可能です。
+
+#### 追加プロンプト
+
+テキストエリアに自由記述できます。モードは2種類：
+
+- **全行使用** — テキストエリアの内容をそのまま毎回追加
+- **ランダム1行** — 1行1タグとして入力し、生成ごとにランダムで1行を選択
+
+ランダム1行モードでは、完成画像のサムネイルにカーソルを乗せると、その画像に実際に適用されたタグをプレビューと一緒に確認できます。
+
+### サンプラー設定
+
+チェックポイント・アップスケールモデル・解像度・ステップ数・CFG・サンプラー・スケジューラー・denoise を設定します。
+
+解像度はプリセットボタンから素早く選択できます：
+
+| プリセット | サイズ |
+|---|---|
+| 横長 | 1536 × 1136 |
+| 正方形 | 1024 × 1024 |
+| 4:3 | 1536 × 1152 |
+| 3:4 | 1152 × 1536 |
+| 縦長 | 960 × 1600 |
+
+### ランダム構図モード
+
+有効にすると、各枚ごとにランダムな構図タグを1つ追加します。  
+タグは1行1エントリで入力（例：`from above,` / `dutch angle,` / `close-up, upper body,`）。  
+量産時に構図のバリエーションを自動で散らしたい場合に便利です。
+
+### キューシステム
+
+- **キューに追加** — 現在の設定でジョブを1件追加。「枚数」フィールドで1ジョブあたりの生成枚数を指定
+- **中断** — 実行中のジョブを停止（次の pending ジョブは自動で継続）
+- キューは順番に自動処理されます
+
+### 一括キュープリセット
+
+複数の設定パターンを「プリセットセット」として保存し、1クリックで全件キューに流す機能です。
+
+#### 使い方
+
+1. 左パネルで生成したい設定（シーン・ポーズ・追加プロンプトなど）を組む
+2. **「一括キュー」** ボタンを開き、「新しいセットを作成」
+3. 編集画面で **「現在の設定をプリセットとして追加」** を繰り返し、パターンを登録する  
+   （例：カジノ×カウガール、ホテル×M字開脚、アウトドア×立ちポーズ…）
+4. セットを保存
+5. 次回以降は「一括キュー」→「実行」で、可変 LoRA を切り替えながら同じパターンを量産できる
+
+プリセットごとに枚数・追加プロンプト・追加プロンプトモードを個別設定できます。  
+セットはエクスポート/インポートで共有・バックアップできます。
+
+### プレビューパネル
+
+- 生成中はリアルタイムプレビューを常にメインビューに表示
+- 生成完了した画像はストリップ（横並びサムネイル）に順番に追加
+- **サムネイルにカーソルを乗せると大きなプレビューを表示**  
+  ランダム1行モード使用時は適用されたタグもあわせて表示
+- 生成完了後は最後の画像がメインビューに自動フォーカス  
+  ストリップのサムネイルをクリックすると任意の画像をメインに切り替え可能
+
+### ギャラリー
+
+生成した画像の一覧。クリックで大きな画像を確認できます。  
+「FS更新」で ComfyUI の output フォルダを直接スキャンして反映します。
+
+### エクスポート / インポート
+
+ヘッダーのボタンから設定を JSON ファイルとして出力・読み込みできます。  
+以下の内容が含まれます：
+
+- 可変 LoRA リスト
+- 全プリセット（身体・人数・ポーズ・シーン・その他）
+- サンプラー設定
+- ネガティブプロンプト
+- ランダム構図タグ
+- 一括キュープリセットセット
+
+---
+
+## 技術スタック
+
+- **Next.js** (App Router) + TypeScript
+- **Tailwind CSS v4** + **shadcn/ui**
+- **ComfyUI** との通信: HTTP API（プロンプト送信・履歴取得）+ WebSocket（進捗・プレビュー）
+
+---
+
+## ワークフロー構成
+
+ComfyUI に送信するワークフローは以下の構成で固定されています：
+
+```
+CheckpointLoaderSimple
+  └─ LoraLoader × N  (FIXED_LORAS → プリセットLoRA → 可変LoRA の順)
+       ├─ CLIPTextEncode (ポジティブ)
+       ├─ CLIPTextEncode (ネガティブ)
+       └─ KSampler
+            └─ VAEDecode
+                 └─ ImageUpscaleWithModel
+                      └─ SaveImage
+```
+
+固定 LoRA（`FIXED_LORAS`）は常にチェーンの先頭に適用されます。  
+カスタマイズする場合は [lib/comfy.ts](lib/comfy.ts) の `buildWorkflow` と `FIXED_LORAS` を編集してください。
