@@ -205,7 +205,12 @@ interface PresetModalProps {
   preset: Preset | null;
   type: PresetType;
   onClose: () => void;
-  onSave: (updates: { name: string; prompt: string; lora?: LoraEntry }) => void;
+  onSave: (updates: {
+    name: string;
+    prompt: string;
+    lora?: LoraEntry;
+    promptMode: "all" | "random";
+  }) => void;
   onDelete?: () => void;
 }
 
@@ -220,6 +225,9 @@ function PresetModal({
   const [name, setName] = useState(preset?.name ?? "");
   const [prompt, setPrompt] = useState(preset?.prompt ?? "");
   const [lora, setLora] = useState<LoraEntry | undefined>(preset?.lora);
+  const [promptMode, setPromptMode] = useState<"all" | "random">(
+    preset?.promptMode ?? "all",
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleOpenChange = (v: boolean) => {
@@ -249,13 +257,44 @@ function PresetModal({
             />
           </div>
           <div>
-            <Label className="mb-1 text-xs">プロンプト</Label>
+            <div className="mb-1 flex items-center justify-between">
+              <Label className="text-xs">プロンプト</Label>
+              <div className="flex items-center gap-1.5">
+                {(["all", "random"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setPromptMode(m)}
+                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border transition-colors ${
+                      promptMode === m
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border text-muted-foreground hover:border-muted-foreground"
+                    }`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full border ${promptMode === m ? "border-primary-foreground bg-primary-foreground" : "border-muted-foreground"}`}
+                    />
+                    {m === "all" ? "全行使用" : "ランダム1行"}
+                  </button>
+                ))}
+              </div>
+            </div>
             <TagAutocompleteTextarea
               value={prompt}
               onChange={setPrompt}
-              placeholder="プロンプトを入力（日本語/英語でタグ補完が使えます）"
+              placeholder={
+                promptMode === "random"
+                  ? "1行1タグで入力。生成ごとにランダムで1行が使われます。"
+                  : "プロンプトを入力（日本語/英語でタグ補完が使えます）"
+              }
               style={{ minHeight: "100px" }}
             />
+            {promptMode === "random" && prompt.trim() && (
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                {prompt.split("\n").filter((s) => s.trim()).length}行 —
+                生成ごとに1行がランダム選択されます
+              </p>
+            )}
           </div>
           <LoraSection lora={lora} onChange={setLora} />
         </div>
@@ -297,7 +336,7 @@ function PresetModal({
           <Button
             disabled={!name.trim()}
             onClick={() => {
-              onSave({ name: name.trim(), prompt, lora });
+              onSave({ name: name.trim(), prompt, lora, promptMode });
               onClose();
             }}
           >
@@ -312,7 +351,7 @@ function PresetModal({
 // --- Section helpers ---
 function SectionHeader({ label, badge }: { label: string; badge: string }) {
   return (
-    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
       {label}{" "}
       <Badge variant="outline" className="ml-1 text-[10px]">
         {badge}
@@ -366,6 +405,7 @@ export default function PromptBuilder({
     name: string;
     prompt: string;
     lora?: LoraEntry;
+    promptMode: "all" | "random";
   }) => {
     if (modalState.preset) {
       onUpdatePreset(modalState.preset.id, updates);
@@ -676,6 +716,15 @@ function DraggableItem({
       >
         {preset.name}
       </span>
+      {preset.promptMode === "random" && (
+        <Badge
+          variant="outline"
+          className="shrink-0 text-[9px] cursor-pointer text-muted-foreground"
+          onClick={onSelect}
+        >
+          ランダム
+        </Badge>
+      )}
       {preset.lora && (
         <Badge
           variant="secondary"

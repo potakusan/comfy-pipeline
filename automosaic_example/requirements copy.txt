@@ -1,0 +1,8 @@
+numpy<2
+opencv_python==4.9.0.80
+Pillow==10.3.0
+pillow-avif-plugin==1.5.2
+torch
+torchvision
+ultralytics==8.3.158
+--extra-index-url https://download.pytorch.org/whl/cu124

@@ -24,12 +24,21 @@ import { DEFAULT_NEGATIVE, DEFAULT_SETTINGS, FIXED_LORAS } from "@/lib/config";
 
 const LS = {
   variableLoras: "cp_variable_loras",
+  selectedVariableLora: "cp_selected_variable_lora",
   physicalPresets: "cp_physical_presets",
   scenePresets: "cp_scene_presets",
   countPresets: "cp_count_presets",
   posePresets: "cp_pose_presets",
   otherPresets: "cp_other_presets",
+  selectedPhysicalIds: "cp_selected_physical_ids",
+  selectedSceneId: "cp_selected_scene_id",
+  selectedCountId: "cp_selected_count_id",
+  selectedPoseId: "cp_selected_pose_id",
+  selectedOtherIds: "cp_selected_other_ids",
+  additionalPrompt: "cp_additional_prompt",
+  negativePrompt: "cp_negative_prompt",
   settings: "cp_settings",
+  batchCount: "cp_batch_count",
   gallery: "cp_gallery",
   variationTags: "cp_variation_tags",
   variationEnabled: "cp_variation_enabled",
@@ -130,7 +139,7 @@ export function usePipeline() {
     lsGet(LS.variableLoras, []),
   );
   const [selectedVariableLora, setSelectedVariableLora] =
-    useState<LoraEntry | null>(null);
+    useState<LoraEntry | null>(() => lsGet(LS.selectedVariableLora, null));
   const [physicalPresets, setPhysicalPresets] = useState<Preset[]>(() =>
     lsGet(LS.physicalPresets, DEFAULT_PHYSICAL_PRESETS),
   );
@@ -146,17 +155,31 @@ export function usePipeline() {
   const [otherPresets, setOtherPresets] = useState<Preset[]>(() =>
     lsGet(LS.otherPresets, DEFAULT_OTHER_PRESETS),
   );
-  const [selectedPhysicalIds, setSelectedPhysicalIds] = useState<string[]>([]);
-  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
-  const [selectedCountId, setSelectedCountId] = useState<string | null>(null);
-  const [selectedPoseId, setSelectedPoseId] = useState<string | null>(null);
-  const [selectedOtherIds, setSelectedOtherIds] = useState<string[]>([]);
-  const [additionalPrompt, setAdditionalPrompt] = useState("");
-  const [negativePrompt, setNegativePrompt] = useState(DEFAULT_NEGATIVE);
+  const [selectedPhysicalIds, setSelectedPhysicalIds] = useState<string[]>(() =>
+    lsGet(LS.selectedPhysicalIds, []),
+  );
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(() =>
+    lsGet(LS.selectedSceneId, null),
+  );
+  const [selectedCountId, setSelectedCountId] = useState<string | null>(() =>
+    lsGet(LS.selectedCountId, null),
+  );
+  const [selectedPoseId, setSelectedPoseId] = useState<string | null>(() =>
+    lsGet(LS.selectedPoseId, null),
+  );
+  const [selectedOtherIds, setSelectedOtherIds] = useState<string[]>(() =>
+    lsGet(LS.selectedOtherIds, []),
+  );
+  const [additionalPrompt, setAdditionalPrompt] = useState(() =>
+    lsGet(LS.additionalPrompt, ""),
+  );
+  const [negativePrompt, setNegativePrompt] = useState(() =>
+    lsGet(LS.negativePrompt, DEFAULT_NEGATIVE),
+  );
   const [settings, setSettings] = useState<GenerationSettings>(() =>
     lsGet(LS.settings, DEFAULT_SETTINGS),
   );
-  const [batchCount, setBatchCount] = useState(4);
+  const [batchCount, setBatchCount] = useState(() => lsGet(LS.batchCount, 4));
 
   // Variation mode
   const [variationEnabled, setVariationEnabled] = useState(() =>
@@ -201,6 +224,33 @@ export function usePipeline() {
   useEffect(() => {
     lsSet(LS.variableLoras, variableLoras);
   }, [variableLoras]);
+  useEffect(() => {
+    lsSet(LS.selectedVariableLora, selectedVariableLora);
+  }, [selectedVariableLora]);
+  useEffect(() => {
+    lsSet(LS.selectedPhysicalIds, selectedPhysicalIds);
+  }, [selectedPhysicalIds]);
+  useEffect(() => {
+    lsSet(LS.selectedSceneId, selectedSceneId);
+  }, [selectedSceneId]);
+  useEffect(() => {
+    lsSet(LS.selectedCountId, selectedCountId);
+  }, [selectedCountId]);
+  useEffect(() => {
+    lsSet(LS.selectedPoseId, selectedPoseId);
+  }, [selectedPoseId]);
+  useEffect(() => {
+    lsSet(LS.selectedOtherIds, selectedOtherIds);
+  }, [selectedOtherIds]);
+  useEffect(() => {
+    lsSet(LS.additionalPrompt, additionalPrompt);
+  }, [additionalPrompt]);
+  useEffect(() => {
+    lsSet(LS.negativePrompt, negativePrompt);
+  }, [negativePrompt]);
+  useEffect(() => {
+    lsSet(LS.batchCount, batchCount);
+  }, [batchCount]);
   useEffect(() => {
     lsSet(LS.physicalPresets, physicalPresets);
   }, [physicalPresets]);
@@ -274,15 +324,27 @@ export function usePipeline() {
       completedImages: [],
     });
 
-    const allLoras: LoraEntry[] = [
-      ...FIXED_LORAS,
-      ...pendingItem.presetLoras,
-      ...(pendingItem.variableLora ? [pendingItem.variableLora] : []),
-    ];
     const outputPrefix = buildOutputPrefix(
       pendingItem.variableLora?.name || "no-lora",
     );
     const outputSubfolder = outputPrefix.split("/")[0];
+
+    // resolve a preset: if promptMode=random, pick one random line from its prompt
+    const resolvePreset = (p: Preset): Preset => {
+      if (p.promptMode !== "random") return p;
+      const lines = p.prompt.split("\n").filter((s) => s.trim());
+      if (!lines.length) return p;
+      return { ...p, prompt: lines[Math.floor(Math.random() * lines.length)] };
+    };
+
+    const bp = pendingItem.batchPresets;
+    const anyPresetRandom = [
+      ...bp.selectedPhysicals,
+      ...(bp.selectedCount ? [bp.selectedCount] : []),
+      ...(bp.selectedPose ? [bp.selectedPose] : []),
+      ...(bp.selectedScene ? [bp.selectedScene] : []),
+      ...bp.selectedOthers,
+    ].some((p) => p.promptMode === "random");
 
     let failed = false;
 
@@ -294,9 +356,48 @@ export function usePipeline() {
         break;
       }
 
-      // Additional prompt: pick per-batch if random mode
+      // Step 1: assemble preset base, resolving per-preset random lines if needed
+      let presetBase: string;
+      let batchPresetLoras: LoraEntry[];
+
+      if (anyPresetRandom) {
+        const batchPhysicals = bp.selectedPhysicals.map(resolvePreset);
+        const batchCount = bp.selectedCount ? resolvePreset(bp.selectedCount) : null;
+        const batchPose = bp.selectedPose ? resolvePreset(bp.selectedPose) : null;
+        const batchScene = bp.selectedScene ? resolvePreset(bp.selectedScene) : null;
+        const batchOthers = bp.selectedOthers.map(resolvePreset);
+
+        presetBase = assemblePositivePrompt({
+          variableLora: pendingItem.variableLora,
+          selectedPhysicalPresets: batchPhysicals,
+          selectedCountPreset: batchCount,
+          selectedPosePreset: batchPose,
+          selectedScenePreset: batchScene,
+          selectedOtherPresets: batchOthers,
+          additionalPrompt: "",
+        });
+
+        batchPresetLoras = collectPresetLoras([
+          ...batchPhysicals,
+          ...(batchCount ? [batchCount] : []),
+          ...(batchPose ? [batchPose] : []),
+          ...(batchScene ? [batchScene] : []),
+          ...batchOthers,
+        ]);
+      } else {
+        presetBase = pendingItem.positivePromptBase;
+        batchPresetLoras = pendingItem.presetLoras;
+      }
+
+      const batchAllLoras: LoraEntry[] = [
+        ...FIXED_LORAS,
+        ...batchPresetLoras,
+        ...(pendingItem.variableLora ? [pendingItem.variableLora] : []),
+      ];
+
+      // Step 2: additional prompt
       let pickedAdditional: string | undefined;
-      let batchBasePrompt: string;
+      let promptWithAdditional: string;
       if (
         pendingItem.additionalPromptMode === "random" &&
         pendingItem.additionalPromptLines.length > 0
@@ -305,30 +406,29 @@ export function usePipeline() {
           pendingItem.additionalPromptLines[
             Math.floor(Math.random() * pendingItem.additionalPromptLines.length)
           ];
-        batchBasePrompt = pickedAdditional
-          ? `${pendingItem.positivePromptBase}\n\n${pickedAdditional}`
-          : pendingItem.positivePromptBase;
+        promptWithAdditional = pickedAdditional
+          ? `${presetBase}\n\n${pickedAdditional}`
+          : presetBase;
+      } else if (pendingItem.additionalPromptLines.length > 0) {
+        pickedAdditional = pendingItem.additionalPromptLines.join("\n");
+        promptWithAdditional = `${presetBase}\n\n${pickedAdditional}`;
       } else {
-        batchBasePrompt = pendingItem.positivePrompt;
-        pickedAdditional =
-          pendingItem.additionalPromptLines.length > 0
-            ? pendingItem.additionalPromptLines.join("\n")
-            : undefined;
+        promptWithAdditional = presetBase;
       }
 
-      // Variation: randomly pick a composition tag if enabled for this item
-      let batchPrompt = batchBasePrompt;
+      // Step 3: variation tag
+      let batchPrompt = promptWithAdditional;
       if (pendingItem.variationTags.length > 0) {
         const tag =
           pendingItem.variationTags[
             Math.floor(Math.random() * pendingItem.variationTags.length)
           ];
-        batchPrompt = `${batchBasePrompt}\n\n${tag}`;
+        batchPrompt = `${promptWithAdditional}\n\n${tag}`;
       }
 
       const workflow = buildWorkflow({
         settings: pendingItem.settings,
-        loras: allLoras,
+        loras: batchAllLoras,
         positivePrompt: batchPrompt,
         negativePrompt: pendingItem.negativePrompt,
         outputPrefix,
@@ -474,6 +574,13 @@ export function usePipeline() {
       additionalPromptMode,
       additionalPromptLines,
       createdAt: Date.now(),
+      batchPresets: {
+        selectedPhysicals,
+        selectedCount,
+        selectedPose,
+        selectedScene,
+        selectedOthers,
+      },
     };
 
     setQueue((prev) => [...prev, item]);
@@ -623,6 +730,13 @@ export function usePipeline() {
           additionalPromptMode: preset.additionalPromptMode,
           additionalPromptLines,
           createdAt: Date.now(),
+          batchPresets: {
+            selectedPhysicals: preset.physicalPresets,
+            selectedCount: preset.countPreset,
+            selectedPose: preset.posePreset,
+            selectedScene: preset.scenePreset,
+            selectedOthers: preset.otherPresets,
+          },
         };
       });
       setQueue((prev) => [...prev, ...items]);

@@ -114,7 +114,6 @@ export default function PreviewPanel({
             </Badge>
           </div>
         )}
-
       </div>
 
       {/* Completed image strip */}
@@ -151,7 +150,7 @@ export default function PreviewPanel({
                   <img
                     src={outputImageUrl(img.path)}
                     alt={`プレビュー ${i + 1}`}
-                    className="max-h-64 max-w-64 rounded object-contain"
+                    className="max-h-256 max-w-256 rounded object-contain"
                   />
                   {img.appliedAdditional && (
                     <p className="mt-1 max-w-64 text-[10px] text-muted-foreground whitespace-pre-wrap">

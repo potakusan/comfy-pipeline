@@ -17,7 +17,7 @@ import PreviewPanel from "@/components/preview-panel";
 import QueueManager from "@/components/queue-manager";
 import GalleryPanel from "@/components/gallery-panel";
 import BatchQueueDialog from "@/components/batch-queue-dialog";
-import { ChevronDown, Wifi, WifiOff, Download, Upload } from "lucide-react";
+import { ChevronDown, Wifi, WifiOff, Download, Upload, Wand2 } from "lucide-react";
 
 function Section({
   title,
@@ -161,6 +161,14 @@ export default function Home() {
         )}
 
         <div className="flex-1" />
+
+        <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
+          <a href="/process">
+            <Wand2 className="h-3.5 w-3.5" />
+            画像処理
+          </a>
+        </Button>
+        <Separator orientation="vertical" className="h-4" />
 
         {/* Export / Import */}
         <Button
@@ -333,7 +341,7 @@ export default function Home() {
         </div>
 
         {/* Right panel: Queue & Gallery */}
-        <div className="flex w-140 shrink-0 flex-col border-l">
+        <div className="flex w-180 shrink-0 flex-col border-l">
           <Tabs
             defaultValue="queue"
             className="flex min-h-0 flex-1 flex-col overflow-hidden"

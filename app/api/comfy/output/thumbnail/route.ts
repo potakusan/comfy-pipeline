@@ -30,15 +30,21 @@ export async function GET(req: NextRequest) {
   const thumbPath = path.join(outputDir, THUMB_DIR, `${filePath}.webp`);
 
   try {
-    // Serve from cache if it exists
+    // Serve from cache only if cache is newer than the source file
     if (fs.existsSync(thumbPath)) {
-      const buffer = fs.readFileSync(thumbPath);
-      return new NextResponse(buffer, {
-        headers: {
-          "Content-Type": "image/webp",
-          "Cache-Control": "public, max-age=31536000, immutable",
-        },
-      });
+      const srcMtime = fs.statSync(fullPath).mtimeMs;
+      const cacheMtime = fs.statSync(thumbPath).mtimeMs;
+      if (cacheMtime >= srcMtime) {
+        const buffer = fs.readFileSync(thumbPath);
+        return new NextResponse(buffer, {
+          headers: {
+            "Content-Type": "image/webp",
+            "Cache-Control": "public, max-age=3600, must-revalidate",
+          },
+        });
+      }
+      // Source is newer — delete stale cache and regenerate below
+      fs.unlinkSync(thumbPath);
     }
 
     // Generate thumbnail
@@ -57,7 +63,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(buffer as any, {
       headers: {
         "Content-Type": "image/webp",
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Cache-Control": "public, max-age=3600, must-revalidate",
       },
     });
   } catch {

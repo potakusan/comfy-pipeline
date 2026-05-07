@@ -27,6 +27,18 @@ export interface Preset {
   prompt: string;
   type: "physical" | "count" | "pose" | "scene" | "other";
   lora?: LoraEntry;
+  /** "all" = use full prompt; "random" = pick one random line per generation */
+  promptMode?: "all" | "random";
+}
+
+export type PresetType = Preset["type"];
+
+export interface QueueItemBatchPresets {
+  selectedPhysicals: Preset[];
+  selectedCount: Preset | null;
+  selectedPose: Preset | null;
+  selectedScene: Preset | null;
+  selectedOthers: Preset[];
 }
 
 export interface QueueItem {
@@ -47,6 +59,7 @@ export interface QueueItem {
   additionalPromptMode: "all" | "random";
   additionalPromptLines: string[];
   createdAt: number;
+  batchPresets: QueueItemBatchPresets;
 }
 
 export interface SizePreset {
