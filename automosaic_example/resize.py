@@ -1,17 +1,23 @@
 """
 Resize images while preserving aspect ratio and metadata.
 Usage:
-  python resize.py <input_dir> -o <output_dir> -s 50 -q 85
+  python resize.py <input_dir> -o <output_dir> -s 50 -q 85 -w 8
 """
 from __future__ import annotations
 
 import argparse
+import os
 import struct
 import time
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from PIL import Image, PngImagePlugin
 import pillow_avif  # noqa: F401  (registers AVIF support)
+
+# Serialize file-existence checks + directory creation to avoid races
+_fs_lock = threading.Lock()
 
 
 def check_lossless_webp(filepath: str) -> bool:
@@ -46,7 +52,8 @@ def resize_image(src: Path, dst: Path, scale: float, quality: int) -> None:
     new_h = max(1, int(img.height * scale))
     resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
-    dst.parent.mkdir(parents=True, exist_ok=True)
+    with _fs_lock:
+        dst.parent.mkdir(parents=True, exist_ok=True)
 
     save_params: dict = {"fp": str(dst)}
 
@@ -84,9 +91,10 @@ def main(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     scale = max(0.01, min(1.0, args.scale / 100.0))
     quality = max(1, min(100, args.quality))
+    workers = max(1, args.workers)
 
     files = [
-        f for f in sorted(input_dir.rglob("*"))
+        f for f in sorted(input_dir.glob("*"))
         if f.is_file() and f.suffix.lower() in IMAGE_EXTS
     ]
 
@@ -94,16 +102,33 @@ def main(args: argparse.Namespace) -> None:
         print("[ERROR] 処理対象の画像が見つかりませんでした")
         return
 
-    print(f"対象ファイル数: {len(files)}")
+    print(f"対象ファイル数: {len(files)}  workers: {workers}")
 
-    for f in files:
-        rel = f.relative_to(input_dir)
-        dst = output_dir / rel
-        print(f"\nファイル {f} を処理します")
-        try:
-            resize_image(f, dst, scale, quality)
-        except Exception as e:
-            print(f"[WARN] {f} の処理に失敗しました: {e}")
+    if workers == 1:
+        for f in files:
+            dst = output_dir / f.relative_to(input_dir)
+            try:
+                resize_image(f, dst, scale, quality)
+            except Exception as e:
+                print(f"[WARN] {f} の処理に失敗しました: {e}")
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(
+                    resize_image,
+                    f,
+                    output_dir / f.relative_to(input_dir),
+                    scale,
+                    quality,
+                ): f
+                for f in files
+            }
+            for future in as_completed(futures):
+                src = futures[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"[WARN] {src} の処理に失敗しました: {e}")
 
 
 if __name__ == "__main__":
@@ -114,6 +139,9 @@ if __name__ == "__main__":
                         help="リサイズ率（%%）例: 50 = 50%%")
     parser.add_argument("-q", "--quality", type=int, default=85,
                         help="JPEG/WebP/AVIFの品質 (1-100)")
+    parser.add_argument("-w", "--workers", type=int,
+                        default=max(1, os.cpu_count() or 1),
+                        help=f"並列スレッド数（デフォルト: CPUコア数 = {max(1, os.cpu_count() or 1)}）")
 
     start = time.time()
     main(parser.parse_args())

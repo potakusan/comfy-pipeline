@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-import os
 import argparse
 import time
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Generic, Optional, TypeVar
 from dataclasses import dataclass, field
 
@@ -21,25 +22,58 @@ if TYPE_CHECKING:
 
 T = TypeVar('T')
 
+# ---------------------------------------------------------------------------
+# Thread-local YOLO model cache
+# ---------------------------------------------------------------------------
+
+_thread_local = threading.local()
+_model_load_lock = threading.Lock()
+
+
+def get_thread_models(model_paths: list[str]) -> list:
+    """Load YOLO models once per thread. Serializes allocation to avoid GPU OOM."""
+    if not hasattr(_thread_local, 'models'):
+        with _model_load_lock:
+            # Re-check after acquiring lock (another thread may have loaded for this thread – no,
+            # _thread_local is per-thread so the lock purely serializes GPU alloc timing)
+            from ultralytics import YOLO
+            _thread_local.models = {p: YOLO(p) for p in model_paths}
+    return [_thread_local.models[p] for p in model_paths]
+
+
+# ---------------------------------------------------------------------------
+# Data types
+# ---------------------------------------------------------------------------
+
 @dataclass
 class PredictOutput(Generic[T]):
     bboxes: list[list[T]] = field(default_factory=list)
     masks: list[Image.Image] = field(default_factory=list)
     preview: Optional[Image.Image] = None
 
-# 生成メタ情報を持ったままモザイクをかける
-def apply_mosaic_with_meta(image_path: str, output_path: str, bboxes: list[list[float]], combined_masks: list[Image.Image], mosaic_size: int = 10, no_meta: bool = False, use_masks: bool = False, expand: float = 0.0):
 
+# ---------------------------------------------------------------------------
+# Mosaic application
+# ---------------------------------------------------------------------------
+
+def apply_mosaic_with_meta(
+    image_path: str,
+    output_path: str,
+    bboxes: list[list[float]],
+    combined_masks: list[Image.Image],
+    mosaic_size: int = 10,
+    no_meta: bool = False,
+    use_masks: bool = False,
+    expand: float = 0.0,
+):
     t_process_start = time.perf_counter()
-    
+
     pil_image = Image.open(image_path)
     img_w, img_h = pil_image.size
 
-    # bboxes が空の場合はこのループ全体がスキップされる
     for (bbox, mask) in zip(bboxes, combined_masks):
         x1, y1, x2, y2 = map(int, bbox)
 
-        expand_px = 0
         if expand > 0:
             dx = int((x2 - x1) * expand)
             dy = int((y2 - y1) * expand)
@@ -48,14 +82,14 @@ def apply_mosaic_with_meta(image_path: str, output_path: str, bboxes: list[list[
             y1 = max(0, y1 - dy)
             x2 = min(img_w, x2 + dx)
             y2 = min(img_h, y2 + dy)
+        else:
+            expand_px = 0
 
         w, h = x2 - x1, y2 - y1
-        if w <= 0 or h <= 0: continue
+        if w <= 0 or h <= 0:
+            continue
 
-        # ROIのみ切り出し（高速化）
         roi = pil_image.crop((x1, y1, x2, y2))
-
-        # モザイク処理
         shrink_w, shrink_h = max(1, w // mosaic_size), max(1, h // mosaic_size)
         roi_mosaic = roi.resize((shrink_w, shrink_h), Image.Resampling.BOX)
         roi_mosaic = roi_mosaic.resize((w, h), Image.Resampling.NEAREST)
@@ -67,18 +101,17 @@ def apply_mosaic_with_meta(image_path: str, output_path: str, bboxes: list[list[
             if expand_px > 0:
                 mask_roi = mask_roi.filter(ImageFilter.MaxFilter(expand_px * 2 + 1))
             pil_image.paste(roi_mosaic, (x1, y1, x2, y2), mask_roi)
-            
+
     t_process_end = time.perf_counter()
 
-    # 保存パラメータ準備
     image_format = pil_image.format.lower() if pil_image.format else 'unknown'
-    save_params = {'fp':output_path}
+    save_params: dict = {'fp': output_path}
     if not no_meta:
-        if (image_format in ["jpeg", "webp", "avif"]):
+        if image_format in ("jpeg", "webp", "avif"):
             exifdata = pil_image.info.get("exif")
             if exifdata:
                 save_params['exif'] = exifdata
-            if (image_format == "webp"):
+            if image_format == "webp":
                 save_params['lossless'] = check_lossless_webp(image_path)
         else:
             metadata = PngImagePlugin.PngInfo()
@@ -90,13 +123,18 @@ def apply_mosaic_with_meta(image_path: str, output_path: str, bboxes: list[list[
     pil_image.save(**save_params)
     t_save_end = time.perf_counter()
 
-    # ログ出力（加工プロセスがあった場合のみ時間を出すと見やすい）
     if bboxes:
         print(f"  - [加工] {t_process_end - t_process_start:.3f}秒")
     print(f"  - [保存] {t_save_end - t_save_start:.3f}秒")
     print(f"画像を保存しました: {output_path}")
 
-def ultralytics_predict(
+
+# ---------------------------------------------------------------------------
+# YOLO prediction
+# ---------------------------------------------------------------------------
+
+def _ultralytics_predict_impl(
+    model,
     model_path: str | Path,
     image: Image.Image,
     confidence: float = 0.3,
@@ -105,9 +143,7 @@ def ultralytics_predict(
     classes: str = "",
 ) -> PredictOutput[float]:
     import torch
-    from ultralytics import YOLO
 
-    model = YOLO(model_path)
     apply_classes(model, model_path, classes)
     pred = model(image, conf=confidence, device=device, retina_masks=retina_masks)
 
@@ -141,9 +177,26 @@ def ultralytics_predict(
 
     return PredictOutput(bboxes=bboxes_np.tolist(), masks=masks, preview=preview)
 
-def create_mask_from_bbox(
-    bboxes: list[list[float]], shape: tuple[int, int]
-) -> list[Image.Image]:
+
+# Keep legacy signature for external callers
+def ultralytics_predict(
+    model_path: str | Path,
+    image: Image.Image,
+    confidence: float = 0.3,
+    retina_masks: bool = False,
+    device: str = "",
+    classes: str = "",
+) -> PredictOutput[float]:
+    from ultralytics import YOLO
+    model = YOLO(model_path)
+    return _ultralytics_predict_impl(model, model_path, image, confidence, retina_masks, device, classes)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def create_mask_from_bbox(bboxes: list[list[float]], shape: tuple[int, int]) -> list[Image.Image]:
     masks = []
     for bbox in bboxes:
         mask = Image.new("L", shape, 0)
@@ -152,37 +205,49 @@ def create_mask_from_bbox(
         masks.append(mask)
     return masks
 
-def apply_classes(model: YOLO | YOLOWorld, model_path: str | Path, classes: str):
+
+def apply_classes(model, model_path: str | Path, classes: str):
     if not classes or "-world" not in Path(model_path).stem:
         return
     parsed = [c.strip() for c in classes.split(",") if c.strip()]
     if parsed:
         model.set_classes(parsed)
 
-def mask_to_pil(masks: torch.Tensor, shape: tuple[int, int]) -> list[Image.Image]:
+
+def mask_to_pil(masks, shape: tuple[int, int]) -> list[Image.Image]:
     n = masks.shape[0]
     img_w, img_h = shape
     mask_h, mask_w = masks[0].shape
-    aspect_w = img_w/mask_w
-    aspect_h = img_h/mask_h
+    aspect_w = img_w / mask_w
+    aspect_h = img_h / mask_h
     if aspect_w > aspect_h:
-        crop_y = int((img_h*aspect_w//aspect_h - img_h)//2)
-        pil_masks = [to_pil_image(masks[i], mode="L").resize((img_w, int(mask_h*aspect_w))).crop((0, crop_y, img_w, crop_y + img_h)) for i in range(n)]
+        crop_y = int((img_h * aspect_w // aspect_h - img_h) // 2)
+        pil_masks = [
+            to_pil_image(masks[i], mode="L")
+            .resize((img_w, int(mask_h * aspect_w)))
+            .crop((0, crop_y, img_w, crop_y + img_h))
+            for i in range(n)
+        ]
     else:
-        crop_x = int((img_w*aspect_h//aspect_w - img_w)//2)
-        pil_masks = [to_pil_image(masks[i], mode="L").resize((int(mask_w*aspect_h), img_h)).crop((crop_x, 0, crop_x + img_w, img_h)) for i in range(n)]
-
+        crop_x = int((img_w * aspect_h // aspect_w - img_w) // 2)
+        pil_masks = [
+            to_pil_image(masks[i], mode="L")
+            .resize((int(mask_w * aspect_h), img_h))
+            .crop((crop_x, 0, crop_x + img_w, img_h))
+            for i in range(n)
+        ]
     return pil_masks
+
 
 def check_models(model_name_list: list[str]) -> list[str]:
     valid_models = []
-    if model_name_list == None or len(model_name_list) <= 0:
+    if not model_name_list:
         print("検出用モデルが指定されていません")
         return valid_models
 
     model_dir = Path(".\\models")
     for name in model_name_list:
-        model = model_dir.joinpath(name.strip())
+        model = model_dir / name.strip()
         if model.is_file():
             valid_models.append(str(model))
         else:
@@ -190,125 +255,190 @@ def check_models(model_name_list: list[str]) -> list[str]:
 
     return valid_models
 
+
 def get_target_files(target_files_dir: list[str]) -> list[str]:
     image_extensions = [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".avif"]
     valid_imgfiles = []
 
     for file_or_dir in target_files_dir:
-        p_file_or_dir = Path(file_or_dir)
-        if p_file_or_dir.is_file() and p_file_or_dir.suffix.lower() in image_extensions:
+        p = Path(file_or_dir)
+        if p.is_file() and p.suffix.lower() in image_extensions:
             valid_imgfiles.append(file_or_dir)
-        elif p_file_or_dir.is_dir():
-            valid_imgfiles += [str(f) for f in list(p_file_or_dir.glob("**/*.*")) if f.suffix.lower() in image_extensions]
+        elif p.is_dir():
+            valid_imgfiles += [
+                str(f) for f in p.glob("**/*.*")
+                if f.suffix.lower() in image_extensions
+            ]
 
     return valid_imgfiles
+
 
 def get_org_filename(p_file_path: Path) -> str:
     if p_file_path.exists():
         parent = p_file_path.parent
-        for i in range(1,1000):
-            new_path = parent.joinpath(f"{p_file_path.stem}{i}{p_file_path.suffix}")
+        for i in range(1, 1000):
+            new_path = parent / f"{p_file_path.stem}{i}{p_file_path.suffix}"
             if not new_path.exists():
                 return str(new_path)
-    else:
-        return str(p_file_path)
+        raise ValueError(f"{p_file_path}のユニーク名の生成に失敗しました")
+    return str(p_file_path)
 
-    raise ValueError(f"{p_file_path}のユニーク名の生成に失敗しました")
 
 def get_output_filename(output_dir: Path, file_path: str, add_txt: str = "") -> str:
-    p_file_path = Path(file_path)
-    p_output_file_path = output_dir.joinpath(f"{p_file_path.stem}_{add_txt}{p_file_path.suffix}")
-    return get_org_filename(p_output_file_path)
+    p = Path(file_path)
+    candidate = output_dir / f"{p.stem}_{add_txt}{p.suffix}"
+    return get_org_filename(candidate)
+
 
 def check_lossless_webp(filepath: str) -> bool:
     with open(filepath, 'br') as f:
         header = f.read(12)
-        riff, data_lenth, webp = struct.unpack('<4sI4s', header)
-        if (riff != b'RIFF' or webp != b'WEBP'):
+        riff, data_length, webp = struct.unpack('<4sI4s', header)
+        if riff != b'RIFF' or webp != b'WEBP':
             return False
-        data_lenth -= len(webp)
-
-        while data_lenth > 0:
+        data_length -= len(webp)
+        while data_length > 0:
             header = f.read(8)
             chunk_fourCC, chunk_size = struct.unpack('<4sI', header)
             f.seek(chunk_size, 1)
-            data_lenth -= chunk_size + len(header)
+            data_length -= chunk_size + len(header)
             if chunk_fourCC == b'VP8L':
                 return True
             if chunk_fourCC == b'VP8 ':
                 return False
     return False
 
+
+# ---------------------------------------------------------------------------
+# Per-image processing (runs in worker thread)
+# ---------------------------------------------------------------------------
+
+def process_single_image(image_file: str, model_paths: list[str], args) -> None:
+    print(f"\nファイル {image_file} を処理します")
+
+    if args.save_same_dir:
+        output_dir = Path(image_file).parent
+    else:
+        output_dir = Path(args.output_dir.strip())
+
+    # Load (or reuse) thread-local model instances
+    thread_models = get_thread_models(model_paths)
+
+    original_image = Image.open(image_file).convert("RGB")
+    original_size = original_image.size  # (w, h)
+
+    # --- Optional: resize for faster detection, then scale results back ---
+    detect_image = original_image
+    detect_scale = 1.0
+    if args.detect_size > 0:
+        longest = max(original_size)
+        if longest > args.detect_size:
+            detect_scale = args.detect_size / longest
+            dw = int(original_size[0] * detect_scale)
+            dh = int(original_size[1] * detect_scale)
+            detect_image = original_image.resize((dw, dh), Image.Resampling.LANCZOS)
+            print(f"  - [縮小] 検出用 {original_size[0]}x{original_size[1]} → {dw}x{dh} (scale={detect_scale:.3f})")
+
+    # --- Detection ---
+    t_detect_start = time.perf_counter()
+    result_list = [
+        _ultralytics_predict_impl(
+            model, path, detect_image,
+            confidence=args.confidence,
+            retina_masks=args.retina_masks,
+            device=args.device,
+            classes=args.classes,
+        )
+        for model, path in zip(thread_models, model_paths)
+    ]
+    t_detect_end = time.perf_counter()
+    print(f"  - [検出] {t_detect_end - t_detect_start:.3f}秒 (モデル数: {len(model_paths)})")
+
+    combined_bboxes: list[list[float]] = []
+    combined_masks: list[Image.Image] = []
+
+    for result in result_list:
+        bboxes = result.bboxes
+        masks = result.masks
+
+        # Scale detection results back to original image coordinates
+        if detect_scale != 1.0 and bboxes:
+            bboxes = [[c / detect_scale for c in bbox] for bbox in bboxes]
+            masks = [m.resize(original_size, Image.Resampling.NEAREST) for m in masks]
+
+        combined_bboxes += bboxes
+        combined_masks += masks
+
+        if args.save_preview and result.preview:
+            result.preview.save(get_output_filename(output_dir, image_file, "preview"))
+        if args.save_masks and result.masks:
+            for mask in result.masks:
+                mask.save(get_output_filename(output_dir, image_file, "mask"))
+
+    if not combined_bboxes:
+        print("  - 検出対象なし：そのまま保存します")
+
+    output_mosaic_path = get_output_filename(output_dir, image_file, "mosaic")
+    apply_mosaic_with_meta(
+        image_file,
+        output_mosaic_path,
+        combined_bboxes,
+        combined_masks,
+        max(1, args.mosaic_size),
+        no_meta=args.no_meta,
+        use_masks=args.use_masks,
+        expand=args.expand,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
 def main(args):
-    # 入力の検証
     models = check_models(args.models)
-    if len(models) <= 0:
+    if not models:
         print("[ERROR]検出用モデルが見つかりませんでした")
         return
 
     targets = get_target_files(args.target_files_dir)
-    if len(targets) <= 0:
+    if not targets:
         print("[ERROR]処理対象の画像ファイルが見つかりませんでした")
         return
 
-    output_dir_name = args.output_dir.strip()
-    mosaic_size = max(1, args.mosaic_size)
-    confidence = max(0.01, min(1.0, args.confidence))
-    device = args.device
-    save_preview = args.save_preview
-    save_masks = args.save_masks
-    use_masks = args.use_masks
-    no_meta = args.no_meta
-    save_same_dir = args.save_same_dir
-
-    if not save_same_dir:
-        output_dir = Path(output_dir_name)
+    if not args.save_same_dir:
+        output_dir = Path(args.output_dir.strip())
         output_dir.mkdir(parents=True, exist_ok=True)
 
-    for image_file in targets:
-        print(f"\nファイル {image_file} を処理します")
-        if save_same_dir:
-            output_dir = Path(image_file).parent
+    workers = max(1, args.workers)
 
-        image = Image.open(image_file).convert("RGB")
-
-        # --- 物体検出 ---
-        t_detect_start = time.perf_counter()
-        result_list = [ultralytics_predict(m, image, confidence=confidence, retina_masks=args.retina_masks, device=device, classes=args.classes) for m in models]
-        t_detect_end = time.perf_counter()
-        
-        print(f"  - [検出] {t_detect_end - t_detect_start:.3f}秒 (モデル数: {len(models)})")
-
-        combined_bboxes = []
-        combined_masks  = []
-        for result in result_list:
-            combined_bboxes += result.bboxes
-            combined_masks  += result.masks
-                
-            if save_preview and result.preview:
-                result.preview.save(get_output_filename(output_dir, image_file, "preview"))
-            if save_masks and result.masks:
-                for mask in result.masks:
-                    mask.save(get_output_filename(output_dir, image_file, "mask"))
-
-        # 検出の有無に関わらず apply_mosaic_with_meta を呼ぶ
-        if not combined_bboxes:
-            print("  - 検出対象なし：そのまま保存します")
-            
-        output_mosaic_path = get_output_filename(output_dir, image_file, "mosaic")
-        apply_mosaic_with_meta(
-            image_file, 
-            output_mosaic_path, 
-            combined_bboxes, 
-            combined_masks, 
-            mosaic_size, 
-            no_meta=no_meta, 
-            use_masks=use_masks, 
-            expand=args.expand
-        )
+    if workers == 1:
+        # Single-threaded: simple loop (models loaded once and reused via thread-local)
+        for image_file in targets:
+            try:
+                process_single_image(image_file, models, args)
+            except Exception as e:
+                print(f"[ERROR] {image_file} の処理に失敗しました: {e}")
+    else:
+        print(f"並列処理: {workers} スレッド")
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(process_single_image, f, models, args): f
+                for f in targets
+            }
+            for future in as_completed(futures):
+                image_file = futures[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"[ERROR] {image_file} の処理に失敗しました: {e}")
 
 
-tp = lambda x:list(map(str, x.split(',')))
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+tp = lambda x: list(map(str, x.split(',')))
 parser = argparse.ArgumentParser(description="センシティブな部位を自動で検出しモザイクをかけるプログラムです。")
 parser.add_argument("target_files_dir", nargs="*", default=[".\\input"], help="処理対象のファイルやフォルダ")
 parser.add_argument("-o", "--output_dir", default="output", help="出力先のフォルダ")
@@ -324,6 +454,8 @@ parser.add_argument("-c", "--confidence", type=float, default=0.25, help="信頼
 parser.add_argument("-d", "--device", default="", help="処理デバイス(CPUで処理したい場合：--device cpu)")
 parser.add_argument("--classes", type=str, default="", help="検出クラスフィルタ（カンマ区切り）: nipples,pussy,penis 等。空欄=全クラス")
 parser.add_argument("-e", "--expand", type=float, default=0.0, help="検知範囲を bbox サイズの何倍拡張するか（0.0=拡張なし、0.2=20%%拡張）")
+parser.add_argument("-w", "--workers", type=int, default=1, help="並列処理のスレッド数（デフォルト: 1）。CUDA使用時は2〜4程度が目安")
+parser.add_argument("--detect-size", type=int, default=0, help="検出前に画像の長辺をこのサイズに縮小する（0=縮小なし）。例: 1024 で大きな画像の推論を高速化")
 
 if __name__ == "__main__":
     start = time.time()
