@@ -49,15 +49,15 @@ export interface RunRequest {
   mosaic: {
     enabled: boolean;
     mosaicSize: number;
-    autoSize: boolean; // auto-calculate size from image dimensions
+    autoSize: boolean;
     confidence: number;
-    models: string[]; // e.g. ["pussyV2.pt", "penis.pt"]
+    models: string[];
     device: string;
     retinaMasks: boolean;
     useMasks: boolean;
     noMeta: boolean;
-    bboxExpand: number; // 0-100 (%): expand bbox outward on each side relative to bbox size
-    targetClasses: string[]; // e.g. ["nipples","pussy","penis"] — empty = all classes
+    bboxExpand: number;
+    targetClasses: string[];
   };
   resize: {
     enabled: boolean;
@@ -66,12 +66,17 @@ export interface RunRequest {
   };
 }
 
+/**
+ * Spawn a subprocess and stream its output to the job log.
+ * onProgress is called for each stdout line — use it to increment counters.
+ */
 function runProcess(
   jobId: string,
   cmd: string,
   args: string[],
   cwd: string,
-  onDone: (code: number | null) => void
+  onProgress: ((line: string) => void) | null,
+  onDone: (code: number | null) => void,
 ): void {
   const proc = spawn(cmd, args, { cwd, shell: false });
 
@@ -79,11 +84,7 @@ function runProcess(
     const lines = chunk.toString().split("\n").filter(Boolean);
     for (const line of lines) {
       appendLog(jobId, line);
-      if (line.includes("を処理します")) {
-        incrementProgress(jobId);
-        const match = line.match(/ファイル (.+) を処理します/);
-        if (match) addProcessedImage(jobId, path.basename(match[1].trim()));
-      }
+      onProgress?.(line);
     }
   });
 
@@ -95,113 +96,194 @@ function runProcess(
   proc.on("close", (code) => onDone(code));
 }
 
+/** Progress tracker for automosaic.py output */
+function mosaicProgress(jobId: string) {
+  return (line: string) => {
+    if (line.includes("を処理します")) {
+      incrementProgress(jobId);
+      const match = line.match(/ファイル (.+) を処理します/);
+      if (match) addProcessedImage(jobId, path.basename(match[1].trim()));
+    }
+  };
+}
+
+/** Progress tracker for resize.py output */
+function resizeProgress(jobId: string) {
+  return (line: string) => {
+    if (line.includes("リサイズ完了:")) {
+      incrementProgress(jobId);
+      const match = line.match(/リサイズ完了: (.+?) \(/);
+      if (match) addProcessedImage(jobId, path.basename(match[1].trim()));
+    }
+  };
+}
+
 /** POST /api/process/run
- *  Body: RunRequest
- *  Returns: { jobId }
+ *  Execution order: resize first (if enabled), then mosaic.
+ *  This minimises I/O time because all heavy file I/O happens on smaller images.
  */
 export async function POST(req: NextRequest) {
   const body: RunRequest = await req.json();
   const { folder, mosaic, resize } = body;
 
-  if (!folder) return NextResponse.json({ error: "folder required" }, { status: 400 });
-  if (!mosaic.enabled && !resize.enabled) {
-    return NextResponse.json({ error: "no operation selected" }, { status: 400 });
-  }
+  if (!folder)
+    return NextResponse.json({ error: "folder required" }, { status: 400 });
+  if (!mosaic.enabled && !resize.enabled)
+    return NextResponse.json(
+      { error: "no operation selected" },
+      { status: 400 },
+    );
 
   const outputDir = getOutputDir();
   const inputPath = path.resolve(outputDir, folder);
-  if (!inputPath.startsWith(path.resolve(outputDir))) {
+  if (!inputPath.startsWith(path.resolve(outputDir)))
     return NextResponse.json({ error: "Invalid path" }, { status: 400 });
-  }
 
-  // mosaic output goes inside the source folder
   const mosaicOutputDir = path.join(inputPath, "mosaic");
+  // Temp dir used only when both resize + mosaic are enabled
+  const tempResizeDir = path.join(inputPath, "_resize_tmp");
   const automosaicDir = getAutomosaicDir();
   const python = getPythonPath();
 
   const total = countImages(inputPath);
   const jobId = crypto.randomUUID();
-  createJob(jobId, total * (mosaic.enabled && resize.enabled ? 2 : 1));
+  createJob(jobId, total);
   updateJob(jobId, { status: "running" });
 
-  // Run async — don't await
   (async () => {
-    // --- Step 1: Mosaic ---
+    // -----------------------------------------------------------------------
+    // Step 1: Resize  (runs FIRST so mosaic works on smaller images)
+    // -----------------------------------------------------------------------
+    if (resize.enabled) {
+      // When only resizing, put output in "resized/"; when both, use temp dir
+      const resizeOutputPath = mosaic.enabled
+        ? tempResizeDir
+        : path.join(inputPath, "resized");
+
+      appendLog(
+        jobId,
+        `[resize] 開始: scale=${resize.scalePercent}%, quality=${resize.quality}`,
+      );
+
+      const resizeArgs = [
+        path.join(automosaicDir, "resize.py"),
+        inputPath,
+        "-o",
+        resizeOutputPath,
+        "-s",
+        String(resize.scalePercent),
+        "-q",
+        String(resize.quality),
+        // workers: default (CPU count) is fine; no UI knob needed
+      ];
+
+      // Track progress only when resize is the sole operation
+      const progressFn = mosaic.enabled ? null : resizeProgress(jobId);
+
+      const resizeOk = await new Promise<boolean>((resolve) =>
+        runProcess(jobId, python, resizeArgs, automosaicDir, progressFn, (code) =>
+          resolve(code === 0),
+        ),
+      );
+
+      if (!resizeOk) {
+        updateJob(jobId, {
+          status: "failed",
+          error: "Resize failed",
+          finishedAt: Date.now(),
+        });
+        return;
+      }
+      appendLog(jobId, "[resize] 完了");
+    }
+
+    // -----------------------------------------------------------------------
+    // Step 2: Mosaic  (applied to resized images if resize ran, else originals)
+    // -----------------------------------------------------------------------
     if (mosaic.enabled) {
+      const mosaicInputPath = resize.enabled ? tempResizeDir : inputPath;
       appendLog(jobId, `[mosaic] 開始: ${folder}`);
 
-      // Auto-size: derive mosaic pixel size from the first image's long side
+      // Auto-size: derive mosaic pixel size from the (possibly resized) source
       let computedMosaicSize = mosaic.mosaicSize;
       if (mosaic.autoSize) {
         const IMAGE_EXT_RE = /\.(png|jpe?g|webp|avif|bmp)$/i;
         try {
-          const firstFile = fs.readdirSync(inputPath).filter((f) => IMAGE_EXT_RE.test(f)).sort()[0];
+          const firstFile = fs
+            .readdirSync(mosaicInputPath)
+            .filter((f) => IMAGE_EXT_RE.test(f))
+            .sort()[0];
           if (firstFile) {
-            const meta = await sharp(path.join(inputPath, firstFile)).metadata();
+            const meta = await sharp(
+              path.join(mosaicInputPath, firstFile),
+            ).metadata();
             const longSide = Math.max(meta.width ?? 512, meta.height ?? 512);
-            computedMosaicSize = longSide >= 400 ? Math.max(4, Math.round(longSide / 100)) : 4;
-            appendLog(jobId, `[mosaic] 自動サイズ: ${computedMosaicSize}px (長辺: ${longSide}px)`);
+            computedMosaicSize =
+              longSide >= 400 ? Math.max(4, Math.round(longSide / 100)) : 4;
+            appendLog(
+              jobId,
+              `[mosaic] 自動サイズ: ${computedMosaicSize}px (長辺: ${longSide}px)`,
+            );
           }
         } catch {
-          appendLog(jobId, `[mosaic] 自動サイズ計算失敗、デフォルト使用: ${computedMosaicSize}px`);
+          appendLog(
+            jobId,
+            `[mosaic] 自動サイズ計算失敗、デフォルト使用: ${computedMosaicSize}px`,
+          );
         }
       }
 
-      const models = (mosaic.models.length ? mosaic.models : ["pussyV2.pt", "penis.pt"]).join(",");
+      const models = (
+        mosaic.models.length ? mosaic.models : ["pussyV2.pt", "penis.pt"]
+      ).join(",");
       const mosaicArgs = [
         "automosaic.py",
-        inputPath,
-        "-o", mosaicOutputDir,
-        "-m", models,
-        "-s", String(computedMosaicSize),
-        "-c", String(mosaic.confidence),
+        mosaicInputPath,
+        "-o",
+        mosaicOutputDir,
+        "-m",
+        models,
+        "-s",
+        String(computedMosaicSize),
+        "-c",
+        String(mosaic.confidence),
       ];
       if (mosaic.retinaMasks) mosaicArgs.push("--retina_masks");
       if (mosaic.useMasks) mosaicArgs.push("-um");
       if (mosaic.noMeta) mosaicArgs.push("-n");
       if (mosaic.device) mosaicArgs.push("-d", mosaic.device);
-      if (mosaic.bboxExpand > 0) mosaicArgs.push("-e", String(mosaic.bboxExpand / 100));
-      if (mosaic.targetClasses.length > 0) mosaicArgs.push("--classes", mosaic.targetClasses.join(","));
+      if (mosaic.bboxExpand > 0)
+        mosaicArgs.push("-e", String(mosaic.bboxExpand / 100));
+      if (mosaic.targetClasses.length > 0)
+        mosaicArgs.push("--classes", mosaic.targetClasses.join(","));
 
       const mosaicOk = await new Promise<boolean>((resolve) =>
-        runProcess(jobId, python, mosaicArgs, automosaicDir, (code) =>
-          resolve(code === 0)
-        )
+        runProcess(
+          jobId,
+          python,
+          mosaicArgs,
+          automosaicDir,
+          mosaicProgress(jobId),
+          (code) => resolve(code === 0),
+        ),
       );
 
+      // Clean up temp resize dir regardless of success/failure
+      if (resize.enabled) {
+        try {
+          fs.rmSync(tempResizeDir, { recursive: true, force: true });
+        } catch {}
+      }
+
       if (!mosaicOk) {
-        updateJob(jobId, { status: "failed", error: "Mosaic processing failed", finishedAt: Date.now() });
+        updateJob(jobId, {
+          status: "failed",
+          error: "Mosaic processing failed",
+          finishedAt: Date.now(),
+        });
         return;
       }
       appendLog(jobId, "[mosaic] 完了");
-    }
-
-    // --- Step 2: Resize ---
-    if (resize.enabled) {
-      // If mosaic ran, resize its output; otherwise resize the original folder
-      const resizeInput = mosaic.enabled ? mosaicOutputDir : inputPath;
-      const resizeOutput = mosaic.enabled ? mosaicOutputDir : path.join(inputPath, "resized");
-      appendLog(jobId, `[resize] 開始: scale=${resize.scalePercent}%, quality=${resize.quality}`);
-
-      const resizeArgs = [
-        path.join(automosaicDir, "resize.py"),
-        resizeInput,
-        "-o", resizeOutput,
-        "-s", String(resize.scalePercent),
-        "-q", String(resize.quality),
-      ];
-
-      const resizeOk = await new Promise<boolean>((resolve) =>
-        runProcess(jobId, python, resizeArgs, automosaicDir, (code) =>
-          resolve(code === 0)
-        )
-      );
-
-      if (!resizeOk) {
-        updateJob(jobId, { status: "failed", error: "Resize failed", finishedAt: Date.now() });
-        return;
-      }
-      appendLog(jobId, "[resize] 完了");
     }
 
     updateJob(jobId, { status: "completed", finishedAt: Date.now() });
