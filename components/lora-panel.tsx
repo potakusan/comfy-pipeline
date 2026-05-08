@@ -258,7 +258,7 @@ export default function LoraPanel({
                 固定
               </Badge>
               <span
-                className="flex-1 truncate font-mono text-[10px]"
+                className="min-w-0 flex-1 truncate font-mono text-[10px]"
                 title={lora.name}
               >
                 {lora.name}
@@ -332,7 +332,7 @@ export default function LoraPanel({
             {variableLoras.map((lora, i) => (
               <div
                 key={i}
-                className={`flex items-center gap-1.5 rounded-md border transition-colors ${
+                className={`flex min-w-0 items-center gap-1.5 overflow-hidden rounded-md border transition-colors ${
                   selectedVariableLora?.name === lora.name
                     ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
                     : "border-border"
@@ -345,7 +345,7 @@ export default function LoraPanel({
                       selectedVariableLora?.name === lora.name ? null : lora,
                     )
                   }
-                  className="flex flex-1 items-center gap-2 px-2 py-2"
+                  className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2"
                 >
                   <span
                     className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${

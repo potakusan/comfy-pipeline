@@ -27,13 +27,7 @@ import {
   Check,
   ArrowRight,
 } from "lucide-react";
-import {
-  LineChart,
-  Line,
-  ResponsiveContainer,
-  YAxis,
-  Tooltip,
-} from "recharts";
+import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
 import type { ProcessJob } from "@/lib/process-jobs";
 import type { RunRequest } from "@/app/api/process/run/route";
 import type { FolderInfo } from "@/app/api/process/dirs/route";
@@ -59,7 +53,8 @@ function fmtBytes(bytes: number): string {
 function fmtDuration(secs: number): string {
   if (!isFinite(secs) || secs <= 0) return "—";
   if (secs < 60) return `${Math.round(secs)}秒`;
-  if (secs < 3600) return `${Math.floor(secs / 60)}分${Math.round(secs % 60)}秒`;
+  if (secs < 3600)
+    return `${Math.floor(secs / 60)}分${Math.round(secs % 60)}秒`;
   return `${Math.floor(secs / 3600)}時間${Math.floor((secs % 3600) / 60)}分`;
 }
 
@@ -107,10 +102,10 @@ const DEFAULT_MOSAIC = {
 };
 
 const DEFAULT_RESIZE = {
-  enabled: false,
+  enabled: true,
   scalePercent: 50,
   autoTarget: true,
-  targetMB: 200,
+  targetMB: 190,
   quality: 100,
 };
 
@@ -1213,7 +1208,8 @@ export default function ProcessPage() {
 
               {resizeConfig.enabled && mosaicConfig.enabled && (
                 <p className="text-[11px] text-muted-foreground rounded border border-border bg-muted/30 px-2 py-1.5">
-                  リサイズ → モザイクの順で実行（先に縮小して I/O を削減）。出力先:{" "}
+                  リサイズ → モザイクの順で実行（先に縮小して I/O
+                  を削減）。出力先:{" "}
                   <span className="font-mono">
                     {selectedFolder || "…"}/mosaic/
                   </span>
