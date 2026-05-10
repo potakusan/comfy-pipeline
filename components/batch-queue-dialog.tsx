@@ -30,7 +30,7 @@ interface BatchQueueDialogProps {
   onSaveSet: (set: BatchPresetSet) => void;
   onRemoveSet: (id: string) => void;
   onRunPresets: (presets: BatchPreset[]) => void;
-  onCaptureCurrentSettings: (name: string) => BatchPreset;
+  onCaptureCurrentSettings: (name?: string) => BatchPreset;
 }
 
 // Sub-dialog for editing a single preset's editable fields
@@ -204,8 +204,7 @@ export default function BatchQueueDialog({
 
   function addCurrentAsPreset() {
     if (!editingSet) return;
-    const defaultName = `プリセット${editingSet.presets.length + 1}`;
-    const preset = onCaptureCurrentSettings(defaultName);
+    const preset = onCaptureCurrentSettings();
     setEditingSet({ ...editingSet, presets: [...editingSet.presets, preset] });
     setEditingPresetId(preset.id);
   }

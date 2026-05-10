@@ -33,7 +33,6 @@ import {
   X,
   GripVertical,
 } from "lucide-react";
-import { FIXED_POSITIVE_PREFIX } from "@/lib/config";
 
 type PresetType = "physical" | "count" | "pose" | "scene" | "other";
 
@@ -65,6 +64,9 @@ interface PromptBuilderProps {
   onSelectCount: (id: string | null) => void;
   onSelectPose: (id: string | null) => void;
   onToggleOther: (id: string) => void;
+  fixedTags: string;
+  onSetFixedTags: (v: string) => void;
+  onResetFixedTags: () => void;
   onSetAdditional: (v: string) => void;
   onSetAdditionalMode: (mode: "all" | "random") => void;
   onSetNegative: (v: string) => void;
@@ -380,6 +382,9 @@ export default function PromptBuilder({
   onSelectCount,
   onSelectPose,
   onToggleOther,
+  fixedTags,
+  onSetFixedTags,
+  onResetFixedTags,
   onSetAdditional,
   onSetAdditionalMode,
   onSetNegative,
@@ -434,6 +439,7 @@ export default function PromptBuilder({
     selectedScenePreset: selectedScene,
     selectedOtherPresets: selectedOthers,
     additionalPrompt,
+    fixedPrefix: fixedTags,
   });
 
   // Helper to render a draggable section
@@ -481,12 +487,24 @@ export default function PromptBuilder({
     <div className="space-y-3">
       {/* Fixed prefix */}
       <div>
-        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          固定タグ
-        </p>
-        <div className="rounded-md bg-muted/50 px-2 py-1.5 font-mono text-[10px] leading-relaxed text-muted-foreground whitespace-pre-line">
-          {FIXED_POSITIVE_PREFIX}
+        <div className="mb-1 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            固定タグ
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 text-xs text-muted-foreground"
+            onClick={onResetFixedTags}
+          >
+            リセット
+          </Button>
         </div>
+        <TagAutocompleteTextarea
+          value={fixedTags}
+          onChange={onSetFixedTags}
+          style={{ minHeight: "60px", fontSize: "10px", fontFamily: "monospace" }}
+        />
       </div>
 
       <Separator />

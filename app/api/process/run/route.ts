@@ -10,7 +10,6 @@ import {
   incrementProgress,
   addProcessedImage,
 } from "@/lib/process-jobs";
-import sharp from "sharp";
 
 function getOutputDir(): string {
   return (
@@ -204,35 +203,6 @@ export async function POST(req: NextRequest) {
       const mosaicInputPath = resize.enabled ? tempResizeDir : inputPath;
       appendLog(jobId, `[mosaic] 開始: ${folder}`);
 
-      // Auto-size: derive mosaic pixel size from the (possibly resized) source
-      let computedMosaicSize = mosaic.mosaicSize;
-      if (mosaic.autoSize) {
-        const IMAGE_EXT_RE = /\.(png|jpe?g|webp|avif|bmp)$/i;
-        try {
-          const firstFile = fs
-            .readdirSync(mosaicInputPath)
-            .filter((f) => IMAGE_EXT_RE.test(f))
-            .sort()[0];
-          if (firstFile) {
-            const meta = await sharp(
-              path.join(mosaicInputPath, firstFile),
-            ).metadata();
-            const longSide = Math.max(meta.width ?? 512, meta.height ?? 512);
-            computedMosaicSize =
-              longSide >= 400 ? Math.max(4, Math.round(longSide / 100)) : 4;
-            appendLog(
-              jobId,
-              `[mosaic] 自動サイズ: ${computedMosaicSize}px (長辺: ${longSide}px)`,
-            );
-          }
-        } catch {
-          appendLog(
-            jobId,
-            `[mosaic] 自動サイズ計算失敗、デフォルト使用: ${computedMosaicSize}px`,
-          );
-        }
-      }
-
       const models = (
         mosaic.models.length ? mosaic.models : ["pussyV2.pt", "penis.pt"]
       ).join(",");
@@ -244,10 +214,12 @@ export async function POST(req: NextRequest) {
         "-m",
         models,
         "-s",
-        String(computedMosaicSize),
+        String(mosaic.mosaicSize),
         "-c",
         String(mosaic.confidence),
       ];
+      // Per-image auto sizing is handled inside automosaic.py
+      if (mosaic.autoSize) mosaicArgs.push("--auto-size");
       if (mosaic.retinaMasks) mosaicArgs.push("--retina_masks");
       if (mosaic.useMasks) mosaicArgs.push("-um");
       if (mosaic.noMeta) mosaicArgs.push("-n");

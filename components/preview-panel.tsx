@@ -97,7 +97,7 @@ export default function PreviewPanel({
           <img
             src={mainUrl}
             alt="プレビュー"
-            className="h-[80vh] w-full object-scale-down"
+            className="h-[60vh] w-full object-contain"
           />
         ) : showPlaceholder ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">

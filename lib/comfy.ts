@@ -223,6 +223,7 @@ export function assemblePositivePrompt({
   selectedScenePreset,
   selectedOtherPresets,
   additionalPrompt,
+  fixedPrefix = FIXED_POSITIVE_PREFIX,
 }: {
   variableLora: LoraEntry | null;
   selectedPhysicalPresets: Preset[];
@@ -231,8 +232,9 @@ export function assemblePositivePrompt({
   selectedScenePreset: Preset | null;
   selectedOtherPresets: Preset[];
   additionalPrompt: string;
+  fixedPrefix?: string;
 }): string {
-  const parts: string[] = [FIXED_POSITIVE_PREFIX];
+  const parts: string[] = [fixedPrefix];
 
   if (variableLora?.triggerWords?.trim()) {
     parts.push(variableLora.triggerWords.trim());

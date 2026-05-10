@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { usePipeline } from "@/hooks/use-pipeline";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,7 +17,209 @@ import PreviewPanel from "@/components/preview-panel";
 import QueueManager from "@/components/queue-manager";
 import GalleryPanel from "@/components/gallery-panel";
 import BatchQueueDialog from "@/components/batch-queue-dialog";
-import { ChevronDown, Wifi, WifiOff, Download, Upload, Wand2 } from "lucide-react";
+import QuickAddToBatch from "@/components/quick-add-to-batch";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
+import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
+import {
+  ChevronDown,
+  ChevronUp,
+  Wifi,
+  WifiOff,
+  Download,
+  Upload,
+  Wand2,
+} from "lucide-react";
+
+// ---------------------------------------------------------------------------
+// GPU monitor types & component
+// ---------------------------------------------------------------------------
+
+type SysSnapshot = {
+  t: number;
+  cpu: number;
+  gpu: number | null;
+  vramPct: number | null;
+  vramUsed: number | null;
+  vramTotal: number | null;
+  gpuName: string | null;
+};
+
+function GpuStatPill({
+  label,
+  value,
+  unit = "",
+  colorClass,
+}: {
+  label: string;
+  value: string | number | null;
+  unit?: string;
+  colorClass: string;
+}) {
+  return (
+    <div className="flex items-center gap-1 rounded border bg-card/40 px-1.5 py-0.5">
+      <span className="text-[10px] text-muted-foreground">{label}</span>
+      <span className={`font-mono text-[11px] font-bold ${colorClass}`}>
+        {value !== null ? `${value}${unit}` : "—"}
+      </span>
+    </div>
+  );
+}
+
+function GpuMonitor({
+  snapshots,
+  collapsed,
+  onToggle,
+}: {
+  snapshots: SysSnapshot[];
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  const latest = snapshots.at(-1) ?? null;
+  const hasGpu = snapshots.some((s) => s.gpu !== null);
+
+  const chartData = snapshots.slice(-40).map((s, i) => ({
+    i,
+    gpu: s.gpu ?? undefined,
+    vram: s.vramPct ?? undefined,
+  }));
+
+  return (
+    <div className="shrink-0 border-t bg-background">
+      {/* Header bar — always visible */}
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted/30"
+      >
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          GPU
+        </span>
+        {latest?.gpuName && (
+          <span className="max-w-[120px] truncate text-[10px] text-muted-foreground/70">
+            {latest.gpuName}
+          </span>
+        )}
+        <div className="flex flex-1 items-center justify-end gap-1.5">
+          {hasGpu && (
+            <GpuStatPill
+              label="3D"
+              value={latest?.gpu ?? null}
+              unit="%"
+              colorClass="text-green-500"
+            />
+          )}
+          {hasGpu && latest?.vramUsed != null && latest.vramTotal != null && (
+            <div className="flex items-center gap-1 rounded border bg-card/40 px-1.5 py-0.5">
+              <span className="text-[10px] text-muted-foreground">VRAM</span>
+              <span className="font-mono text-[11px] font-bold text-purple-500">
+                {latest.vramUsed}
+                <span className="font-normal text-muted-foreground">
+                  /{latest.vramTotal}
+                </span>
+                <span className="font-normal text-muted-foreground text-[9px]">
+                  {" "}
+                  MB
+                </span>
+              </span>
+            </div>
+          )}
+          {collapsed ? (
+            <ChevronUp className="h-3 w-3 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          )}
+        </div>
+      </button>
+
+      {/* Expanded chart */}
+      {!collapsed && (
+        <div className="px-3 pb-2.5">
+          {snapshots.length === 0 ? (
+            <p className="py-2 text-center text-[10px] text-muted-foreground">
+              データ取得中...
+            </p>
+          ) : (
+            <>
+              <div className="h-20">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={chartData}
+                    margin={{ top: 2, right: 2, bottom: 0, left: 0 }}
+                  >
+                    <YAxis domain={[0, 100]} hide />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        return (
+                          <div className="rounded border bg-background px-2 py-1 text-[10px] shadow">
+                            {payload.map((p, i) => (
+                              <div key={i} style={{ color: p.color as string }}>
+                                {p.name}: {p.value}%
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }}
+                    />
+                    {hasGpu && (
+                      <Line
+                        type="monotone"
+                        dataKey="gpu"
+                        name="GPU 3D"
+                        stroke="#22c55e"
+                        dot={false}
+                        strokeWidth={1.5}
+                        isAnimationActive={false}
+                      />
+                    )}
+                    {hasGpu && (
+                      <Line
+                        type="monotone"
+                        dataKey="vram"
+                        name="VRAM %"
+                        stroke="#a855f7"
+                        dot={false}
+                        strokeWidth={1}
+                        strokeDasharray="3 2"
+                        isAnimationActive={false}
+                      />
+                    )}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-0.5 flex gap-3">
+                {hasGpu && (
+                  <>
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <span className="inline-block h-0.5 w-3 rounded bg-green-500" />
+                      GPU 3D
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <span className="inline-block h-0.5 w-3 rounded bg-purple-500" />
+                      VRAM %
+                    </span>
+                  </>
+                )}
+                {!hasGpu && (
+                  <span className="text-[10px] text-muted-foreground">
+                    GPU未検出
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Section accordion
+// ---------------------------------------------------------------------------
 
 function Section({
   title,
@@ -54,6 +256,10 @@ function Section({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Home page
+// ---------------------------------------------------------------------------
+
 export default function Home() {
   const pipeline = usePipeline();
   const {
@@ -83,6 +289,9 @@ export default function Home() {
     setAdditionalPrompt,
     negativePrompt,
     setNegativePrompt,
+    fixedTags,
+    setFixedTags,
+    resetFixedTags,
     addPreset,
     updatePreset,
     removePreset,
@@ -115,9 +324,45 @@ export default function Home() {
     refreshGalleryFromFs,
     exportData,
     importData,
+    panelSizes,
+    setPanelSizes,
   } = pipeline;
 
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  // GPU monitor state
+  const [gpuSnapshots, setGpuSnapshots] = useState<SysSnapshot[]>([]);
+  const [gpuCollapsed, setGpuCollapsed] = useState(false);
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/process/sysinfo");
+        if (!res.ok) return;
+        const data = await res.json();
+        setGpuSnapshots((prev) => [
+          ...prev.slice(-59),
+          {
+            t: Date.now(),
+            cpu: data.cpu ?? 0,
+            gpu: data.gpu ?? null,
+            vramPct:
+              data.vramUsed != null && data.vramTotal > 0
+                ? Math.round((data.vramUsed / data.vramTotal) * 100)
+                : null,
+            vramUsed: data.vramUsed ?? null,
+            vramTotal: data.vramTotal ?? null,
+            gpuName: data.gpuName ?? null,
+          },
+        ]);
+      } catch {
+        // ignore network errors
+      }
+    };
+    poll();
+    const id = setInterval(poll, 2000);
+    return () => clearInterval(id);
+  }, []);
 
   const currentItem = queue.find((i) => i.status === "running") ?? null;
   const pendingCount = queue.filter((i) => i.status === "pending").length;
@@ -204,10 +449,22 @@ export default function Home() {
         />
       </header>
 
-      {/* Main 3-panel layout */}
-      <div className="flex min-h-0 flex-1">
+      {/* Main 3-panel resizable layout */}
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="min-h-0 flex-1"
+      >
         {/* Left panel */}
-        <div className="flex w-140 shrink-0 flex-col border-r">
+        <ResizablePanel
+          id="left"
+          defaultSize={`${panelSizes["left"]}%`}
+          minSize="15%"
+          maxSize="45%"
+          className="flex flex-col border-r"
+          onResize={(size) =>
+            setPanelSizes({ ...panelSizes, left: Math.round(size.asPercentage) })
+          }
+        >
           <div className="flex-1 overflow-y-auto">
             <div className="px-3">
               <Section
@@ -251,6 +508,9 @@ export default function Home() {
                   onSetAdditional={setAdditionalPrompt}
                   onSetAdditionalMode={setAdditionalPromptMode}
                   onSetNegative={setNegativePrompt}
+                  fixedTags={fixedTags}
+                  onSetFixedTags={setFixedTags}
+                  onResetFixedTags={resetFixedTags}
                   onAddPreset={addPreset}
                   onUpdatePreset={updatePreset}
                   onRemovePreset={removePreset}
@@ -309,39 +569,67 @@ export default function Home() {
               </Section>
             </div>
           </div>
-        </div>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
 
         {/* Center: Preview */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
-          <div className="mb-2 flex items-center gap-2">
-            <BatchQueueDialog
-              batchPresetSets={batchPresetSets}
-              onSaveSet={saveBatchPresetSet}
-              onRemoveSet={removeBatchPresetSet}
-              onRunPresets={runBatchPresets}
-              onCaptureCurrentSettings={captureCurrentSettings}
+        <ResizablePanel
+          id="center"
+          defaultSize={`${panelSizes["center"]}%`}
+          minSize="20%"
+          className="flex flex-col overflow-hidden"
+          onResize={(size) =>
+            setPanelSizes({ ...panelSizes, center: Math.round(size.asPercentage) })
+          }
+        >
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
+            <div className="mb-2 flex items-center gap-2">
+              <BatchQueueDialog
+                batchPresetSets={batchPresetSets}
+                onSaveSet={saveBatchPresetSet}
+                onRemoveSet={removeBatchPresetSet}
+                onRunPresets={runBatchPresets}
+                onCaptureCurrentSettings={captureCurrentSettings}
+              />
+              <QuickAddToBatch
+                batchPresetSets={batchPresetSets}
+                onCaptureCurrentSettings={captureCurrentSettings}
+                onSaveSet={saveBatchPresetSet}
+              />
+              {variationEnabled && (
+                <Badge variant="secondary" className="text-[10px]">
+                  ランダム構図 ON
+                </Badge>
+              )}
+            </div>
+            <PreviewPanel
+              previewUrl={previewUrl}
+              progress={progress}
+              isProcessing={isProcessing}
+              currentItem={currentItem}
+              batchCount={batchCount}
+              onBatchCountChange={setBatchCount}
+              onAddToQueue={addToQueue}
+              onCancel={cancelCurrent}
+              currentJobImages={currentJobImages}
             />
-            {variationEnabled && (
-              <Badge variant="secondary" className="text-[10px]">
-                ランダム構図 ON
-              </Badge>
-            )}
           </div>
-          <PreviewPanel
-            previewUrl={previewUrl}
-            progress={progress}
-            isProcessing={isProcessing}
-            currentItem={currentItem}
-            batchCount={batchCount}
-            onBatchCountChange={setBatchCount}
-            onAddToQueue={addToQueue}
-            onCancel={cancelCurrent}
-            currentJobImages={currentJobImages}
-          />
-        </div>
+        </ResizablePanel>
 
-        {/* Right panel: Queue & Gallery */}
-        <div className="flex w-180 shrink-0 flex-col border-l">
+        <ResizableHandle withHandle />
+
+        {/* Right panel: Queue & Gallery + GPU monitor */}
+        <ResizablePanel
+          id="right"
+          defaultSize={`${panelSizes["right"]}%`}
+          minSize="15%"
+          maxSize="50%"
+          className="flex flex-col border-l"
+          onResize={(size) =>
+            setPanelSizes({ ...panelSizes, right: Math.round(size.asPercentage) })
+          }
+        >
           <Tabs
             defaultValue="queue"
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -383,8 +671,15 @@ export default function Home() {
               />
             </TabsContent>
           </Tabs>
-        </div>
-      </div>
+
+          {/* GPU monitor */}
+          <GpuMonitor
+            snapshots={gpuSnapshots}
+            collapsed={gpuCollapsed}
+            onToggle={() => setGpuCollapsed((v) => !v)}
+          />
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }

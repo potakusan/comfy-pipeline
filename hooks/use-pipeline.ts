@@ -20,7 +20,7 @@ import {
   buildOutputPrefix,
 } from "@/lib/comfy";
 import { useComfyWS } from "./use-comfy-ws";
-import { DEFAULT_NEGATIVE, DEFAULT_SETTINGS, FIXED_LORAS } from "@/lib/config";
+import { DEFAULT_NEGATIVE, DEFAULT_SETTINGS, FIXED_LORAS, FIXED_POSITIVE_PREFIX } from "@/lib/config";
 
 const LS = {
   variableLoras: "cp_variable_loras",
@@ -44,6 +44,8 @@ const LS = {
   variationEnabled: "cp_variation_enabled",
   additionalPromptMode: "cp_additional_prompt_mode",
   batchPresetSets: "cp_batch_preset_sets",
+  panelSizes: "cp_panel_sizes",
+  fixedTags: "cp_fixed_tags",
 };
 
 function lsGet<T>(key: string, fallback: T): T {
@@ -176,6 +178,17 @@ export function usePipeline() {
   const [negativePrompt, setNegativePrompt] = useState(() =>
     lsGet(LS.negativePrompt, DEFAULT_NEGATIVE),
   );
+  const [fixedTags, setFixedTagsState] = useState(() =>
+    lsGet(LS.fixedTags, FIXED_POSITIVE_PREFIX),
+  );
+  const setFixedTags = useCallback((v: string) => {
+    setFixedTagsState(v);
+    lsSet(LS.fixedTags, v);
+  }, []);
+  const resetFixedTags = useCallback(() => {
+    setFixedTagsState(FIXED_POSITIVE_PREFIX);
+    lsSet(LS.fixedTags, FIXED_POSITIVE_PREFIX);
+  }, []);
   const [settings, setSettings] = useState<GenerationSettings>(() =>
     lsGet(LS.settings, DEFAULT_SETTINGS),
   );
@@ -196,6 +209,14 @@ export function usePipeline() {
   const [batchPresetSets, setBatchPresetSets] = useState<BatchPresetSet[]>(() =>
     lsGet(LS.batchPresetSets, []),
   );
+
+  const [panelSizes, setPanelSizesState] = useState<Record<string, number>>(
+    () => lsGet(LS.panelSizes, { left: 28, center: 38, right: 34 }),
+  );
+  const setPanelSizes = useCallback((sizes: Record<string, number>) => {
+    setPanelSizesState(sizes);
+    lsSet(LS.panelSizes, sizes);
+  }, []);
 
   // Queue
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -375,6 +396,7 @@ export function usePipeline() {
           selectedScenePreset: batchScene,
           selectedOtherPresets: batchOthers,
           additionalPrompt: "",
+          fixedPrefix: fixedTags,
         });
 
         batchPresetLoras = collectPresetLoras([
@@ -536,6 +558,7 @@ export function usePipeline() {
       selectedScenePreset: selectedScene,
       selectedOtherPresets: selectedOthers,
       additionalPrompt: "",
+      fixedPrefix: fixedTags,
     });
 
     const additionalPromptLines = additionalPrompt
@@ -606,7 +629,7 @@ export function usePipeline() {
   ]);
 
   const captureCurrentSettings = useCallback(
-    (name: string): BatchPreset => {
+    (name?: string): BatchPreset => {
       const selectedPhysicals = physicalPresets.filter((p) =>
         selectedPhysicalIds.includes(p.id),
       );
@@ -619,9 +642,25 @@ export function usePipeline() {
       const selectedOthers = otherPresets.filter((p) =>
         selectedOtherIds.includes(p.id),
       );
+
+      let resolvedName = name;
+      if (!resolvedName) {
+        const parts: string[] = [];
+        if (selectedScene) parts.push(selectedScene.name);
+        if (selectedPose) parts.push(selectedPose.name);
+        if (selectedCount) parts.push(selectedCount.name);
+        if (parts.length === 0) {
+          const now = new Date();
+          parts.push(
+            `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`,
+          );
+        }
+        resolvedName = parts.join(" · ");
+      }
+
       return {
         id: crypto.randomUUID(),
-        name,
+        name: resolvedName,
         physicalPresets: selectedPhysicals,
         countPreset: selectedCount,
         posePreset: selectedPose,
@@ -690,6 +729,7 @@ export function usePipeline() {
           selectedScenePreset: preset.scenePreset,
           selectedOtherPresets: preset.otherPresets,
           additionalPrompt: "",
+          fixedPrefix: fixedTags,
         });
 
         const additionalPromptLines = preset.additionalPrompt
@@ -775,6 +815,7 @@ export function usePipeline() {
       negativePrompt,
       variationTags,
       batchPresetSets,
+      panelSizes,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: "application/json",
@@ -796,6 +837,7 @@ export function usePipeline() {
     negativePrompt,
     variationTags,
     batchPresetSets,
+    panelSizes,
   ]);
 
   const importData = useCallback((file: File) => {
@@ -823,6 +865,8 @@ export function usePipeline() {
           setVariationTags(data.variationTags);
         if (Array.isArray(data.batchPresetSets))
           setBatchPresetSets(data.batchPresetSets);
+        if (Array.isArray(data.panelSizes))
+          setPanelSizes(data.panelSizes);
       } catch (err) {
         console.error("[pipeline] Import failed:", err);
       }
@@ -992,6 +1036,9 @@ export function usePipeline() {
     setAdditionalPrompt,
     negativePrompt,
     setNegativePrompt,
+    fixedTags,
+    setFixedTags,
+    resetFixedTags,
     settings,
     setSettings,
     batchCount,
@@ -1035,5 +1082,8 @@ export function usePipeline() {
     // Export/Import
     exportData,
     importData,
+    // Layout
+    panelSizes,
+    setPanelSizes,
   };
 }
