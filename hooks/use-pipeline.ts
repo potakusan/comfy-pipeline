@@ -3,66 +3,27 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import {
   type LoraEntry,
   type GenerationSettings,
-  type Preset,
   type QueueItem,
   type GalleryImage,
   type BatchPreset,
-  type BatchPresetSet,
-  DEFAULT_PHYSICAL_PRESETS,
-  DEFAULT_SCENE_PRESETS,
-  DEFAULT_COUNT_PRESETS,
-  DEFAULT_POSE_PRESETS,
-  DEFAULT_OTHER_PRESETS,
-  DEFAULT_COMPOSITION_TAGS,
   collectPresetLoras,
   assemblePositivePrompt,
   buildWorkflow,
   buildOutputPrefix,
 } from "@/lib/comfy";
+import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/couple";
+import type { CoupleControlNet, CoupleRegion } from "@/lib/couple";
 import { useComfyWS } from "./use-comfy-ws";
-import { DEFAULT_NEGATIVE, DEFAULT_SETTINGS, FIXED_LORAS, FIXED_POSITIVE_PREFIX } from "@/lib/config";
+import { DEFAULT_SETTINGS, FIXED_LORAS } from "@/lib/config";
+import { lsGet, lsSet } from "@/hooks/ls";
+import { useNormalMode } from "@/hooks/use-normal-mode";
 
 const LS = {
-  variableLoras: "cp_variable_loras",
-  selectedVariableLora: "cp_selected_variable_lora",
-  physicalPresets: "cp_physical_presets",
-  scenePresets: "cp_scene_presets",
-  countPresets: "cp_count_presets",
-  posePresets: "cp_pose_presets",
-  otherPresets: "cp_other_presets",
-  selectedPhysicalIds: "cp_selected_physical_ids",
-  selectedSceneId: "cp_selected_scene_id",
-  selectedCountId: "cp_selected_count_id",
-  selectedPoseId: "cp_selected_pose_id",
-  selectedOtherIds: "cp_selected_other_ids",
-  additionalPrompt: "cp_additional_prompt",
-  negativePrompt: "cp_negative_prompt",
   settings: "cp_settings",
   batchCount: "cp_batch_count",
   gallery: "cp_gallery",
-  variationTags: "cp_variation_tags",
-  variationEnabled: "cp_variation_enabled",
-  additionalPromptMode: "cp_additional_prompt_mode",
-  batchPresetSets: "cp_batch_preset_sets",
   panelSizes: "cp_panel_sizes",
-  fixedTags: "cp_fixed_tags",
 };
-
-function lsGet<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const v = localStorage.getItem(key);
-    return v ? (JSON.parse(v) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function lsSet(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -130,86 +91,50 @@ async function pollForCompletion(
 }
 
 // ---------------------------------------------------------------------------
-// Main hook
+// Core hook — composes useNormalMode + queue/WS/gallery/settings
 // ---------------------------------------------------------------------------
 
 export function usePipeline() {
+  const normalMode = useNormalMode();
+  const {
+    variableLoras,
+    selectedVariableLora,
+    physicalPresets,
+    scenePresets,
+    countPresets,
+    posePresets,
+    otherPresets,
+    selectedPhysicalIds,
+    selectedSceneId,
+    selectedCountId,
+    selectedPoseId,
+    selectedOtherIds,
+    additionalPrompt,
+    additionalPromptMode,
+    negativePrompt,
+    fixedTags,
+    variationEnabled,
+    variationTags,
+    batchPresetSets,
+    setVariableLoras,
+    setPhysicalPresets,
+    setScenePresets,
+    setCountPresets,
+    setPosePresets,
+    setOtherPresets,
+    setNegativePrompt,
+    setVariationTags,
+    setBatchPresetSets,
+    presetCategories,
+    setPresetCategories,
+  } = normalMode;
+
   const [clientId] = useState(() => crypto.randomUUID());
 
-  // Persistent config
-  const [variableLoras, setVariableLoras] = useState<LoraEntry[]>(() =>
-    lsGet(LS.variableLoras, []),
-  );
-  const [selectedVariableLora, setSelectedVariableLora] =
-    useState<LoraEntry | null>(() => lsGet(LS.selectedVariableLora, null));
-  const [physicalPresets, setPhysicalPresets] = useState<Preset[]>(() =>
-    lsGet(LS.physicalPresets, DEFAULT_PHYSICAL_PRESETS),
-  );
-  const [scenePresets, setScenePresets] = useState<Preset[]>(() =>
-    lsGet(LS.scenePresets, DEFAULT_SCENE_PRESETS),
-  );
-  const [countPresets, setCountPresets] = useState<Preset[]>(() =>
-    lsGet(LS.countPresets, DEFAULT_COUNT_PRESETS),
-  );
-  const [posePresets, setPosePresets] = useState<Preset[]>(() =>
-    lsGet(LS.posePresets, DEFAULT_POSE_PRESETS),
-  );
-  const [otherPresets, setOtherPresets] = useState<Preset[]>(() =>
-    lsGet(LS.otherPresets, DEFAULT_OTHER_PRESETS),
-  );
-  const [selectedPhysicalIds, setSelectedPhysicalIds] = useState<string[]>(() =>
-    lsGet(LS.selectedPhysicalIds, []),
-  );
-  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(() =>
-    lsGet(LS.selectedSceneId, null),
-  );
-  const [selectedCountId, setSelectedCountId] = useState<string | null>(() =>
-    lsGet(LS.selectedCountId, null),
-  );
-  const [selectedPoseId, setSelectedPoseId] = useState<string | null>(() =>
-    lsGet(LS.selectedPoseId, null),
-  );
-  const [selectedOtherIds, setSelectedOtherIds] = useState<string[]>(() =>
-    lsGet(LS.selectedOtherIds, []),
-  );
-  const [additionalPrompt, setAdditionalPrompt] = useState(() =>
-    lsGet(LS.additionalPrompt, ""),
-  );
-  const [negativePrompt, setNegativePrompt] = useState(() =>
-    lsGet(LS.negativePrompt, DEFAULT_NEGATIVE),
-  );
-  const [fixedTags, setFixedTagsState] = useState(() =>
-    lsGet(LS.fixedTags, FIXED_POSITIVE_PREFIX),
-  );
-  const setFixedTags = useCallback((v: string) => {
-    setFixedTagsState(v);
-    lsSet(LS.fixedTags, v);
-  }, []);
-  const resetFixedTags = useCallback(() => {
-    setFixedTagsState(FIXED_POSITIVE_PREFIX);
-    lsSet(LS.fixedTags, FIXED_POSITIVE_PREFIX);
-  }, []);
   const [settings, setSettings] = useState<GenerationSettings>(() =>
     lsGet(LS.settings, DEFAULT_SETTINGS),
   );
   const [batchCount, setBatchCount] = useState(() => lsGet(LS.batchCount, 4));
-
-  // Variation mode
-  const [variationEnabled, setVariationEnabled] = useState(() =>
-    lsGet(LS.variationEnabled, false),
-  );
-  const [variationTags, setVariationTags] = useState<string[]>(() =>
-    lsGet(LS.variationTags, DEFAULT_COMPOSITION_TAGS),
-  );
-  const [additionalPromptMode, setAdditionalPromptMode] = useState<
-    "all" | "random"
-  >(() => lsGet(LS.additionalPromptMode, "all"));
-
-  // Batch preset sets
-  const [batchPresetSets, setBatchPresetSets] = useState<BatchPresetSet[]>(() =>
-    lsGet(LS.batchPresetSets, []),
-  );
-
   const [panelSizes, setPanelSizesState] = useState<Record<string, number>>(
     () => lsGet(LS.panelSizes, { left: 28, center: 38, right: 34 }),
   );
@@ -228,7 +153,6 @@ export function usePipeline() {
   const [progress, setProgress] = useState({ value: 0, max: 0 });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
-  // Images completed in the currently running job (persists after job finishes until next job starts)
   const [currentJobImages, setCurrentJobImages] = useState<GalleryImage[]>([]);
 
   // Gallery
@@ -241,70 +165,10 @@ export function usePipeline() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const cancelledItemIdRef = useRef<string | null>(null);
 
-  // Persist changes
-  useEffect(() => {
-    lsSet(LS.variableLoras, variableLoras);
-  }, [variableLoras]);
-  useEffect(() => {
-    lsSet(LS.selectedVariableLora, selectedVariableLora);
-  }, [selectedVariableLora]);
-  useEffect(() => {
-    lsSet(LS.selectedPhysicalIds, selectedPhysicalIds);
-  }, [selectedPhysicalIds]);
-  useEffect(() => {
-    lsSet(LS.selectedSceneId, selectedSceneId);
-  }, [selectedSceneId]);
-  useEffect(() => {
-    lsSet(LS.selectedCountId, selectedCountId);
-  }, [selectedCountId]);
-  useEffect(() => {
-    lsSet(LS.selectedPoseId, selectedPoseId);
-  }, [selectedPoseId]);
-  useEffect(() => {
-    lsSet(LS.selectedOtherIds, selectedOtherIds);
-  }, [selectedOtherIds]);
-  useEffect(() => {
-    lsSet(LS.additionalPrompt, additionalPrompt);
-  }, [additionalPrompt]);
-  useEffect(() => {
-    lsSet(LS.negativePrompt, negativePrompt);
-  }, [negativePrompt]);
-  useEffect(() => {
-    lsSet(LS.batchCount, batchCount);
-  }, [batchCount]);
-  useEffect(() => {
-    lsSet(LS.physicalPresets, physicalPresets);
-  }, [physicalPresets]);
-  useEffect(() => {
-    lsSet(LS.scenePresets, scenePresets);
-  }, [scenePresets]);
-  useEffect(() => {
-    lsSet(LS.countPresets, countPresets);
-  }, [countPresets]);
-  useEffect(() => {
-    lsSet(LS.posePresets, posePresets);
-  }, [posePresets]);
-  useEffect(() => {
-    lsSet(LS.otherPresets, otherPresets);
-  }, [otherPresets]);
-  useEffect(() => {
-    lsSet(LS.settings, settings);
-  }, [settings]);
-  useEffect(() => {
-    lsSet(LS.gallery, gallery.slice(0, 300));
-  }, [gallery]);
-  useEffect(() => {
-    lsSet(LS.variationTags, variationTags);
-  }, [variationTags]);
-  useEffect(() => {
-    lsSet(LS.variationEnabled, variationEnabled);
-  }, [variationEnabled]);
-  useEffect(() => {
-    lsSet(LS.additionalPromptMode, additionalPromptMode);
-  }, [additionalPromptMode]);
-  useEffect(() => {
-    lsSet(LS.batchPresetSets, batchPresetSets);
-  }, [batchPresetSets]);
+  // Persist core state
+  useEffect(() => { lsSet(LS.settings, settings); }, [settings]);
+  useEffect(() => { lsSet(LS.batchCount, batchCount); }, [batchCount]);
+  useEffect(() => { lsSet(LS.gallery, gallery.slice(0, 300)); }, [gallery]);
 
   // WS: progress & preview only
   useComfyWS(clientId, {
@@ -350,8 +214,7 @@ export function usePipeline() {
     );
     const outputSubfolder = outputPrefix.split("/")[0];
 
-    // resolve a preset: if promptMode=random, pick one random line from its prompt
-    const resolvePreset = (p: Preset): Preset => {
+    const resolvePreset = (p: import("@/lib/comfy").Preset): import("@/lib/comfy").Preset => {
       if (p.promptMode !== "random") return p;
       const lines = p.prompt.split("\n").filter((s) => s.trim());
       if (!lines.length) return p;
@@ -377,7 +240,6 @@ export function usePipeline() {
         break;
       }
 
-      // Step 1: assemble preset base, resolving per-preset random lines if needed
       let presetBase: string;
       let batchPresetLoras: LoraEntry[];
 
@@ -417,7 +279,6 @@ export function usePipeline() {
         ...(pendingItem.variableLora ? [pendingItem.variableLora] : []),
       ];
 
-      // Step 2: additional prompt
       let pickedAdditional: string | undefined;
       let promptWithAdditional: string;
       if (
@@ -438,7 +299,6 @@ export function usePipeline() {
         promptWithAdditional = presetBase;
       }
 
-      // Step 3: variation tag
       let batchPrompt = promptWithAdditional;
       if (pendingItem.variationTags.length > 0) {
         const tag =
@@ -448,13 +308,23 @@ export function usePipeline() {
         batchPrompt = `${promptWithAdditional}\n\n${tag}`;
       }
 
-      const workflow = buildWorkflow({
+      const workflowArgs = {
         settings: pendingItem.settings,
         loras: batchAllLoras,
         positivePrompt: batchPrompt,
         negativePrompt: pendingItem.negativePrompt,
         outputPrefix,
-      });
+      };
+      const workflow = pendingItem.colorMaskWorkflow
+        ? buildColorMaskWorkflow({
+            ...workflowArgs,
+            basePositivePrompt: batchPrompt,
+            regions: pendingItem.colorMaskRegions ?? [],
+            controlNet: pendingItem.colorMaskControlNet!,
+          })
+        : pendingItem.coupleWorkflow
+          ? buildCoupleWorkflow(workflowArgs)
+          : buildWorkflow(workflowArgs);
 
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
@@ -468,9 +338,13 @@ export function usePipeline() {
         const newFiles = filesAfter.filter((f) => !filesBefore.includes(f));
 
         const newImages: GalleryImage[] = newFiles.map((filename) => ({
+          id: crypto.randomUUID(),
           path: `${outputSubfolder}/${filename}`,
           loraName: pendingItem.variableLora?.name || "no-lora",
           positivePrompt: batchPrompt,
+          negativePrompt: pendingItem.negativePrompt,
+          settings: { ...pendingItem.settings },
+          loras: batchAllLoras,
           queueLabel: pendingItem.label,
           createdAt: Date.now(),
           appliedAdditional: pickedAdditional,
@@ -482,10 +356,7 @@ export function usePipeline() {
           setQueue((prev) =>
             prev.map((item) =>
               item.id === pendingItem.id
-                ? {
-                    ...item,
-                    completedImages: [...item.completedImages, ...newImages],
-                  }
+                ? { ...item, completedImages: [...item.completedImages, ...newImages] }
                 : item,
             ),
           );
@@ -532,12 +403,9 @@ export function usePipeline() {
     const selectedPhysicals = physicalPresets.filter((p) =>
       selectedPhysicalIds.includes(p.id),
     );
-    const selectedScene =
-      scenePresets.find((p) => p.id === selectedSceneId) ?? null;
-    const selectedCount =
-      countPresets.find((p) => p.id === selectedCountId) ?? null;
-    const selectedPose =
-      posePresets.find((p) => p.id === selectedPoseId) ?? null;
+    const selectedScene = scenePresets.find((p) => p.id === selectedSceneId) ?? null;
+    const selectedCount = countPresets.find((p) => p.id === selectedCountId) ?? null;
+    const selectedPose = posePresets.find((p) => p.id === selectedPoseId) ?? null;
     const selectedOthers = otherPresets.filter((p) =>
       selectedOtherIds.includes(p.id),
     );
@@ -626,6 +494,7 @@ export function usePipeline() {
     batchCount,
     variationEnabled,
     variationTags,
+    fixedTags,
   ]);
 
   const captureCurrentSettings = useCallback(
@@ -633,12 +502,9 @@ export function usePipeline() {
       const selectedPhysicals = physicalPresets.filter((p) =>
         selectedPhysicalIds.includes(p.id),
       );
-      const selectedScene =
-        scenePresets.find((p) => p.id === selectedSceneId) ?? null;
-      const selectedCount =
-        countPresets.find((p) => p.id === selectedCountId) ?? null;
-      const selectedPose =
-        posePresets.find((p) => p.id === selectedPoseId) ?? null;
+      const selectedScene = scenePresets.find((p) => p.id === selectedSceneId) ?? null;
+      const selectedCount = countPresets.find((p) => p.id === selectedCountId) ?? null;
+      const selectedPose = posePresets.find((p) => p.id === selectedPoseId) ?? null;
       const selectedOthers = otherPresets.filter((p) =>
         selectedOtherIds.includes(p.id),
       );
@@ -694,22 +560,6 @@ export function usePipeline() {
     ],
   );
 
-  const saveBatchPresetSet = useCallback((set: BatchPresetSet) => {
-    setBatchPresetSets((prev) => {
-      const idx = prev.findIndex((s) => s.id === set.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = set;
-        return next;
-      }
-      return [...prev, set];
-    });
-  }, []);
-
-  const removeBatchPresetSet = useCallback((id: string) => {
-    setBatchPresetSets((prev) => prev.filter((s) => s.id !== id));
-  }, []);
-
   const runBatchPresets = useCallback(
     (presets: BatchPreset[]) => {
       const items: QueueItem[] = presets.map((preset) => {
@@ -745,10 +595,7 @@ export function usePipeline() {
         const presetLoras = collectPresetLoras(allSelectedPresets);
 
         const loraLabel =
-          selectedVariableLora?.name
-            .split("/")
-            .pop()
-            ?.replace(".safetensors", "") ?? null;
+          selectedVariableLora?.name.split("/").pop()?.replace(".safetensors", "") ?? null;
         const label = [loraLabel, preset.name].filter(Boolean).join(" / ");
 
         return {
@@ -764,9 +611,7 @@ export function usePipeline() {
           status: "pending",
           currentBatch: 0,
           completedImages: [],
-          variationTags: preset.variationEnabled
-            ? [...preset.variationTags]
-            : [],
+          variationTags: preset.variationEnabled ? [...preset.variationTags] : [],
           additionalPromptMode: preset.additionalPromptMode,
           additionalPromptLines,
           createdAt: Date.now(),
@@ -782,6 +627,61 @@ export function usePipeline() {
       setQueue((prev) => [...prev, ...items]);
     },
     [selectedVariableLora, negativePrompt],
+  );
+
+  const addCoupleToQueue = useCallback(
+    ({
+      positivePrompt,
+      negativePrompt: coupleNeg,
+      loras,
+      coupleSettings,
+      coupleBatchCount,
+      label,
+      colorMaskControlNet,
+      colorMaskRegions,
+    }: {
+      positivePrompt: string;
+      negativePrompt: string;
+      loras: LoraEntry[];
+      coupleSettings: GenerationSettings;
+      coupleBatchCount: number;
+      label: string;
+      colorMaskControlNet?: CoupleControlNet;
+      colorMaskRegions?: CoupleRegion[];
+    }) => {
+      const useColorMask = !!(colorMaskControlNet?.enabled && colorMaskControlNet.colorMapImageName);
+      const item: QueueItem = {
+        id: crypto.randomUUID(),
+        label,
+        variableLora: null,
+        presetLoras: loras,
+        positivePrompt,
+        positivePromptBase: positivePrompt,
+        negativePrompt: coupleNeg,
+        settings: { ...coupleSettings },
+        batchCount: coupleBatchCount,
+        status: "pending",
+        currentBatch: 0,
+        completedImages: [],
+        variationTags: [],
+        additionalPromptMode: "all",
+        additionalPromptLines: [],
+        createdAt: Date.now(),
+        batchPresets: {
+          selectedPhysicals: [],
+          selectedCount: null,
+          selectedPose: null,
+          selectedScene: null,
+          selectedOthers: [],
+        },
+        coupleWorkflow: !useColorMask,
+        colorMaskWorkflow: useColorMask,
+        colorMaskControlNet: useColorMask ? colorMaskControlNet : undefined,
+        colorMaskRegions: useColorMask ? colorMaskRegions : undefined,
+      };
+      setQueue((prev) => [...prev, item]);
+    },
+    [],
   );
 
   const removeFromQueue = useCallback((id: string) => {
@@ -815,6 +715,7 @@ export function usePipeline() {
       negativePrompt,
       variationTags,
       batchPresetSets,
+      presetCategories,
       panelSizes,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -837,148 +738,48 @@ export function usePipeline() {
     negativePrompt,
     variationTags,
     batchPresetSets,
+    presetCategories,
     panelSizes,
   ]);
 
-  const importData = useCallback((file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = JSON.parse(e.target?.result as string);
-        if (data.version !== 1) throw new Error("Unsupported version");
-        if (Array.isArray(data.variableLoras))
-          setVariableLoras(data.variableLoras);
-        if (Array.isArray(data.physicalPresets))
-          setPhysicalPresets(data.physicalPresets);
-        if (Array.isArray(data.scenePresets))
-          setScenePresets(data.scenePresets);
-        if (Array.isArray(data.countPresets))
-          setCountPresets(data.countPresets);
-        if (Array.isArray(data.posePresets)) setPosePresets(data.posePresets);
-        if (Array.isArray(data.otherPresets))
-          setOtherPresets(data.otherPresets);
-        if (data.settings && typeof data.settings === "object")
-          setSettings(data.settings);
-        if (typeof data.negativePrompt === "string")
-          setNegativePrompt(data.negativePrompt);
-        if (Array.isArray(data.variationTags))
-          setVariationTags(data.variationTags);
-        if (Array.isArray(data.batchPresetSets))
-          setBatchPresetSets(data.batchPresetSets);
-        if (Array.isArray(data.panelSizes))
-          setPanelSizes(data.panelSizes);
-      } catch (err) {
-        console.error("[pipeline] Import failed:", err);
-      }
-    };
-    reader.readAsText(file);
-  }, []);
-
-  // -------------------------------------------------------------------------
-  // LoRA management
-  // -------------------------------------------------------------------------
-
-  const addVariableLora = useCallback((lora: LoraEntry) => {
-    setVariableLoras((prev) => [...prev, lora]);
-  }, []);
-
-  const updateVariableLora = useCallback(
-    (index: number, lora: LoraEntry) => {
-      setVariableLoras((prev) => prev.map((l, i) => (i === index ? lora : l)));
-      setSelectedVariableLora((prev) =>
-        prev && variableLoras[index] && prev.name === variableLoras[index].name
-          ? lora
-          : prev,
-      );
-    },
-    [variableLoras],
-  );
-
-  const removeVariableLora = useCallback(
-    (index: number) => {
-      const removed = variableLoras[index];
-      setVariableLoras((prev) => prev.filter((_, i) => i !== index));
-      setSelectedVariableLora((prev) =>
-        prev?.name === removed?.name ? null : prev,
-      );
-    },
-    [variableLoras],
-  );
-
-  // -------------------------------------------------------------------------
-  // Preset management
-  // -------------------------------------------------------------------------
-
-  const addPreset = useCallback((preset: Omit<Preset, "id">) => {
-    const newPreset: Preset = { ...preset, id: crypto.randomUUID() };
-    if (preset.type === "physical")
-      setPhysicalPresets((prev) => [...prev, newPreset]);
-    else if (preset.type === "scene")
-      setScenePresets((prev) => [...prev, newPreset]);
-    else if (preset.type === "count")
-      setCountPresets((prev) => [...prev, newPreset]);
-    else if (preset.type === "pose")
-      setPosePresets((prev) => [...prev, newPreset]);
-    else setOtherPresets((prev) => [...prev, newPreset]);
-  }, []);
-
-  const updatePreset = useCallback((id: string, updates: Partial<Preset>) => {
-    const upd = (p: Preset) => (p.id === id ? { ...p, ...updates } : p);
-    setPhysicalPresets((prev) => prev.map(upd));
-    setScenePresets((prev) => prev.map(upd));
-    setCountPresets((prev) => prev.map(upd));
-    setPosePresets((prev) => prev.map(upd));
-    setOtherPresets((prev) => prev.map(upd));
-  }, []);
-
-  const removePreset = useCallback((id: string) => {
-    setPhysicalPresets((prev) => prev.filter((p) => p.id !== id));
-    setScenePresets((prev) => prev.filter((p) => p.id !== id));
-    setCountPresets((prev) => prev.filter((p) => p.id !== id));
-    setPosePresets((prev) => prev.filter((p) => p.id !== id));
-    setOtherPresets((prev) => prev.filter((p) => p.id !== id));
-    setSelectedPhysicalIds((prev) => prev.filter((pid) => pid !== id));
-    setSelectedSceneId((prev) => (prev === id ? null : prev));
-    setSelectedCountId((prev) => (prev === id ? null : prev));
-    setSelectedPoseId((prev) => (prev === id ? null : prev));
-    setSelectedOtherIds((prev) => prev.filter((pid) => pid !== id));
-  }, []);
-
-  const togglePhysicalPreset = useCallback((id: string) => {
-    setSelectedPhysicalIds((prev) =>
-      prev.includes(id) ? prev.filter((pid) => pid !== id) : [...prev, id],
-    );
-  }, []);
-
-  const selectCountPreset = useCallback((id: string | null) => {
-    setSelectedCountId((prev) => (prev === id ? null : id));
-  }, []);
-
-  const selectPosePreset = useCallback((id: string | null) => {
-    setSelectedPoseId((prev) => (prev === id ? null : id));
-  }, []);
-
-  const toggleOtherPreset = useCallback((id: string) => {
-    setSelectedOtherIds((prev) =>
-      prev.includes(id) ? prev.filter((pid) => pid !== id) : [...prev, id],
-    );
-  }, []);
-
-  const reorderPresets = useCallback(
-    (type: Preset["type"], fromIndex: number, toIndex: number) => {
-      const move = (arr: Preset[]) => {
-        const next = [...arr];
-        const [item] = next.splice(fromIndex, 1);
-        next.splice(toIndex, 0, item);
-        return next;
+  const importData = useCallback(
+    (file: File) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target?.result as string);
+          if (data.version !== 1) throw new Error("Unsupported version");
+          if (Array.isArray(data.variableLoras)) setVariableLoras(data.variableLoras);
+          if (Array.isArray(data.physicalPresets)) setPhysicalPresets(data.physicalPresets);
+          if (Array.isArray(data.scenePresets)) setScenePresets(data.scenePresets);
+          if (Array.isArray(data.countPresets)) setCountPresets(data.countPresets);
+          if (Array.isArray(data.posePresets)) setPosePresets(data.posePresets);
+          if (Array.isArray(data.otherPresets)) setOtherPresets(data.otherPresets);
+          if (data.settings && typeof data.settings === "object") setSettings(data.settings);
+          if (typeof data.negativePrompt === "string") setNegativePrompt(data.negativePrompt);
+          if (Array.isArray(data.variationTags)) setVariationTags(data.variationTags);
+          if (Array.isArray(data.batchPresetSets)) setBatchPresetSets(data.batchPresetSets);
+          if (Array.isArray(data.presetCategories)) setPresetCategories(data.presetCategories);
+          if (data.panelSizes && typeof data.panelSizes === "object") setPanelSizes(data.panelSizes);
+        } catch (err) {
+          console.error("[pipeline] Import failed:", err);
+        }
       };
-      if (type === "physical") setPhysicalPresets(move);
-      else if (type === "scene") setScenePresets(move);
-      else if (type === "count") setCountPresets(move);
-      else if (type === "pose") setPosePresets(move);
-      else setOtherPresets(move);
+      reader.readAsText(file);
     },
-    [],
+    [
+      setVariableLoras,
+      setPhysicalPresets,
+      setScenePresets,
+      setCountPresets,
+      setPosePresets,
+      setOtherPresets,
+      setNegativePrompt,
+      setVariationTags,
+      setBatchPresetSets,
+      setPresetCategories,
+      setPanelSizes,
+    ],
   );
 
   // -------------------------------------------------------------------------
@@ -1011,56 +812,21 @@ export function usePipeline() {
   }, []);
 
   return {
+    ...normalMode,
     clientId,
-    // Config
-    variableLoras,
-    selectedVariableLora,
-    setSelectedVariableLora,
-    physicalPresets,
-    scenePresets,
-    countPresets,
-    posePresets,
-    otherPresets,
-    selectedPhysicalIds,
-    togglePhysicalPreset,
-    selectedSceneId,
-    setSelectedSceneId,
-    selectedCountId,
-    selectCountPreset,
-    selectedPoseId,
-    selectPosePreset,
-    selectedOtherIds,
-    toggleOtherPreset,
-    reorderPresets,
-    additionalPrompt,
-    setAdditionalPrompt,
-    negativePrompt,
-    setNegativePrompt,
-    fixedTags,
-    setFixedTags,
-    resetFixedTags,
+    // Settings
     settings,
     setSettings,
     batchCount,
     setBatchCount,
-    // Variation mode
-    variationEnabled,
-    setVariationEnabled,
-    variationTags,
-    setVariationTags,
-    additionalPromptMode,
-    setAdditionalPromptMode,
-    // Batch preset sets
-    batchPresetSets,
-    captureCurrentSettings,
-    saveBatchPresetSet,
-    removeBatchPresetSet,
-    runBatchPresets,
     // Queue
     queue,
     addToQueue,
+    addCoupleToQueue,
     removeFromQueue,
     cancelCurrent,
+    captureCurrentSettings,
+    runBatchPresets,
     // Runtime
     isProcessing,
     wsConnected,
@@ -1071,14 +837,6 @@ export function usePipeline() {
     gallery,
     clearGallery,
     refreshGalleryFromFs,
-    // LoRA management
-    addVariableLora,
-    updateVariableLora,
-    removeVariableLora,
-    // Preset management
-    addPreset,
-    updatePreset,
-    removePreset,
     // Export/Import
     exportData,
     importData,

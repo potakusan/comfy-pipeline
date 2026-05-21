@@ -1,5 +1,10 @@
 import { FIXED_POSITIVE_PREFIX } from "./config";
 
+export interface PresetCategory {
+  id: string;
+  name: string;
+}
+
 export interface LoraEntry {
   name: string;
   strength: number;
@@ -29,6 +34,7 @@ export interface Preset {
   lora?: LoraEntry;
   /** "all" = use full prompt; "random" = pick one random line per generation */
   promptMode?: "all" | "random";
+  category?: string; // PresetCategory.id
 }
 
 export type PresetType = Preset["type"];
@@ -60,6 +66,14 @@ export interface QueueItem {
   additionalPromptLines: string[];
   createdAt: number;
   batchPresets: QueueItemBatchPresets;
+  /** When true, uses PCLazyTextEncode workflow for COUPLE prompt syntax */
+  coupleWorkflow?: boolean;
+  /** When true, uses RegionalConditioningColorMask //Inspire + ControlNet workflow */
+  colorMaskWorkflow?: boolean;
+  /** ControlNet config used when colorMaskWorkflow is true */
+  colorMaskControlNet?: import("./couple").CoupleControlNet;
+  /** Region info (colorHex + prompt + lora) used when colorMaskWorkflow is true */
+  colorMaskRegions?: import("./couple").CoupleRegion[];
 }
 
 export interface SizePreset {
@@ -109,10 +123,15 @@ export interface BatchPresetSet {
 }
 
 export interface GalleryImage {
+  /** Unique identifier for this image (UUID assigned at generation time) */
+  id?: string;
   /** Path relative to COMFYUI_OUTPUT_DIR, e.g. "20240101-loraname/out_00001_.png" */
   path: string;
   loraName: string;
   positivePrompt: string;
+  negativePrompt?: string;
+  settings?: GenerationSettings;
+  loras?: LoraEntry[];
   queueLabel: string;
   createdAt: number;
   /** The actual additional prompt applied to this image (recorded for random mode) */

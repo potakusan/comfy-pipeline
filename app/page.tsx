@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo, useCallback } from "react";
 import { usePipeline } from "@/hooks/use-pipeline";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,6 +13,11 @@ import LoraPanel from "@/components/lora-panel";
 import PromptBuilder from "@/components/prompt-builder";
 import SamplerSettings from "@/components/sampler-settings";
 import TagSettings from "@/components/tag-settings";
+import CouplePanel from "@/components/couple-panel";
+import { useCouple } from "@/hooks/use-couple";
+import { buildCouplePrompt, applySelectedPresets } from "@/lib/couple";
+import { assemblePositivePrompt } from "@/lib/comfy";
+import type { LoraEntry, Preset } from "@/lib/comfy";
 import PreviewPanel from "@/components/preview-panel";
 import QueueManager from "@/components/queue-manager";
 import GalleryPanel from "@/components/gallery-panel";
@@ -32,6 +37,8 @@ import {
   Download,
   Upload,
   Wand2,
+  Shuffle,
+  Eye,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -257,11 +264,96 @@ function Section({
 }
 
 // ---------------------------------------------------------------------------
+// Prompt preview bar (bottom-fixed)
+// ---------------------------------------------------------------------------
+
+function PromptPreviewBar({
+  positivePrompt,
+  negativePrompt,
+  hasRandom,
+  onRefresh,
+}: {
+  positivePrompt: string;
+  negativePrompt: string;
+  hasRandom: boolean;
+  onRefresh: () => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [tab, setTab] = useState<"positive" | "negative">("positive");
+
+  return (
+    <div className="shrink-0 border-t bg-background">
+      <button
+        onClick={() => setCollapsed((v) => !v)}
+        className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted/30"
+      >
+        <Eye className="h-3 w-3 text-muted-foreground" />
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          プロンプトプレビュー
+        </span>
+        {hasRandom && (
+          <Badge variant="secondary" className="text-[9px]">
+            ランダム要素あり
+          </Badge>
+        )}
+        <div className="ml-auto flex items-center gap-1.5">
+          {hasRandom && (
+            <span
+              role="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRefresh();
+              }}
+              title="ランダム再抽選"
+              className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Shuffle className="h-3 w-3" />
+            </span>
+          )}
+          {collapsed ? (
+            <ChevronUp className="h-3 w-3 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          )}
+        </div>
+      </button>
+
+      {!collapsed && (
+        <div className="px-3 pb-2.5">
+          <div className="mb-1.5 flex gap-1">
+            {(["positive", "negative"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTab(t)}
+                className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${
+                  tab === t
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border text-muted-foreground hover:border-muted-foreground"
+                }`}
+              >
+                {t === "positive" ? "ポジティブ" : "ネガティブ"}
+              </button>
+            ))}
+          </div>
+          <div className="max-h-28 overflow-y-auto rounded bg-muted/20 p-2 font-mono text-[10px] leading-relaxed whitespace-pre-wrap text-foreground/80 select-all">
+            {(tab === "positive" ? positivePrompt : negativePrompt) || (
+              <span className="text-muted-foreground">（未設定）</span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Home page
 // ---------------------------------------------------------------------------
 
 export default function Home() {
   const pipeline = usePipeline();
+  const couple = useCouple();
   const {
     variableLoras,
     selectedVariableLora,
@@ -295,6 +387,10 @@ export default function Home() {
     addPreset,
     updatePreset,
     removePreset,
+    presetCategories,
+    addCategory,
+    renameCategory,
+    removeCategory,
     settings,
     setSettings,
     batchCount,
@@ -329,6 +425,153 @@ export default function Home() {
   } = pipeline;
 
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  // Track which left-panel tab is active for queue dispatch
+  const [leftTabMode, setLeftTabMode] = useState<"normal" | "couple">("normal");
+
+  // ---------------------------------------------------------------------------
+  // Prompt preview
+  // ---------------------------------------------------------------------------
+  const [previewSeed, setPreviewSeed] = useState(0);
+  const refreshPreview = useCallback(() => setPreviewSeed((s) => s + 1), []);
+
+  const resolveRandom = useCallback((p: Preset): Preset => {
+    if (p.promptMode !== "random") return p;
+    const lines = p.prompt.split("\n").filter((s) => s.trim());
+    if (!lines.length) return p;
+    return { ...p, prompt: lines[Math.floor(Math.random() * lines.length)] };
+  }, []);
+
+  const { previewPositive, previewNegative, hasRandom } = useMemo(() => {
+    if (leftTabMode === "couple") {
+      const { activeConfig, selectedNormalCountId, selectedNormalSceneId } = couple;
+      const cCount = countPresets.find((p) => p.id === selectedNormalCountId) ?? null;
+      const cScene = scenePresets.find((p) => p.id === selectedNormalSceneId) ?? null;
+      const allPresets = [...physicalPresets, ...posePresets, ...otherPresets];
+      const effectiveRegions = activeConfig.regions.map((r) =>
+        applySelectedPresets(r, allPresets),
+      );
+      return {
+        previewPositive: buildCouplePrompt({
+          fixedTags,
+          basePrompt: activeConfig.basePrompt,
+          countPrompt: cCount?.prompt ?? "",
+          scenePrompt: cScene?.prompt ?? "",
+          regions: effectiveRegions,
+        }),
+        previewNegative: negativePrompt,
+        hasRandom: false,
+      };
+    }
+
+    const selPhysicals = physicalPresets
+      .filter((p) => selectedPhysicalIds.includes(p.id))
+      .map(resolveRandom);
+    const selScene = scenePresets.find((p) => p.id === selectedSceneId);
+    const selCount = countPresets.find((p) => p.id === selectedCountId);
+    const selPose = posePresets.find((p) => p.id === selectedPoseId);
+    const selOthers = otherPresets
+      .filter((p) => selectedOtherIds.includes(p.id))
+      .map(resolveRandom);
+
+    const addLines = additionalPrompt.split("\n").map((s) => s.trim()).filter(Boolean);
+    let previewAdditional = additionalPrompt.trim();
+    if (additionalPromptMode === "random" && addLines.length > 0) {
+      previewAdditional = addLines[Math.floor(Math.random() * addLines.length)];
+    }
+
+    const base = assemblePositivePrompt({
+      variableLora: selectedVariableLora,
+      selectedPhysicalPresets: selPhysicals,
+      selectedCountPreset: selCount ? resolveRandom(selCount) : null,
+      selectedPosePreset: selPose ? resolveRandom(selPose) : null,
+      selectedScenePreset: selScene ? resolveRandom(selScene) : null,
+      selectedOtherPresets: selOthers,
+      additionalPrompt: previewAdditional,
+      fixedPrefix: fixedTags,
+    });
+
+    let previewPositive = base;
+    if (variationEnabled && variationTags.length > 0) {
+      const tag = variationTags[Math.floor(Math.random() * variationTags.length)];
+      previewPositive = `${base}\n\n${tag}`;
+    }
+
+    const allSelected = [
+      ...physicalPresets.filter((p) => selectedPhysicalIds.includes(p.id)),
+      ...(selScene ? [selScene] : []),
+      ...(selCount ? [selCount] : []),
+      ...(selPose ? [selPose] : []),
+      ...otherPresets.filter((p) => selectedOtherIds.includes(p.id)),
+    ];
+    const hasRandom =
+      allSelected.some((p) => p.promptMode === "random") ||
+      (additionalPromptMode === "random" && addLines.length > 1) ||
+      variationEnabled;
+
+    return { previewPositive, previewNegative: negativePrompt, hasRandom };
+  }, [
+    previewSeed,
+    leftTabMode,
+    couple,
+    fixedTags,
+    negativePrompt,
+    physicalPresets,
+    scenePresets,
+    countPresets,
+    posePresets,
+    otherPresets,
+    selectedPhysicalIds,
+    selectedSceneId,
+    selectedCountId,
+    selectedPoseId,
+    selectedOtherIds,
+    selectedVariableLora,
+    additionalPrompt,
+    additionalPromptMode,
+    variationEnabled,
+    variationTags,
+    resolveRandom,
+  ]);
+
+  // Unified "add to queue" that dispatches based on active mode
+  const handleAddToQueue = () => {
+    if (leftTabMode === "couple") {
+      const { activeConfig, selectedNormalCountId, selectedNormalSceneId } = couple;
+      const selectedCount = countPresets.find((p) => p.id === selectedNormalCountId) ?? null;
+      const selectedScene = scenePresets.find((p) => p.id === selectedNormalSceneId) ?? null;
+      const allPresets = [...physicalPresets, ...posePresets, ...otherPresets];
+      const effectiveRegions = activeConfig.regions.map((r) =>
+        applySelectedPresets(r, allPresets),
+      );
+      const positivePrompt = buildCouplePrompt({
+        fixedTags,
+        basePrompt: activeConfig.basePrompt,
+        countPrompt: selectedCount?.prompt ?? "",
+        scenePrompt: selectedScene?.prompt ?? "",
+        regions: effectiveRegions,
+      });
+      const loras = activeConfig.regions
+        .filter((r) => r.lora !== null)
+        .map((r) => r.lora as LoraEntry);
+      const label =
+        activeConfig.name +
+        (selectedScene ? ` / ${selectedScene.name}` : "") +
+        (activeConfig.controlNet.enabled ? " [CN]" : "");
+      pipeline.addCoupleToQueue({
+        positivePrompt,
+        negativePrompt,
+        loras,
+        coupleSettings: settings,
+        coupleBatchCount: batchCount,
+        label,
+        colorMaskControlNet: activeConfig.controlNet,
+        colorMaskRegions: effectiveRegions,
+      });
+    } else {
+      addToQueue();
+    }
+  };
 
   // GPU monitor state
   const [gpuSnapshots, setGpuSnapshots] = useState<SysSnapshot[]>([]);
@@ -465,110 +708,153 @@ export default function Home() {
             setPanelSizes({ ...panelSizes, left: Math.round(size.asPercentage) })
           }
         >
-          <div className="flex-1 overflow-y-auto">
-            <div className="px-3">
-              <Section
-                title="LoRA設定"
-                badge={selectedVariableLora ? "1選択中" : undefined}
-              >
-                <LoraPanel
-                  variableLoras={variableLoras}
-                  selectedVariableLora={selectedVariableLora}
-                  onSelectVariableLora={setSelectedVariableLora}
-                  onAddVariableLora={addVariableLora}
-                  onUpdateVariableLora={updateVariableLora}
-                  onRemoveVariableLora={removeVariableLora}
-                />
-              </Section>
+          <Tabs
+            defaultValue="normal"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            onValueChange={(v) => setLeftTabMode(v as "normal" | "couple")}
+          >
+            <TabsList className="m-2 mb-0 shrink-0">
+              <TabsTrigger value="normal" className="flex-1 text-xs">
+                通常
+              </TabsTrigger>
+              <TabsTrigger value="couple" className="flex-1 text-xs">
+                マルチキャラ
+              </TabsTrigger>
+            </TabsList>
 
-              <Section
-                title="プロンプト"
-                badge={selectedCount > 0 ? `${selectedCount}選択` : undefined}
-              >
-                <PromptBuilder
-                  variableLora={selectedVariableLora}
-                  physicalPresets={physicalPresets}
-                  scenePresets={scenePresets}
-                  countPresets={countPresets}
-                  posePresets={posePresets}
-                  otherPresets={otherPresets}
-                  selectedPhysicalIds={selectedPhysicalIds}
-                  selectedSceneId={selectedSceneId}
-                  selectedCountId={selectedCountId}
-                  selectedPoseId={selectedPoseId}
-                  selectedOtherIds={selectedOtherIds}
-                  additionalPrompt={additionalPrompt}
-                  additionalPromptMode={additionalPromptMode}
-                  negativePrompt={negativePrompt}
-                  onTogglePhysical={togglePhysicalPreset}
-                  onSelectScene={setSelectedSceneId}
-                  onSelectCount={selectCountPreset}
-                  onSelectPose={selectPosePreset}
-                  onToggleOther={toggleOtherPreset}
-                  onSetAdditional={setAdditionalPrompt}
-                  onSetAdditionalMode={setAdditionalPromptMode}
-                  onSetNegative={setNegativePrompt}
-                  fixedTags={fixedTags}
-                  onSetFixedTags={setFixedTags}
-                  onResetFixedTags={resetFixedTags}
-                  onAddPreset={addPreset}
-                  onUpdatePreset={updatePreset}
-                  onRemovePreset={removePreset}
-                  onReorderPresets={reorderPresets}
-                />
-              </Section>
-
-              <Section title="サンプラー設定" defaultOpen={false}>
-                <SamplerSettings settings={settings} onChange={setSettings} />
-              </Section>
-
-              <Section
-                title="ランダム構図"
-                defaultOpen={false}
-                badge={variationEnabled ? "ON" : undefined}
-              >
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={variationEnabled}
-                      onCheckedChange={setVariationEnabled}
-                      id="variation-toggle"
-                    />
-                    <Label
-                      htmlFor="variation-toggle"
-                      className="cursor-pointer text-xs"
-                    >
-                      ランダム構図
-                      {variationEnabled && (
-                        <span className="text-primary">が有効</span>
-                      )}
-                    </Label>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    有効にすると、各枚ごとにランダムな構図タグが追加されます。1タグ1行で入力。
-                  </p>
-                  <Textarea
-                    value={variationTags.join("\n")}
-                    onChange={(e) =>
-                      setVariationTags(
-                        e.target.value
-                          .split("\n")
-                          .map((s) => s.trim())
-                          .filter(Boolean),
-                      )
-                    }
-                    rows={7}
-                    className="font-mono text-xs"
-                    placeholder="from above,&#10;from below,&#10;dutch angle,"
+            {/* Normal mode */}
+            <TabsContent value="normal" className="min-h-0 flex-1 overflow-y-auto">
+              <div className="px-3">
+                <Section
+                  title="LoRA設定"
+                  badge={selectedVariableLora ? "1選択中" : undefined}
+                >
+                  <LoraPanel
+                    variableLoras={variableLoras}
+                    selectedVariableLora={selectedVariableLora}
+                    onSelectVariableLora={setSelectedVariableLora}
+                    onAddVariableLora={addVariableLora}
+                    onUpdateVariableLora={updateVariableLora}
+                    onRemoveVariableLora={removeVariableLora}
                   />
-                </div>
-              </Section>
+                </Section>
 
-              <Section title="タグDB設定" defaultOpen={false}>
-                <TagSettings />
-              </Section>
-            </div>
-          </div>
+                <Section
+                  title="プロンプト"
+                  badge={selectedCount > 0 ? `${selectedCount}選択` : undefined}
+                >
+                  <PromptBuilder
+                    variableLora={selectedVariableLora}
+                    physicalPresets={physicalPresets}
+                    scenePresets={scenePresets}
+                    countPresets={countPresets}
+                    posePresets={posePresets}
+                    otherPresets={otherPresets}
+                    selectedPhysicalIds={selectedPhysicalIds}
+                    selectedSceneId={selectedSceneId}
+                    selectedCountId={selectedCountId}
+                    selectedPoseId={selectedPoseId}
+                    selectedOtherIds={selectedOtherIds}
+                    additionalPrompt={additionalPrompt}
+                    additionalPromptMode={additionalPromptMode}
+                    negativePrompt={negativePrompt}
+                    onTogglePhysical={togglePhysicalPreset}
+                    onSelectScene={setSelectedSceneId}
+                    onSelectCount={selectCountPreset}
+                    onSelectPose={selectPosePreset}
+                    onToggleOther={toggleOtherPreset}
+                    onSetAdditional={setAdditionalPrompt}
+                    onSetAdditionalMode={setAdditionalPromptMode}
+                    onSetNegative={setNegativePrompt}
+                    fixedTags={fixedTags}
+                    onSetFixedTags={setFixedTags}
+                    onResetFixedTags={resetFixedTags}
+                    onAddPreset={addPreset}
+                    onUpdatePreset={updatePreset}
+                    onRemovePreset={removePreset}
+                    onReorderPresets={reorderPresets}
+                    presetCategories={presetCategories}
+                    onAddCategory={addCategory}
+                    onRenameCategory={renameCategory}
+                    onRemoveCategory={removeCategory}
+                  />
+                </Section>
+
+                <Section title="サンプラー設定" defaultOpen={false}>
+                  <SamplerSettings settings={settings} onChange={setSettings} />
+                </Section>
+
+                <Section
+                  title="ランダム構図"
+                  defaultOpen={false}
+                  badge={variationEnabled ? "ON" : undefined}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={variationEnabled}
+                        onCheckedChange={setVariationEnabled}
+                        id="variation-toggle"
+                      />
+                      <Label
+                        htmlFor="variation-toggle"
+                        className="cursor-pointer text-xs"
+                      >
+                        ランダム構図
+                        {variationEnabled && (
+                          <span className="text-primary">が有効</span>
+                        )}
+                      </Label>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      有効にすると、各枚ごとにランダムな構図タグが追加されます。1タグ1行で入力。
+                    </p>
+                    <Textarea
+                      value={variationTags.join("\n")}
+                      onChange={(e) =>
+                        setVariationTags(
+                          e.target.value
+                            .split("\n")
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                        )
+                      }
+                      rows={7}
+                      className="font-mono text-xs"
+                      placeholder="from above,&#10;from below,&#10;dutch angle,"
+                    />
+                  </div>
+                </Section>
+
+                <Section title="タグDB設定" defaultOpen={false}>
+                  <TagSettings />
+                </Section>
+              </div>
+            </TabsContent>
+
+            {/* Multi-character (COUPLE) mode */}
+            <TabsContent value="couple" className="min-h-0 flex-1 overflow-y-auto">
+              <CouplePanel
+                couple={couple}
+                fixedTags={fixedTags}
+                negativePrompt={negativePrompt}
+                setNegativePrompt={setNegativePrompt}
+                physicalPresets={physicalPresets}
+                posePresets={posePresets}
+                otherPresets={otherPresets}
+                countPresets={countPresets}
+                scenePresets={scenePresets}
+                onAddPreset={addPreset}
+                onUpdatePreset={updatePreset}
+                onRemovePreset={removePreset}
+                onReorderPresets={reorderPresets}
+                presetCategories={presetCategories}
+                onAddCategory={addCategory}
+                onRenameCategory={renameCategory}
+                onRemoveCategory={removeCategory}
+              />
+            </TabsContent>
+          </Tabs>
         </ResizablePanel>
 
         <ResizableHandle withHandle />
@@ -610,7 +896,7 @@ export default function Home() {
               currentItem={currentItem}
               batchCount={batchCount}
               onBatchCountChange={setBatchCount}
-              onAddToQueue={addToQueue}
+              onAddToQueue={handleAddToQueue}
               onCancel={cancelCurrent}
               currentJobImages={currentJobImages}
             />
@@ -680,6 +966,13 @@ export default function Home() {
           />
         </ResizablePanel>
       </ResizablePanelGroup>
+
+      <PromptPreviewBar
+        positivePrompt={previewPositive}
+        negativePrompt={previewNegative}
+        hasRandom={hasRandom}
+        onRefresh={refreshPreview}
+      />
     </div>
   );
 }

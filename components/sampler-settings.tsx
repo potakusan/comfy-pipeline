@@ -1,4 +1,5 @@
 'use client'
+import { useState, useEffect } from 'react'
 import { type GenerationSettings, SAMPLER_OPTIONS, SCHEDULER_OPTIONS, SIZE_PRESETS } from '@/lib/comfy'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,6 +12,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+
+interface CheckpointItem {
+  model_name: string
+  file_name: string
+  sub_type: string
+}
+
+function useCheckpoints() {
+  const [checkpoints, setCheckpoints] = useState<CheckpointItem[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch('/api/comfy/checkpoints')
+      .then((r) => r.json())
+      .then((data) => {
+        const items: CheckpointItem[] = (data.items ?? []).filter(
+          (i: CheckpointItem) => i.sub_type === 'checkpoint',
+        )
+        setCheckpoints(items)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  return { checkpoints, loading }
+}
 
 interface SamplerSettingsProps {
   settings: GenerationSettings
@@ -66,14 +94,39 @@ export default function SamplerSettings({ settings, onChange }: SamplerSettingsP
   const set = <K extends keyof GenerationSettings>(key: K, value: GenerationSettings[K]) =>
     onChange({ ...settings, [key]: value })
 
+  const { checkpoints, loading } = useCheckpoints()
+
   return (
     <div className="space-y-2.5 text-sm">
       <Row label="チェックポイント">
-        <Input
-          value={settings.checkpoint}
-          onChange={(e) => set('checkpoint', e.target.value)}
-          className="h-7 text-xs"
-        />
+        {checkpoints.length > 0 ? (
+          <Select
+            value={settings.checkpoint}
+            onValueChange={(v) => set('checkpoint', v)}
+          >
+            <SelectTrigger className="h-7 text-xs">
+              <SelectValue placeholder={loading ? '読み込み中...' : settings.checkpoint} />
+            </SelectTrigger>
+            <SelectContent>
+              {checkpoints.map((c) => {
+                const value = `${c.file_name}.safetensors`
+                const label = c.model_name !== c.file_name ? c.model_name : c.file_name
+                return (
+                  <SelectItem key={c.file_name} value={value} className="text-xs">
+                    {label}
+                  </SelectItem>
+                )
+              })}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            value={settings.checkpoint}
+            onChange={(e) => set('checkpoint', e.target.value)}
+            className="h-7 text-xs"
+            placeholder={loading ? '読み込み中...' : 'チェックポイント名'}
+          />
+        )}
       </Row>
 
       <Row label="アップスケール">

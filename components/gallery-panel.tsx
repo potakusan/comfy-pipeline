@@ -24,6 +24,7 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
+  Download,
 } from "lucide-react";
 
 interface GalleryPanelProps {
@@ -58,6 +59,17 @@ function loraShortName(loraName: string) {
 function getFolder(path: string) {
   const parts = path.split("/");
   return parts.length > 1 ? parts[0] : "(root)";
+}
+
+function downloadImageMeta(img: GalleryImage) {
+  const blob = new Blob([JSON.stringify(img, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const stem = img.path.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "image";
+  a.download = `${stem}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function FolderCard({
@@ -397,7 +409,7 @@ export default function GalleryPanel({
               </div>
 
               <div className="shrink-0 border-t border-border bg-card/50 px-4 py-2.5">
-                <div className="mb-1.5 flex flex-wrap gap-1.5">
+                <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                   <Badge variant="outline" className="text-[10px]">
                     {loraShortName(selectedImg.loraName)}
                   </Badge>
@@ -409,14 +421,66 @@ export default function GalleryPanel({
                       {selectedImg.queueLabel}
                     </Badge>
                   )}
+                  {selectedImg.id && (
+                    <span className="font-mono text-[9px] text-muted-foreground/50 select-all">
+                      {selectedImg.id}
+                    </span>
+                  )}
+                  <div className="ml-auto">
+                    <button
+                      onClick={() => downloadImageMeta(selectedImg)}
+                      title="メタデータをJSONでダウンロード"
+                      className="flex items-center gap-1 rounded border border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:border-muted-foreground hover:text-foreground"
+                    >
+                      <Download className="h-3 w-3" />
+                      JSON
+                    </button>
+                  </div>
                 </div>
-                {selectedImg.positivePrompt && (
-                  <details className="text-xs">
+
+                {selectedImg.settings && (
+                  <details className="mb-1 text-xs">
                     <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                      プロンプト
+                      サンプラー設定
+                    </summary>
+                    <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 rounded bg-muted/30 p-2 font-mono text-[10px]">
+                      {[
+                        ["チェックポイント", selectedImg.settings.checkpoint],
+                        ["サイズ", `${selectedImg.settings.width}×${selectedImg.settings.height}`],
+                        ["ステップ", selectedImg.settings.steps],
+                        ["CFG", selectedImg.settings.cfg],
+                        ["サンプラー", selectedImg.settings.sampler],
+                        ["スケジューラ", selectedImg.settings.scheduler],
+                        ["デノイズ", selectedImg.settings.denoise],
+                        ["シード", selectedImg.settings.randomizeSeed ? "ランダム" : selectedImg.settings.seed],
+                      ].map(([k, v]) => (
+                        <div key={k as string} className="flex gap-1">
+                          <span className="text-muted-foreground">{k}:</span>
+                          <span className="truncate">{v as string | number}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+
+                {selectedImg.positivePrompt && (
+                  <details className="mb-1 text-xs">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                      ポジティブプロンプト
                     </summary>
                     <div className="mt-1 max-h-28 overflow-y-auto rounded bg-muted/30 p-2 font-mono text-[10px] leading-relaxed whitespace-pre-line">
                       {selectedImg.positivePrompt}
+                    </div>
+                  </details>
+                )}
+
+                {selectedImg.negativePrompt && (
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                      ネガティブプロンプト
+                    </summary>
+                    <div className="mt-1 max-h-20 overflow-y-auto rounded bg-muted/30 p-2 font-mono text-[10px] leading-relaxed whitespace-pre-line">
+                      {selectedImg.negativePrompt}
                     </div>
                   </details>
                 )}

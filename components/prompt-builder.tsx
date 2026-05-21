@@ -3,46 +3,28 @@ import { useState, useRef } from "react";
 import {
   type Preset,
   type LoraEntry,
+  type PresetCategory,
   assemblePositivePrompt,
 } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import TagAutocompleteTextarea from "@/components/tag-autocomplete-textarea";
-import {
-  LoraPickerDialog,
-  type LmLoraItem,
-} from "@/components/lora-picker-dialog";
 import {
   Plus,
-  Trash2,
   Pencil,
   Check,
   ChevronDown,
-  Library,
-  X,
   GripVertical,
+  Settings2,
 } from "lucide-react";
-
-type PresetType = "physical" | "count" | "pose" | "scene" | "other";
-
-const TYPE_LABELS: Record<PresetType, string> = {
-  physical: "身体的特徴",
-  count: "人数",
-  pose: "ポーズ",
-  scene: "シーン",
-  other: "その他",
-};
+import TagAutocompleteTextarea from "@/components/tag-autocomplete-textarea";
+import { Label } from "@/components/ui/label";
+import {
+  PresetModal,
+  CategoryManagerModal,
+  type PresetType,
+  TYPE_LABELS,
+} from "@/components/preset-modal";
 
 interface PromptBuilderProps {
   variableLora: LoraEntry | null;
@@ -78,279 +60,12 @@ interface PromptBuilderProps {
     fromIndex: number,
     toIndex: number,
   ) => void;
+  presetCategories: PresetCategory[];
+  onAddCategory: (name: string) => void;
+  onRenameCategory: (id: string, name: string) => void;
+  onRemoveCategory: (id: string) => void;
 }
 
-// --- Inline LoRA form ---
-const EMPTY_LORA: LoraEntry = {
-  name: "",
-  strength: 1.0,
-  clipStrength: 1.0,
-  triggerWords: "",
-};
-
-function LoraSection({
-  lora,
-  onChange,
-}: {
-  lora: LoraEntry | undefined;
-  onChange: (lora: LoraEntry | undefined) => void;
-}) {
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const draft = lora ?? EMPTY_LORA;
-  const set = <K extends keyof LoraEntry>(key: K, val: LoraEntry[K]) =>
-    onChange({ ...draft, [key]: val });
-  const handlePick = (item: LmLoraItem) => {
-    const triggerWords = item.civitai?.trainedWords?.join("\n") ?? "";
-    onChange({ ...draft, name: item.file_name, triggerWords });
-  };
-
-  return (
-    <>
-      <div className="flex items-center justify-between">
-        <Label className="text-xs text-muted-foreground">LoRA（任意）</Label>
-        {lora ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-5 gap-1 text-xs text-muted-foreground"
-            onClick={() => onChange(undefined)}
-          >
-            <X className="h-3 w-3" />
-            解除
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-5 gap-1 text-xs"
-            onClick={() => onChange({ ...EMPTY_LORA })}
-          >
-            <Plus className="h-3 w-3" />
-            LoRAを紐付け
-          </Button>
-        )}
-      </div>
-      {lora && (
-        <div className="space-y-2 rounded-md border p-2">
-          <div className="flex items-center gap-2">
-            <Input
-              value={draft.name}
-              onChange={(e) => set("name", e.target.value)}
-              placeholder="LoRAファイル名"
-              className="h-7 flex-1 font-mono text-xs"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 shrink-0 gap-1 text-xs"
-              onClick={() => setPickerOpen(true)}
-            >
-              <Library className="h-3 w-3" />
-              選択
-            </Button>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <div className="mb-1 flex items-center justify-between">
-                <Label className="text-[10px]">強度</Label>
-                <span className="font-mono text-[10px] text-muted-foreground">
-                  {draft.strength.toFixed(2)}
-                </span>
-              </div>
-              <Slider
-                min={0}
-                max={2}
-                step={0.05}
-                value={[draft.strength]}
-                onValueChange={([v]) => set("strength", v)}
-              />
-            </div>
-            <div>
-              <div className="mb-1 flex items-center justify-between">
-                <Label className="text-[10px]">CLIP強度</Label>
-                <span className="font-mono text-[10px] text-muted-foreground">
-                  {draft.clipStrength.toFixed(2)}
-                </span>
-              </div>
-              <Slider
-                min={0}
-                max={2}
-                step={0.05}
-                value={[draft.clipStrength]}
-                onValueChange={([v]) => set("clipStrength", v)}
-              />
-            </div>
-          </div>
-          <div>
-            <Label className="mb-1 text-[10px]">トリガーワード</Label>
-            <TagAutocompleteTextarea
-              value={draft.triggerWords}
-              onChange={(v) => set("triggerWords", v)}
-              placeholder="例: character_name, blue hair, ..."
-              style={{ minHeight: "50px" }}
-            />
-          </div>
-        </div>
-      )}
-      <LoraPickerDialog
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        onSelect={handlePick}
-      />
-    </>
-  );
-}
-
-// --- Preset Modal ---
-interface PresetModalProps {
-  open: boolean;
-  preset: Preset | null;
-  type: PresetType;
-  onClose: () => void;
-  onSave: (updates: {
-    name: string;
-    prompt: string;
-    lora?: LoraEntry;
-    promptMode: "all" | "random";
-  }) => void;
-  onDelete?: () => void;
-}
-
-function PresetModal({
-  open,
-  preset,
-  type,
-  onClose,
-  onSave,
-  onDelete,
-}: PresetModalProps) {
-  const [name, setName] = useState(preset?.name ?? "");
-  const [prompt, setPrompt] = useState(preset?.prompt ?? "");
-  const [lora, setLora] = useState<LoraEntry | undefined>(preset?.lora);
-  const [promptMode, setPromptMode] = useState<"all" | "random">(
-    preset?.promptMode ?? "all",
-  );
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const handleOpenChange = (v: boolean) => {
-    if (!v) {
-      setConfirmDelete(false);
-      onClose();
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-sm">
-            {!preset ? `${TYPE_LABELS[type]}プリセット追加` : "プリセット編集"}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div>
-            <Label className="mb-1 text-xs">名前</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="プリセット名"
-              className="text-sm"
-              autoFocus
-            />
-          </div>
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <Label className="text-xs">プロンプト</Label>
-              <div className="flex items-center gap-1.5">
-                {(["all", "random"] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setPromptMode(m)}
-                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border transition-colors ${
-                      promptMode === m
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border text-muted-foreground hover:border-muted-foreground"
-                    }`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full border ${promptMode === m ? "border-primary-foreground bg-primary-foreground" : "border-muted-foreground"}`}
-                    />
-                    {m === "all" ? "全行使用" : "ランダム1行"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <TagAutocompleteTextarea
-              value={prompt}
-              onChange={setPrompt}
-              placeholder={
-                promptMode === "random"
-                  ? "1行1タグで入力。生成ごとにランダムで1行が使われます。"
-                  : "プロンプトを入力（日本語/英語でタグ補完が使えます）"
-              }
-              style={{ minHeight: "100px" }}
-            />
-            {promptMode === "random" && prompt.trim() && (
-              <p className="mt-0.5 text-[10px] text-muted-foreground">
-                {prompt.split("\n").filter((s) => s.trim()).length}行 —
-                生成ごとに1行がランダム選択されます
-              </p>
-            )}
-          </div>
-          <LoraSection lora={lora} onChange={setLora} />
-        </div>
-        <DialogFooter className="flex-col gap-2 sm:flex-row">
-          {onDelete && !confirmDelete && (
-            <Button
-              variant="outline"
-              className="mr-auto text-destructive hover:bg-destructive hover:text-destructive-foreground"
-              onClick={() => setConfirmDelete(true)}
-            >
-              <Trash2 className="mr-1 h-3.5 w-3.5" />
-              削除
-            </Button>
-          )}
-          {confirmDelete && (
-            <div className="mr-auto flex gap-2">
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  onDelete?.();
-                  onClose();
-                }}
-              >
-                本当に削除
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setConfirmDelete(false)}
-              >
-                キャンセル
-              </Button>
-            </div>
-          )}
-          <Button variant="outline" onClick={onClose}>
-            閉じる
-          </Button>
-          <Button
-            disabled={!name.trim()}
-            onClick={() => {
-              onSave({ name: name.trim(), prompt, lora, promptMode });
-              onClose();
-            }}
-          >
-            保存
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// --- Section helpers ---
 function SectionHeader({ label, badge }: { label: string; badge: string }) {
   return (
     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -359,6 +74,65 @@ function SectionHeader({ label, badge }: { label: string; badge: string }) {
         {badge}
       </Badge>
     </p>
+  );
+}
+
+function CategoryDivider({ name }: { name: string }) {
+  return (
+    <div className="flex items-center gap-1.5 py-0.5">
+      <span className="text-[10px] font-medium text-muted-foreground">{name}</span>
+      <div className="flex-1 border-t border-dashed border-border/60" />
+    </div>
+  );
+}
+
+function CategoryGroupHeader({
+  name,
+  items,
+  selectedIds,
+  selectionType,
+  onSelect,
+}: {
+  name: string;
+  items: Preset[];
+  selectedIds: string[];
+  selectionType: "radio" | "checkbox";
+  onSelect: (id: string) => void;
+}) {
+  if (selectionType !== "checkbox") {
+    return <CategoryDivider name={name} />;
+  }
+  const groupIds = items.map((p) => p.id);
+  const selectedInGroup = groupIds.filter((id) => selectedIds.includes(id));
+  const anySelected = selectedInGroup.length > 0;
+  const allSelected = selectedInGroup.length === groupIds.length;
+
+  const handleToggle = () => {
+    if (anySelected) {
+      selectedInGroup.forEach((id) => onSelect(id));
+    } else {
+      groupIds.forEach((id) => onSelect(id));
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 py-0.5">
+      <span className="text-[10px] font-medium text-muted-foreground">{name}</span>
+      <div className="flex-1 border-t border-dashed border-border/60" />
+      {groupIds.length > 0 && (
+        <button
+          onClick={handleToggle}
+          className={`shrink-0 rounded px-1 py-0.5 text-[9px] transition-colors ${
+            anySelected
+              ? "text-blue-500 hover:text-blue-700"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          title={anySelected ? "このカテゴリの選択を解除" : "このカテゴリをすべて選択"}
+        >
+          {anySelected ? (allSelected ? "全解除" : "解除") : "全選択"}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -392,8 +166,13 @@ export default function PromptBuilder({
   onUpdatePreset,
   onRemovePreset,
   onReorderPresets,
+  presetCategories,
+  onAddCategory,
+  onRenameCategory,
+  onRemoveCategory,
 }: PromptBuilderProps) {
   const [showPreview, setShowPreview] = useState(false);
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [modalState, setModalState] = useState<{
     open: boolean;
     preset: Preset | null;
@@ -411,6 +190,7 @@ export default function PromptBuilder({
     prompt: string;
     lora?: LoraEntry;
     promptMode: "all" | "random";
+    category?: string;
   }) => {
     if (modalState.preset) {
       onUpdatePreset(modalState.preset.id, updates);
@@ -442,7 +222,6 @@ export default function PromptBuilder({
     fixedPrefix: fixedTags,
   });
 
-  // Helper to render a draggable section
   const renderSection = (
     label: string,
     badge: string,
@@ -451,37 +230,83 @@ export default function PromptBuilder({
     selectedIds: string[],
     selectionType: "radio" | "checkbox",
     onSelect: (id: string) => void,
-  ) => (
-    <div>
-      <SectionHeader label={label} badge={badge} />
-      <div className="space-y-1">
-        {presets.map((preset, index) => {
-          const isSelected = selectedIds.includes(preset.id);
-          return (
+  ) => {
+    const uncategorized = presets.filter((p) => !p.category);
+    const categorized = presetCategories
+      .map((cat) => ({ cat, items: presets.filter((p) => p.category === cat.id) }))
+      .filter(({ items }) => items.length > 0);
+    const hasCategories = categorized.length > 0;
+
+    return (
+      <div>
+        <div className="mb-1 flex items-center justify-between">
+          <SectionHeader label={label} badge={badge} />
+          <button
+            onClick={() => setCategoryManagerOpen(true)}
+            className="flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+            title="カテゴリ管理"
+          >
+            <Settings2 className="h-2.5 w-2.5" />
+          </button>
+        </div>
+        <div className="space-y-1">
+          {hasCategories && uncategorized.length > 0 && (
+            <CategoryGroupHeader
+              name="未分類"
+              items={uncategorized}
+              selectedIds={selectedIds}
+              selectionType={selectionType}
+              onSelect={onSelect}
+            />
+          )}
+          {uncategorized.map((preset) => (
             <DraggableItem
               key={preset.id}
               preset={preset}
-              index={index}
-              isSelected={isSelected}
+              index={presets.indexOf(preset)}
+              isSelected={selectedIds.includes(preset.id)}
               selectionType={selectionType}
               onSelect={() => onSelect(preset.id)}
               onEdit={() => openEdit(preset)}
               onReorder={(from, to) => onReorderPresets(type, from, to)}
             />
-          );
-        })}
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-6 w-full gap-1 text-xs"
-          onClick={() => openAdd(type)}
-        >
-          <Plus className="h-3 w-3" />
-          {TYPE_LABELS[type]}追加
-        </Button>
+          ))}
+          {categorized.map(({ cat, items }) => (
+            <div key={cat.id}>
+              <CategoryGroupHeader
+                name={cat.name}
+                items={items}
+                selectedIds={selectedIds}
+                selectionType={selectionType}
+                onSelect={onSelect}
+              />
+              {items.map((preset) => (
+                <DraggableItem
+                  key={preset.id}
+                  preset={preset}
+                  index={presets.indexOf(preset)}
+                  isSelected={selectedIds.includes(preset.id)}
+                  selectionType={selectionType}
+                  onSelect={() => onSelect(preset.id)}
+                  onEdit={() => openEdit(preset)}
+                  onReorder={(from, to) => onReorderPresets(type, from, to)}
+                />
+              ))}
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 w-full gap-1 text-xs"
+            onClick={() => openAdd(type)}
+          >
+            <Plus className="h-3 w-3" />
+            {TYPE_LABELS[type]}追加
+          </Button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-3">
@@ -652,6 +477,7 @@ export default function PromptBuilder({
           open={modalState.open}
           preset={modalState.preset}
           type={modalState.type}
+          categories={presetCategories}
           onClose={closeModal}
           onSave={handleSave}
           onDelete={
@@ -661,6 +487,15 @@ export default function PromptBuilder({
           }
         />
       )}
+
+      <CategoryManagerModal
+        open={categoryManagerOpen}
+        onOpenChange={setCategoryManagerOpen}
+        categories={presetCategories}
+        onAdd={onAddCategory}
+        onRename={onRenameCategory}
+        onRemove={onRemoveCategory}
+      />
     </div>
   );
 }
@@ -691,13 +526,11 @@ function DraggableItem({
       draggable
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = "move";
-        // store index in dataTransfer so cross-list drops are ignored
         e.dataTransfer.setData("text/plain", String(index));
         dragIndex.current = index;
       }}
       onDragOver={(e) => {
         const from = Number(e.dataTransfer.getData("text/plain"));
-        // only react to drags within same list (same totalCount check is imprecise but workable)
         if (isNaN(from)) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
