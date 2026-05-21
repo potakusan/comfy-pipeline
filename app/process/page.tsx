@@ -26,6 +26,7 @@ import {
   FolderOpen,
   Check,
   ArrowRight,
+  Download,
 } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
 import type { ProcessJob } from "@/lib/process-jobs";
@@ -951,6 +952,8 @@ export default function ProcessPage() {
   const [selectedFolder, setSelectedFolder] = useState<string>("");
   const [loadingDirs, setLoadingDirs] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [localMode, setLocalMode] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const [mosaicConfig, setMosaicConfig] = useState(DEFAULT_MOSAIC);
   const [resizeConfig, setResizeConfig] = useState(DEFAULT_RESIZE);
@@ -966,6 +969,15 @@ export default function ProcessPage() {
   const [logOpen, setLogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Local sync state
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{
+    saved: number;
+    skipped: number;
+    total: number;
+    localPath: string;
+  } | null>(null);
+
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Sysinfo polling
@@ -975,17 +987,25 @@ export default function ProcessPage() {
   const loadDirs = useCallback(async () => {
     setLoadingDirs(true);
     try {
-      const res = await fetch("/api/process/dirs");
+      const url = localMode
+        ? "/api/process/dirs?local=true"
+        : "/api/process/dirs";
+      const res = await fetch(url);
       const data = await res.json();
       setFolders(data.dirs ?? []);
     } finally {
       setLoadingDirs(false);
     }
-  }, []);
+  }, [localMode]);
 
   useEffect(() => {
     loadDirs();
   }, [loadDirs]);
+
+  useEffect(() => {
+    setSelectedFolder("");
+    setEstimate(null);
+  }, [localMode]);
 
   // Estimate size when folder or scale changes
   useEffect(() => {
@@ -1000,6 +1020,7 @@ export default function ProcessPage() {
       body: JSON.stringify({
         folder: selectedFolder,
         scalePercent: resizeConfig.scalePercent,
+        local: localMode,
       }),
       signal: controller.signal,
     })
@@ -1007,7 +1028,7 @@ export default function ProcessPage() {
       .then(setEstimate)
       .catch(() => {});
     return () => controller.abort();
-  }, [selectedFolder, resizeConfig.scalePercent]);
+  }, [selectedFolder, resizeConfig.scalePercent, localMode]);
 
   // Poll job status
   useEffect(() => {
@@ -1076,6 +1097,30 @@ export default function ProcessPage() {
     setJobId(null);
     setLogOpen(true);
     try {
+      if (localMode) {
+        setUploading(true);
+        try {
+          const uploadRes = await fetch("/api/process/upload-to-remote", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ folder: selectedFolder }),
+          });
+          if (!uploadRes.ok) {
+            setJob({
+              id: "upload-error",
+              status: "failed",
+              total: 0,
+              current: 0,
+              log: ["リモートへのアップロードに失敗しました"],
+              processedImages: [],
+              startedAt: Date.now(),
+            });
+            return;
+          }
+        } finally {
+          setUploading(false);
+        }
+      }
       const effectiveScale =
         resizeConfig.autoTarget && estimate
           ? calcAutoScale(estimate.currentBytes, resizeConfig.targetMB)
@@ -1108,6 +1153,24 @@ export default function ProcessPage() {
     }
   };
 
+  const handleSync = async () => {
+    if (!selectedFolder || !jobId?.startsWith("remote:")) return;
+    const sub = mosaicConfig.enabled ? "mosaic" : "resized";
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/process/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folder: selectedFolder, sub }),
+      });
+      const data = await res.json();
+      if (res.ok) setSyncResult(data);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const isRunning = job?.status === "running" || job?.status === "pending";
   const selectedFolderInfo = folders.find((f) => f.name === selectedFolder);
 
@@ -1130,9 +1193,25 @@ export default function ProcessPage() {
             <div className="space-y-4">
               {/* Folder select */}
               <div>
-                <Label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  処理対象フォルダ
-                </Label>
+                <div className="mb-1.5 flex items-center gap-2">
+                  <Label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    処理対象フォルダ
+                  </Label>
+                  <div className="ml-auto flex gap-0.5 rounded border p-0.5">
+                    <button
+                      onClick={() => setLocalMode(false)}
+                      className={`rounded px-2 py-0.5 text-[11px] transition-colors ${!localMode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      リモート
+                    </button>
+                    <button
+                      onClick={() => setLocalMode(true)}
+                      className={`rounded px-2 py-0.5 text-[11px] transition-colors ${localMode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      ローカル
+                    </button>
+                  </div>
+                </div>
                 <button
                   onClick={() => {
                     loadDirs();
@@ -1235,7 +1314,7 @@ export default function ProcessPage() {
               ) : (
                 <Play className="h-4 w-4" />
               )}
-              {isRunning || submitting ? "処理中..." : "処理を開始"}
+              {uploading ? "アップロード中..." : isRunning || submitting ? "処理中..." : "処理を開始"}
             </Button>
             {!mosaicConfig.enabled && !resizeConfig.enabled && (
               <p className="mt-1 text-center text-[10px] text-muted-foreground">
@@ -1272,16 +1351,45 @@ export default function ProcessPage() {
                 />
 
                 {job.status === "completed" && (
-                  <div className="mt-3 rounded-lg border border-green-500/30 bg-green-500/10 p-3">
+                  <div className="mt-3 rounded-lg border border-green-500/30 bg-green-500/10 p-3 space-y-2">
                     <p className="text-sm font-medium text-green-600 dark:text-green-400">
                       処理が完了しました
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       出力先:{" "}
                       <span className="font-mono">
-                        {selectedFolder}/mosaic/
+                        {selectedFolder}/{mosaicConfig.enabled ? "mosaic" : "resized"}/
                       </span>
                     </p>
+                    {jobId?.startsWith("remote:") && !syncResult && (
+                      <button
+                        onClick={handleSync}
+                        disabled={syncing}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-green-600/40 bg-green-600/10 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-600/20 dark:text-green-300 transition-colors disabled:opacity-50"
+                      >
+                        {syncing ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                        {syncing ? "保存中..." : "ローカルフォルダに保存"}
+                      </button>
+                    )}
+                    {syncResult && (
+                      <div className="rounded border border-border bg-muted/30 px-2.5 py-2 text-[11px] space-y-0.5">
+                        <p className="font-medium text-foreground">
+                          保存完了: {syncResult.saved} 枚
+                          {syncResult.skipped > 0 && (
+                            <span className="ml-1 text-muted-foreground">
+                              (スキップ {syncResult.skipped} 枚)
+                            </span>
+                          )}
+                        </p>
+                        <p className="font-mono text-muted-foreground break-all">
+                          {syncResult.localPath}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 

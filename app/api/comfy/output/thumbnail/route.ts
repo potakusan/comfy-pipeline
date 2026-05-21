@@ -26,6 +26,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid path" }, { status: 400 });
   }
 
+  // If the file doesn't exist locally and we have a remote, proxy from remote
+  if (!fs.existsSync(fullPath)) {
+    const remoteUrl = process.env.REMOTE_PROCESS_URL;
+    if (remoteUrl) {
+      try {
+        const res = await fetch(
+          `${remoteUrl}/api/comfy/output/thumbnail?path=${encodeURIComponent(filePath)}`
+        );
+        if (res.ok) {
+          const buf = await res.arrayBuffer();
+          return new NextResponse(buf, {
+            headers: {
+              "Content-Type": res.headers.get("Content-Type") || "image/webp",
+              "Cache-Control": "public, max-age=3600, must-revalidate",
+            },
+          });
+        }
+      } catch {}
+    }
+  }
+
   // Cache path: <outputDir>/.thumbcache/<original-path>.webp
   const thumbPath = path.join(outputDir, THUMB_DIR, `${filePath}.webp`);
 

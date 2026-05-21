@@ -61,9 +61,19 @@ function calcCpuPct(s1: CpuTimes[], s2: CpuTimes[]): number {
 
 /** GET /api/process/sysinfo
  *  Returns CPU %, GPU %, VRAM used/total (MiB), GPU name.
- *  Takes ~100 ms due to CPU diff sampling.
+ *  When REMOTE_PROCESS_URL is set, proxies to the remote machine (shows remote GPU).
  */
 export async function GET() {
+  const remoteUrl = process.env.REMOTE_PROCESS_URL;
+  if (remoteUrl) {
+    try {
+      const res = await fetch(`${remoteUrl}/api/process/sysinfo`);
+      const data = await res.json();
+      return NextResponse.json(data);
+    } catch {
+      return NextResponse.json({ cpu: 0, gpu: null, vramUsed: null, vramTotal: null, gpuName: null });
+    }
+  }
   const s1 = sampleCpus();
   // Start GPU query in parallel with the 100 ms CPU sample window
   const gpuPromise = queryGpu();

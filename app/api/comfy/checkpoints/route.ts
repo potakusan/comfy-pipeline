@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export async function GET() {
   try {
     const res = await fetch(
-      "http://127.0.0.1:8188/api/lm/checkpoints/list?page=1&page_size=100&sort_by=name%3Aasc&recursive=true&tag_logic=any",
+      process.env.COMFYUI_URL + "/api/lm/checkpoints/list?page=1&page_size=100&sort_by=name%3Aasc&recursive=true&tag_logic=any",
       { cache: "no-store" },
     );
     if (!res.ok) {

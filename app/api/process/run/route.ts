@@ -120,10 +120,27 @@ function resizeProgress(jobId: string) {
 /** POST /api/process/run
  *  Execution order: resize first (if enabled), then mosaic.
  *  This minimises I/O time because all heavy file I/O happens on smaller images.
+ *  When REMOTE_PROCESS_URL is set, forwards the request to the remote machine.
  */
 export async function POST(req: NextRequest) {
   const body: RunRequest = await req.json();
   const { folder, mosaic, resize } = body;
+
+  const remoteUrl = process.env.REMOTE_PROCESS_URL;
+  if (remoteUrl) {
+    const remoteRes = await fetch(`${remoteUrl}/api/process/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!remoteRes.ok) {
+      const text = await remoteRes.text();
+      return NextResponse.json({ error: `Remote error: ${text}` }, { status: 502 });
+    }
+    const data = await remoteRes.json();
+    if (!data.jobId) return NextResponse.json({ error: "Remote returned no jobId" }, { status: 502 });
+    return NextResponse.json({ jobId: `remote:${data.jobId}` });
+  }
 
   if (!folder)
     return NextResponse.json({ error: "folder required" }, { status: 400 });

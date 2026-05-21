@@ -34,9 +34,22 @@ function scanDir(dir: string): { count: number; totalBytes: number } {
 /** POST /api/process/estimate
  *  Body: { folder: string, scalePercent: number }
  *  Returns { count, currentBytes, estimatedBytes }
+ *  When REMOTE_PROCESS_URL is set, proxies to the remote machine.
  */
 export async function POST(req: NextRequest) {
-  const { folder, scalePercent } = await req.json();
+  const body = await req.json();
+  const { folder, scalePercent } = body;
+
+  const remoteUrl = process.env.REMOTE_PROCESS_URL;
+  if (remoteUrl && !body.local) {
+    const res = await fetch(`${remoteUrl}/api/process/estimate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    return NextResponse.json(data);
+  }
   if (!folder) return NextResponse.json({ error: "folder required" }, { status: 400 });
 
   const outputDir = getOutputDir();

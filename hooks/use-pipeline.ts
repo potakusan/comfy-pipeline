@@ -337,6 +337,17 @@ export function usePipeline() {
         const filesAfter = await listOutputFiles(outputSubfolder);
         const newFiles = filesAfter.filter((f) => !filesBefore.includes(f));
 
+        // Fire-and-forget: save generated files to local COMFYUI_OUTPUT_DIR
+        if (newFiles.length > 0) {
+          fetch("/api/comfy/output/save-remote", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              paths: newFiles.map((f) => `${outputSubfolder}/${f}`),
+            }),
+          }).catch(() => {});
+        }
+
         const newImages: GalleryImage[] = newFiles.map((filename) => ({
           id: crypto.randomUUID(),
           path: `${outputSubfolder}/${filename}`,

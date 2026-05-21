@@ -4,8 +4,8 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ImageOff, Loader2 } from 'lucide-react'
 
-const LM_BASE = 'http://127.0.0.1:8188'
-const PAGE_SIZE = 50
+const LM_BASE = process.env.NEXT_PUBLIC_COMFYUI_URL;
+const PAGE_SIZE = 50;
 
 export interface LmLoraItem {
   model_name: string
@@ -28,7 +28,7 @@ function LoraPickerItem({ item, onSelect }: { item: LmLoraItem; onSelect: () => 
       onClick={onSelect}
       className="group flex flex-col overflow-hidden rounded-md border border-border text-left transition-colors hover:border-blue-500 hover:bg-muted/50"
     >
-      <div className="relative aspect-[3/4] w-full overflow-hidden bg-muted">
+      <div className="relative aspect-3/4 w-full overflow-hidden bg-muted">
         {imgError || isVideo ? (
           <div className="flex h-full items-center justify-center">
             <ImageOff className="h-6 w-6 text-muted-foreground/40" />

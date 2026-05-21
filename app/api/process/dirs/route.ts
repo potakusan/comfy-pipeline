@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
@@ -21,8 +21,16 @@ export interface FolderInfo {
 /** GET /api/process/dirs
  *  Returns folder metadata (name, image count, first image path) for each
  *  subdirectory in the ComfyUI output dir, excluding "mosaic".
+ *  When REMOTE_PROCESS_URL is set, proxies to the remote machine.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const remoteUrl = process.env.REMOTE_PROCESS_URL;
+  const local = new URL(req.url).searchParams.get("local") === "true";
+  if (remoteUrl && !local) {
+    const res = await fetch(`${remoteUrl}/api/process/dirs`);
+    const data = await res.json();
+    return NextResponse.json(data);
+  }
   const outputDir = getOutputDir();
   try {
     const entries = fs.readdirSync(outputDir, { withFileTypes: true });

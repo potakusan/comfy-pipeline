@@ -230,6 +230,7 @@ export default function PromptBuilder({
     selectedIds: string[],
     selectionType: "radio" | "checkbox",
     onSelect: (id: string) => void,
+    sectionId?: string,
   ) => {
     const uncategorized = presets.filter((p) => !p.category);
     const categorized = presetCategories
@@ -238,7 +239,7 @@ export default function PromptBuilder({
     const hasCategories = categorized.length > 0;
 
     return (
-      <div>
+      <div id={sectionId}>
         <div className="mb-1 flex items-center justify-between">
           <SectionHeader label={label} badge={badge} />
           <button
@@ -311,7 +312,7 @@ export default function PromptBuilder({
   return (
     <div className="space-y-3">
       {/* Fixed prefix */}
-      <div>
+      <div id="p-fixed">
         <div className="mb-1 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             固定タグ
@@ -341,6 +342,7 @@ export default function PromptBuilder({
         selectedPhysicalIds,
         "checkbox",
         onTogglePhysical,
+        "p-physical",
       )}
 
       <Separator />
@@ -352,6 +354,7 @@ export default function PromptBuilder({
         selectedCountId ? [selectedCountId] : [],
         "radio",
         (id) => onSelectCount(selectedCountId === id ? null : id),
+        "p-count",
       )}
 
       <Separator />
@@ -363,6 +366,7 @@ export default function PromptBuilder({
         selectedPoseId ? [selectedPoseId] : [],
         "radio",
         (id) => onSelectPose(selectedPoseId === id ? null : id),
+        "p-pose",
       )}
 
       <Separator />
@@ -374,6 +378,7 @@ export default function PromptBuilder({
         selectedSceneId ? [selectedSceneId] : [],
         "radio",
         (id) => onSelectScene(selectedSceneId === id ? null : id),
+        "p-scene",
       )}
 
       <Separator />
@@ -385,12 +390,13 @@ export default function PromptBuilder({
         selectedOtherIds,
         "checkbox",
         onToggleOther,
+        "p-other",
       )}
 
       <Separator />
 
       {/* Additional prompt */}
-      <div>
+      <div id="p-add">
         <div className="mb-1.5 flex items-center justify-between">
           <Label className="text-xs">追加プロンプト（自由記述）</Label>
           <div className="flex items-center gap-2">
@@ -431,7 +437,7 @@ export default function PromptBuilder({
       </div>
 
       {/* Negative prompt */}
-      <div>
+      <div id="p-neg">
         <div className="mb-1 flex items-center justify-between">
           <Label className="text-xs">ネガティブプロンプト</Label>
           <Button

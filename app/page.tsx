@@ -9,6 +9,23 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Kbd } from "@/components/ui/kbd";
 import LoraPanel from "@/components/lora-panel";
 import PromptBuilder from "@/components/prompt-builder";
 import SamplerSettings from "@/components/sampler-settings";
@@ -28,7 +45,7 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
-import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
+import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip as RechartsTooltip } from "recharts";
 import {
   ChevronDown,
   ChevronUp,
@@ -39,6 +56,19 @@ import {
   Wand2,
   Shuffle,
   Eye,
+  Layers,
+  MessageSquare,
+  Settings2,
+  Tag,
+  Users,
+  Pin,
+  User,
+  Hash,
+  Move,
+  MapPin,
+  Star,
+  AlignLeft,
+  MinusCircle,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -157,7 +187,7 @@ function GpuMonitor({
                     margin={{ top: 2, right: 2, bottom: 0, left: 0 }}
                   >
                     <YAxis domain={[0, 100]} hide />
-                    <Tooltip
+                    <RechartsTooltip
                       content={({ active, payload }) => {
                         if (!active || !payload?.length) return null;
                         return (
@@ -221,6 +251,67 @@ function GpuMonitor({
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Left icon nav
+// ---------------------------------------------------------------------------
+
+type LeftSectionId =
+  | "lora" | "prompt" | "sampler" | "variation" | "tagdb" | "couple-top"
+  | "p-fixed" | "p-physical" | "p-count" | "p-pose" | "p-scene" | "p-other" | "p-add" | "p-neg";
+
+type NavItem = { id: LeftSectionId; icon: React.ElementType; label: string; sub?: boolean };
+
+const NORMAL_NAV: NavItem[] = [
+  { id: "lora",       icon: Layers,        label: "LoRA設定" },
+  { id: "prompt",     icon: MessageSquare, label: "プロンプト" },
+  { id: "p-fixed",    icon: Pin,           label: "固定タグ",       sub: true },
+  { id: "p-physical", icon: User,          label: "身体的特徴",     sub: true },
+  { id: "p-count",    icon: Hash,          label: "人数",           sub: true },
+  { id: "p-pose",     icon: Move,          label: "ポーズ",         sub: true },
+  { id: "p-scene",    icon: MapPin,        label: "シーン",         sub: true },
+  { id: "p-other",    icon: Star,          label: "その他",         sub: true },
+  { id: "p-add",      icon: AlignLeft,     label: "追加プロンプト", sub: true },
+  { id: "p-neg",      icon: MinusCircle,   label: "ネガティブ",     sub: true },
+  { id: "sampler",    icon: Settings2,     label: "サンプラー設定" },
+  { id: "variation",  icon: Shuffle,       label: "ランダム構図" },
+  { id: "tagdb",      icon: Tag,           label: "タグDB設定" },
+];
+
+const COUPLE_NAV: NavItem[] = [
+  { id: "couple-top", icon: Users, label: "マルチキャラ設定" },
+];
+
+function LeftIconNav({
+  activeTab,
+  onScrollTo,
+}: {
+  activeTab: "normal" | "couple";
+  onScrollTo: (id: LeftSectionId) => void;
+}) {
+  const items = activeTab === "normal" ? NORMAL_NAV : COUPLE_NAV;
+  return (
+    <TooltipProvider delayDuration={400}>
+      <div className="flex w-10 shrink-0 flex-col border-r bg-background py-1">
+        {items.map(({ id, icon: Icon, label, sub }) => (
+          <Tooltip key={id}>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => onScrollTo(id)}
+                className={`flex w-10 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground ${
+                  sub ? "h-7 pl-1.5" : "h-10"
+                }`}
+              >
+                <Icon className={sub ? "h-3 w-3" : "h-4 w-4"} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">{label}</TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -429,6 +520,16 @@ export default function Home() {
   // Track which left-panel tab is active for queue dispatch
   const [leftTabMode, setLeftTabMode] = useState<"normal" | "couple">("normal");
 
+  // Left icon nav: section refs + scroll handler
+  const sectionRefs = useRef<Partial<Record<LeftSectionId, HTMLDivElement | null>>>({});
+  const handleScrollTo = useCallback((id: LeftSectionId) => {
+    if (id.startsWith("p-")) {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
+
   // ---------------------------------------------------------------------------
   // Prompt preview
   // ---------------------------------------------------------------------------
@@ -573,6 +674,13 @@ export default function Home() {
     }
   };
 
+  // Cancel confirmation modal
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Stable ref so keyboard handler always calls the latest handleAddToQueue
+  const addToQueueRef = useRef(handleAddToQueue);
+  addToQueueRef.current = handleAddToQueue;
+
   // GPU monitor state
   const [gpuSnapshots, setGpuSnapshots] = useState<SysSnapshot[]>([]);
   const [gpuCollapsed, setGpuCollapsed] = useState(false);
@@ -609,6 +717,31 @@ export default function Home() {
 
   const currentItem = queue.find((i) => i.status === "running") ?? null;
   const pendingCount = queue.filter((i) => i.status === "pending").length;
+
+  // Keyboard shortcuts — placed after currentItem is declared
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Ctrl+Enter — add current settings to queue
+      if (e.ctrlKey && e.key === "Enter") {
+        const target = e.target as HTMLElement;
+        if (
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable
+        )
+          return;
+        e.preventDefault();
+        addToQueueRef.current();
+        return;
+      }
+      // Esc — prompt to cancel the running job
+      if (e.key === "Escape" && currentItem && !showCancelModal) {
+        setShowCancelModal(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [currentItem, showCancelModal]);
   const selectedCount =
     selectedPhysicalIds.length +
     (selectedSceneId ? 1 : 0) +
@@ -692,7 +825,9 @@ export default function Home() {
         />
       </header>
 
-      {/* Main 3-panel resizable layout */}
+      {/* Main layout: icon nav + 3-panel resizable */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <LeftIconNav activeTab={leftTabMode} onScrollTo={handleScrollTo} />
       <ResizablePanelGroup
         orientation="horizontal"
         className="min-h-0 flex-1"
@@ -725,6 +860,7 @@ export default function Home() {
             {/* Normal mode */}
             <TabsContent value="normal" className="min-h-0 flex-1 overflow-y-auto">
               <div className="px-3">
+                <div ref={(el) => { sectionRefs.current.lora = el; }}>
                 <Section
                   title="LoRA設定"
                   badge={selectedVariableLora ? "1選択中" : undefined}
@@ -738,7 +874,9 @@ export default function Home() {
                     onRemoveVariableLora={removeVariableLora}
                   />
                 </Section>
+                </div>
 
+                <div ref={(el) => { sectionRefs.current.prompt = el; }}>
                 <Section
                   title="プロンプト"
                   badge={selectedCount > 0 ? `${selectedCount}選択` : undefined}
@@ -779,11 +917,15 @@ export default function Home() {
                     onRemoveCategory={removeCategory}
                   />
                 </Section>
+                </div>
 
+                <div ref={(el) => { sectionRefs.current.sampler = el; }}>
                 <Section title="サンプラー設定" defaultOpen={false}>
                   <SamplerSettings settings={settings} onChange={setSettings} />
                 </Section>
+                </div>
 
+                <div ref={(el) => { sectionRefs.current.variation = el; }}>
                 <Section
                   title="ランダム構図"
                   defaultOpen={false}
@@ -825,15 +967,19 @@ export default function Home() {
                     />
                   </div>
                 </Section>
+                </div>
 
+                <div ref={(el) => { sectionRefs.current.tagdb = el; }}>
                 <Section title="タグDB設定" defaultOpen={false}>
                   <TagSettings />
                 </Section>
+                </div>
               </div>
             </TabsContent>
 
             {/* Multi-character (COUPLE) mode */}
             <TabsContent value="couple" className="min-h-0 flex-1 overflow-y-auto">
+              <div ref={(el) => { sectionRefs.current["couple-top"] = el; }}>
               <CouplePanel
                 couple={couple}
                 fixedTags={fixedTags}
@@ -853,6 +999,7 @@ export default function Home() {
                 onRenameCategory={renameCategory}
                 onRemoveCategory={removeCategory}
               />
+              </div>
             </TabsContent>
           </Tabs>
         </ResizablePanel>
@@ -966,6 +1113,7 @@ export default function Home() {
           />
         </ResizablePanel>
       </ResizablePanelGroup>
+      </div>
 
       <PromptPreviewBar
         positivePrompt={previewPositive}
@@ -973,6 +1121,31 @@ export default function Home() {
         hasRandom={hasRandom}
         onRefresh={refreshPreview}
       />
+
+      {/* Esc → cancel running job confirmation */}
+      <AlertDialog open={showCancelModal} onOpenChange={setShowCancelModal}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>生成を中止しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              現在実行中のキューアイテムを中止します。この操作は元に戻せません。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="gap-2 text-xs">
+              キャンセル <Kbd>Esc</Kbd>
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              autoFocus
+              className="gap-2 text-xs"
+              onClick={cancelCurrent}
+            >
+              中止する <Kbd>Enter</Kbd>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
