@@ -1,64 +1,73 @@
-'use client'
-import { type QueueItem } from '@/lib/comfy'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Trash2, Loader2, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react'
+"use client";
+import { type QueueItem } from "@/lib/comfy";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Trash2,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertCircle,
+} from "lucide-react";
 
 interface QueueManagerProps {
-  queue: QueueItem[]
-  onRemove: (id: string) => void
+  queue: QueueItem[];
+  onRemove: (id: string) => void;
 }
 
 const STATUS_CONFIG = {
   pending: {
-    label: '待機中',
+    label: "待機中",
     icon: Clock,
-    variant: 'secondary' as const,
-    className: '',
+    variant: "secondary" as const,
+    className: "",
   },
   running: {
-    label: '生成中',
+    label: "生成中",
     icon: Loader2,
-    variant: 'default' as const,
-    className: 'animate-spin',
+    variant: "default" as const,
+    className: "animate-spin",
   },
   completed: {
-    label: '完了',
+    label: "完了",
     icon: CheckCircle2,
-    variant: 'outline' as const,
-    className: 'text-green-600',
+    variant: "outline" as const,
+    className: "text-green-600",
   },
   cancelled: {
-    label: 'キャンセル',
+    label: "キャンセル",
     icon: XCircle,
-    variant: 'outline' as const,
-    className: 'text-muted-foreground',
+    variant: "outline" as const,
+    className: "text-muted-foreground",
   },
   failed: {
-    label: '失敗',
+    label: "失敗",
     icon: AlertCircle,
-    variant: 'destructive' as const,
-    className: '',
+    variant: "destructive" as const,
+    className: "",
   },
-}
+};
 
 function QueueItemRow({
   item,
   onRemove,
 }: {
-  item: QueueItem
-  onRemove: () => void
+  item: QueueItem;
+  onRemove: () => void;
 }) {
-  const cfg = STATUS_CONFIG[item.status]
-  const Icon = cfg.icon
+  const cfg = STATUS_CONFIG[item.status];
+  const Icon = cfg.icon;
   const progressPct =
-    item.batchCount > 0 ? Math.round((item.currentBatch / item.batchCount) * 100) : 0
-  const createdAt = new Date(item.createdAt).toLocaleTimeString('ja-JP', {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+    item.batchCount > 0
+      ? Math.round((item.currentBatch / item.batchCount) * 100)
+      : 0;
+  const createdAt = new Date(item.createdAt).toLocaleTimeString("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border bg-card p-2.5">
@@ -69,14 +78,20 @@ function QueueItemRow({
           <p className="text-[10px] text-muted-foreground">
             {createdAt} · {item.batchCount}枚
             {item.variableLora && (
-              <> · <span className="font-mono">{item.variableLora.strength}str</span></>
+              <>
+                {" "}
+                ·{" "}
+                <span className="font-mono">
+                  {item.variableLora.strength}str
+                </span>
+              </>
             )}
           </p>
         </div>
         <Badge variant={cfg.variant} className="shrink-0 text-[10px]">
           {cfg.label}
         </Badge>
-        {item.status !== 'running' && (
+        {item.status !== "running" && (
           <Button
             variant="ghost"
             size="icon"
@@ -88,7 +103,7 @@ function QueueItemRow({
         )}
       </div>
 
-      {(item.status === 'running' || item.status === 'completed') && (
+      {(item.status === "running" || item.status === "completed") && (
         <div className="space-y-0.5">
           <div className="flex justify-between text-[10px] text-muted-foreground">
             <span>
@@ -100,19 +115,25 @@ function QueueItemRow({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 export default function QueueManager({ queue, onRemove }: QueueManagerProps) {
-  const pending = queue.filter((i) => i.status === 'pending').length
-  const running = queue.filter((i) => i.status === 'running').length
-  const done = queue.filter((i) => i.status === 'completed' || i.status === 'cancelled' || i.status === 'failed').length
+  const pending = queue.filter((i) => i.status === "pending").length;
+  const running = queue.filter((i) => i.status === "running").length;
+  const done = queue.filter(
+    (i) =>
+      i.status === "completed" ||
+      i.status === "cancelled" ||
+      i.status === "failed",
+  ).length;
 
   return (
     <div className="flex h-full flex-col">
-      {/* Stats */}
       <div className="mb-2 flex gap-2 text-xs text-muted-foreground">
-        {running > 0 && <span className="text-blue-600">{running}件生成中</span>}
+        {running > 0 && (
+          <span className="text-blue-600">{running}件生成中</span>
+        )}
         {pending > 0 && <span>{pending}件待機</span>}
         {done > 0 && <span>{done}件完了</span>}
         {queue.length === 0 && <span>キューは空です</span>}
@@ -128,10 +149,14 @@ export default function QueueManager({ queue, onRemove }: QueueManagerProps) {
             </div>
           )}
           {[...queue].reverse().map((item) => (
-            <QueueItemRow key={item.id} item={item} onRemove={() => onRemove(item.id)} />
+            <QueueItemRow
+              key={item.id}
+              item={item}
+              onRemove={() => onRemove(item.id)}
+            />
           ))}
         </div>
       </ScrollArea>
     </div>
-  )
+  );
 }

@@ -45,7 +45,13 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
-import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip as RechartsTooltip } from "recharts";
+import {
+  LineChart,
+  Line,
+  ResponsiveContainer,
+  YAxis,
+  Tooltip as RechartsTooltip,
+} from "recharts";
 import {
   ChevronDown,
   ChevronUp,
@@ -126,7 +132,6 @@ function GpuMonitor({
 
   return (
     <div className="shrink-0 border-t bg-background">
-      {/* Header bar — always visible */}
       <button
         onClick={onToggle}
         className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted/30"
@@ -171,7 +176,6 @@ function GpuMonitor({
         </div>
       </button>
 
-      {/* Expanded chart */}
       {!collapsed && (
         <div className="px-3 pb-2.5">
           {snapshots.length === 0 ? (
@@ -259,25 +263,42 @@ function GpuMonitor({
 // ---------------------------------------------------------------------------
 
 type LeftSectionId =
-  | "lora" | "prompt" | "sampler" | "variation" | "tagdb" | "couple-top"
-  | "p-fixed" | "p-physical" | "p-count" | "p-pose" | "p-scene" | "p-other" | "p-add" | "p-neg";
+  | "lora"
+  | "prompt"
+  | "sampler"
+  | "variation"
+  | "tagdb"
+  | "couple-top"
+  | "p-fixed"
+  | "p-physical"
+  | "p-count"
+  | "p-pose"
+  | "p-scene"
+  | "p-other"
+  | "p-add"
+  | "p-neg";
 
-type NavItem = { id: LeftSectionId; icon: React.ElementType; label: string; sub?: boolean };
+type NavItem = {
+  id: LeftSectionId;
+  icon: React.ElementType;
+  label: string;
+  sub?: boolean;
+};
 
 const NORMAL_NAV: NavItem[] = [
-  { id: "lora",       icon: Layers,        label: "LoRA設定" },
-  { id: "prompt",     icon: MessageSquare, label: "プロンプト" },
-  { id: "p-fixed",    icon: Pin,           label: "固定タグ",       sub: true },
-  { id: "p-physical", icon: User,          label: "身体的特徴",     sub: true },
-  { id: "p-count",    icon: Hash,          label: "人数",           sub: true },
-  { id: "p-pose",     icon: Move,          label: "ポーズ",         sub: true },
-  { id: "p-scene",    icon: MapPin,        label: "シーン",         sub: true },
-  { id: "p-other",    icon: Star,          label: "その他",         sub: true },
-  { id: "p-add",      icon: AlignLeft,     label: "追加プロンプト", sub: true },
-  { id: "p-neg",      icon: MinusCircle,   label: "ネガティブ",     sub: true },
-  { id: "sampler",    icon: Settings2,     label: "サンプラー設定" },
-  { id: "variation",  icon: Shuffle,       label: "ランダム構図" },
-  { id: "tagdb",      icon: Tag,           label: "タグDB設定" },
+  { id: "lora", icon: Layers, label: "LoRA設定" },
+  { id: "prompt", icon: MessageSquare, label: "プロンプト" },
+  { id: "p-fixed", icon: Pin, label: "固定タグ", sub: true },
+  { id: "p-physical", icon: User, label: "身体的特徴", sub: true },
+  { id: "p-count", icon: Hash, label: "人数", sub: true },
+  { id: "p-pose", icon: Move, label: "ポーズ", sub: true },
+  { id: "p-scene", icon: MapPin, label: "シーン", sub: true },
+  { id: "p-other", icon: Star, label: "その他", sub: true },
+  { id: "p-add", icon: AlignLeft, label: "追加プロンプト", sub: true },
+  { id: "p-neg", icon: MinusCircle, label: "ネガティブ", sub: true },
+  { id: "sampler", icon: Settings2, label: "サンプラー設定" },
+  { id: "variation", icon: Shuffle, label: "ランダム構図" },
+  { id: "tagdb", icon: Tag, label: "タグDB設定" },
 ];
 
 const COUPLE_NAV: NavItem[] = [
@@ -521,12 +542,19 @@ export default function Home() {
   const [leftTabMode, setLeftTabMode] = useState<"normal" | "couple">("normal");
 
   // Left icon nav: section refs + scroll handler
-  const sectionRefs = useRef<Partial<Record<LeftSectionId, HTMLDivElement | null>>>({});
+  const sectionRefs = useRef<
+    Partial<Record<LeftSectionId, HTMLDivElement | null>>
+  >({});
   const handleScrollTo = useCallback((id: LeftSectionId) => {
     if (id.startsWith("p-")) {
-      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document
+        .getElementById(id)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
     } else {
-      sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
+      sectionRefs.current[id]?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     }
   }, []);
 
@@ -545,9 +573,12 @@ export default function Home() {
 
   const { previewPositive, previewNegative, hasRandom } = useMemo(() => {
     if (leftTabMode === "couple") {
-      const { activeConfig, selectedNormalCountId, selectedNormalSceneId } = couple;
-      const cCount = countPresets.find((p) => p.id === selectedNormalCountId) ?? null;
-      const cScene = scenePresets.find((p) => p.id === selectedNormalSceneId) ?? null;
+      const { activeConfig, selectedNormalCountId, selectedNormalSceneId } =
+        couple;
+      const cCount =
+        countPresets.find((p) => p.id === selectedNormalCountId) ?? null;
+      const cScene =
+        scenePresets.find((p) => p.id === selectedNormalSceneId) ?? null;
       const allPresets = [...physicalPresets, ...posePresets, ...otherPresets];
       const effectiveRegions = activeConfig.regions.map((r) =>
         applySelectedPresets(r, allPresets),
@@ -575,7 +606,10 @@ export default function Home() {
       .filter((p) => selectedOtherIds.includes(p.id))
       .map(resolveRandom);
 
-    const addLines = additionalPrompt.split("\n").map((s) => s.trim()).filter(Boolean);
+    const addLines = additionalPrompt
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
     let previewAdditional = additionalPrompt.trim();
     if (additionalPromptMode === "random" && addLines.length > 0) {
       previewAdditional = addLines[Math.floor(Math.random() * addLines.length)];
@@ -594,7 +628,8 @@ export default function Home() {
 
     let previewPositive = base;
     if (variationEnabled && variationTags.length > 0) {
-      const tag = variationTags[Math.floor(Math.random() * variationTags.length)];
+      const tag =
+        variationTags[Math.floor(Math.random() * variationTags.length)];
       previewPositive = `${base}\n\n${tag}`;
     }
 
@@ -638,9 +673,12 @@ export default function Home() {
   // Unified "add to queue" that dispatches based on active mode
   const handleAddToQueue = () => {
     if (leftTabMode === "couple") {
-      const { activeConfig, selectedNormalCountId, selectedNormalSceneId } = couple;
-      const selectedCount = countPresets.find((p) => p.id === selectedNormalCountId) ?? null;
-      const selectedScene = scenePresets.find((p) => p.id === selectedNormalSceneId) ?? null;
+      const { activeConfig, selectedNormalCountId, selectedNormalSceneId } =
+        couple;
+      const selectedCount =
+        countPresets.find((p) => p.id === selectedNormalCountId) ?? null;
+      const selectedScene =
+        scenePresets.find((p) => p.id === selectedNormalSceneId) ?? null;
       const allPresets = [...physicalPresets, ...posePresets, ...otherPresets];
       const effectiveRegions = activeConfig.regions.map((r) =>
         applySelectedPresets(r, allPresets),
@@ -752,7 +790,6 @@ export default function Home() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
-      {/* Header */}
       <header className="flex shrink-0 items-center gap-3 border-b px-4 py-2">
         <h1 className="shrink-0 text-sm font-bold tracking-tight">
           ComfyPipeline
@@ -791,7 +828,6 @@ export default function Home() {
         </Button>
         <Separator orientation="vertical" className="h-4" />
 
-        {/* Export / Import */}
         <Button
           variant="ghost"
           size="sm"
@@ -825,88 +861,205 @@ export default function Home() {
         />
       </header>
 
-      {/* Main layout: icon nav + 3-panel resizable */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-      <LeftIconNav activeTab={leftTabMode} onScrollTo={handleScrollTo} />
-      <ResizablePanelGroup
-        orientation="horizontal"
-        className="min-h-0 flex-1"
-      >
-        {/* Left panel */}
-        <ResizablePanel
-          id="left"
-          defaultSize={`${panelSizes["left"]}%`}
-          minSize="15%"
-          maxSize="45%"
-          className="flex flex-col border-r"
-          onResize={(size) =>
-            setPanelSizes({ ...panelSizes, left: Math.round(size.asPercentage) })
-          }
+        <LeftIconNav activeTab={leftTabMode} onScrollTo={handleScrollTo} />
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="min-h-0 flex-1"
         >
-          <Tabs
-            defaultValue="normal"
-            className="flex min-h-0 flex-1 flex-col overflow-hidden"
-            onValueChange={(v) => setLeftTabMode(v as "normal" | "couple")}
+          <ResizablePanel
+            id="left"
+            defaultSize={`${panelSizes["left"]}%`}
+            minSize="15%"
+            maxSize="45%"
+            className="flex flex-col border-r"
+            onResize={(size) =>
+              setPanelSizes({
+                ...panelSizes,
+                left: Math.round(size.asPercentage),
+              })
+            }
           >
-            <TabsList className="m-2 mb-0 shrink-0">
-              <TabsTrigger value="normal" className="flex-1 text-xs">
-                通常
-              </TabsTrigger>
-              <TabsTrigger value="couple" className="flex-1 text-xs">
-                マルチキャラ
-              </TabsTrigger>
-            </TabsList>
+            <Tabs
+              defaultValue="normal"
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              onValueChange={(v) => setLeftTabMode(v as "normal" | "couple")}
+            >
+              <TabsList className="m-2 mb-0 shrink-0">
+                <TabsTrigger value="normal" className="flex-1 text-xs">
+                  通常
+                </TabsTrigger>
+                <TabsTrigger value="couple" className="flex-1 text-xs">
+                  マルチキャラ
+                </TabsTrigger>
+              </TabsList>
 
-            {/* Normal mode */}
-            <TabsContent value="normal" className="min-h-0 flex-1 overflow-y-auto">
-              <div className="px-3">
-                <div ref={(el) => { sectionRefs.current.lora = el; }}>
-                <Section
-                  title="LoRA設定"
-                  badge={selectedVariableLora ? "1選択中" : undefined}
-                >
-                  <LoraPanel
-                    variableLoras={variableLoras}
-                    selectedVariableLora={selectedVariableLora}
-                    onSelectVariableLora={setSelectedVariableLora}
-                    onAddVariableLora={addVariableLora}
-                    onUpdateVariableLora={updateVariableLora}
-                    onRemoveVariableLora={removeVariableLora}
-                  />
-                </Section>
+              <TabsContent
+                value="normal"
+                className="min-h-0 flex-1 overflow-y-auto"
+              >
+                <div className="px-3">
+                  <div
+                    ref={(el) => {
+                      sectionRefs.current.lora = el;
+                    }}
+                  >
+                    <Section
+                      title="LoRA設定"
+                      badge={selectedVariableLora ? "1選択中" : undefined}
+                    >
+                      <LoraPanel
+                        variableLoras={variableLoras}
+                        selectedVariableLora={selectedVariableLora}
+                        onSelectVariableLora={setSelectedVariableLora}
+                        onAddVariableLora={addVariableLora}
+                        onUpdateVariableLora={updateVariableLora}
+                        onRemoveVariableLora={removeVariableLora}
+                      />
+                    </Section>
+                  </div>
+
+                  <div
+                    ref={(el) => {
+                      sectionRefs.current.prompt = el;
+                    }}
+                  >
+                    <Section
+                      title="プロンプト"
+                      badge={
+                        selectedCount > 0 ? `${selectedCount}選択` : undefined
+                      }
+                    >
+                      <PromptBuilder
+                        variableLora={selectedVariableLora}
+                        physicalPresets={physicalPresets}
+                        scenePresets={scenePresets}
+                        countPresets={countPresets}
+                        posePresets={posePresets}
+                        otherPresets={otherPresets}
+                        selectedPhysicalIds={selectedPhysicalIds}
+                        selectedSceneId={selectedSceneId}
+                        selectedCountId={selectedCountId}
+                        selectedPoseId={selectedPoseId}
+                        selectedOtherIds={selectedOtherIds}
+                        additionalPrompt={additionalPrompt}
+                        additionalPromptMode={additionalPromptMode}
+                        negativePrompt={negativePrompt}
+                        onTogglePhysical={togglePhysicalPreset}
+                        onSelectScene={setSelectedSceneId}
+                        onSelectCount={selectCountPreset}
+                        onSelectPose={selectPosePreset}
+                        onToggleOther={toggleOtherPreset}
+                        onSetAdditional={setAdditionalPrompt}
+                        onSetAdditionalMode={setAdditionalPromptMode}
+                        onSetNegative={setNegativePrompt}
+                        fixedTags={fixedTags}
+                        onSetFixedTags={setFixedTags}
+                        onResetFixedTags={resetFixedTags}
+                        onAddPreset={addPreset}
+                        onUpdatePreset={updatePreset}
+                        onRemovePreset={removePreset}
+                        onReorderPresets={reorderPresets}
+                        presetCategories={presetCategories}
+                        onAddCategory={addCategory}
+                        onRenameCategory={renameCategory}
+                        onRemoveCategory={removeCategory}
+                      />
+                    </Section>
+                  </div>
+
+                  <div
+                    ref={(el) => {
+                      sectionRefs.current.sampler = el;
+                    }}
+                  >
+                    <Section title="サンプラー設定" defaultOpen={false}>
+                      <SamplerSettings
+                        settings={settings}
+                        onChange={setSettings}
+                      />
+                    </Section>
+                  </div>
+
+                  <div
+                    ref={(el) => {
+                      sectionRefs.current.variation = el;
+                    }}
+                  >
+                    <Section
+                      title="ランダム構図"
+                      defaultOpen={false}
+                      badge={variationEnabled ? "ON" : undefined}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={variationEnabled}
+                            onCheckedChange={setVariationEnabled}
+                            id="variation-toggle"
+                          />
+                          <Label
+                            htmlFor="variation-toggle"
+                            className="cursor-pointer text-xs"
+                          >
+                            ランダム構図
+                            {variationEnabled && (
+                              <span className="text-primary">が有効</span>
+                            )}
+                          </Label>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          有効にすると、各枚ごとにランダムな構図タグが追加されます。1タグ1行で入力。
+                        </p>
+                        <Textarea
+                          value={variationTags.join("\n")}
+                          onChange={(e) =>
+                            setVariationTags(
+                              e.target.value
+                                .split("\n")
+                                .map((s) => s.trim())
+                                .filter(Boolean),
+                            )
+                          }
+                          rows={7}
+                          className="font-mono text-xs"
+                          placeholder="from above,&#10;from below,&#10;dutch angle,"
+                        />
+                      </div>
+                    </Section>
+                  </div>
+
+                  <div
+                    ref={(el) => {
+                      sectionRefs.current.tagdb = el;
+                    }}
+                  >
+                    <Section title="タグDB設定" defaultOpen={false}>
+                      <TagSettings />
+                    </Section>
+                  </div>
                 </div>
+              </TabsContent>
 
-                <div ref={(el) => { sectionRefs.current.prompt = el; }}>
-                <Section
-                  title="プロンプト"
-                  badge={selectedCount > 0 ? `${selectedCount}選択` : undefined}
+              <TabsContent
+                value="couple"
+                className="min-h-0 flex-1 overflow-y-auto"
+              >
+                <div
+                  ref={(el) => {
+                    sectionRefs.current["couple-top"] = el;
+                  }}
                 >
-                  <PromptBuilder
-                    variableLora={selectedVariableLora}
+                  <CouplePanel
+                    couple={couple}
+                    fixedTags={fixedTags}
+                    negativePrompt={negativePrompt}
+                    setNegativePrompt={setNegativePrompt}
                     physicalPresets={physicalPresets}
-                    scenePresets={scenePresets}
-                    countPresets={countPresets}
                     posePresets={posePresets}
                     otherPresets={otherPresets}
-                    selectedPhysicalIds={selectedPhysicalIds}
-                    selectedSceneId={selectedSceneId}
-                    selectedCountId={selectedCountId}
-                    selectedPoseId={selectedPoseId}
-                    selectedOtherIds={selectedOtherIds}
-                    additionalPrompt={additionalPrompt}
-                    additionalPromptMode={additionalPromptMode}
-                    negativePrompt={negativePrompt}
-                    onTogglePhysical={togglePhysicalPreset}
-                    onSelectScene={setSelectedSceneId}
-                    onSelectCount={selectCountPreset}
-                    onSelectPose={selectPosePreset}
-                    onToggleOther={toggleOtherPreset}
-                    onSetAdditional={setAdditionalPrompt}
-                    onSetAdditionalMode={setAdditionalPromptMode}
-                    onSetNegative={setNegativePrompt}
-                    fixedTags={fixedTags}
-                    onSetFixedTags={setFixedTags}
-                    onResetFixedTags={resetFixedTags}
+                    countPresets={countPresets}
+                    scenePresets={scenePresets}
                     onAddPreset={addPreset}
                     onUpdatePreset={updatePreset}
                     onRemovePreset={removePreset}
@@ -916,203 +1069,123 @@ export default function Home() {
                     onRenameCategory={renameCategory}
                     onRemoveCategory={removeCategory}
                   />
-                </Section>
                 </div>
+              </TabsContent>
+            </Tabs>
+          </ResizablePanel>
 
-                <div ref={(el) => { sectionRefs.current.sampler = el; }}>
-                <Section title="サンプラー設定" defaultOpen={false}>
-                  <SamplerSettings settings={settings} onChange={setSettings} />
-                </Section>
-                </div>
+          <ResizableHandle withHandle />
 
-                <div ref={(el) => { sectionRefs.current.variation = el; }}>
-                <Section
-                  title="ランダム構図"
-                  defaultOpen={false}
-                  badge={variationEnabled ? "ON" : undefined}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={variationEnabled}
-                        onCheckedChange={setVariationEnabled}
-                        id="variation-toggle"
-                      />
-                      <Label
-                        htmlFor="variation-toggle"
-                        className="cursor-pointer text-xs"
-                      >
-                        ランダム構図
-                        {variationEnabled && (
-                          <span className="text-primary">が有効</span>
-                        )}
-                      </Label>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      有効にすると、各枚ごとにランダムな構図タグが追加されます。1タグ1行で入力。
-                    </p>
-                    <Textarea
-                      value={variationTags.join("\n")}
-                      onChange={(e) =>
-                        setVariationTags(
-                          e.target.value
-                            .split("\n")
-                            .map((s) => s.trim())
-                            .filter(Boolean),
-                        )
-                      }
-                      rows={7}
-                      className="font-mono text-xs"
-                      placeholder="from above,&#10;from below,&#10;dutch angle,"
-                    />
-                  </div>
-                </Section>
-                </div>
-
-                <div ref={(el) => { sectionRefs.current.tagdb = el; }}>
-                <Section title="タグDB設定" defaultOpen={false}>
-                  <TagSettings />
-                </Section>
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Multi-character (COUPLE) mode */}
-            <TabsContent value="couple" className="min-h-0 flex-1 overflow-y-auto">
-              <div ref={(el) => { sectionRefs.current["couple-top"] = el; }}>
-              <CouplePanel
-                couple={couple}
-                fixedTags={fixedTags}
-                negativePrompt={negativePrompt}
-                setNegativePrompt={setNegativePrompt}
-                physicalPresets={physicalPresets}
-                posePresets={posePresets}
-                otherPresets={otherPresets}
-                countPresets={countPresets}
-                scenePresets={scenePresets}
-                onAddPreset={addPreset}
-                onUpdatePreset={updatePreset}
-                onRemovePreset={removePreset}
-                onReorderPresets={reorderPresets}
-                presetCategories={presetCategories}
-                onAddCategory={addCategory}
-                onRenameCategory={renameCategory}
-                onRemoveCategory={removeCategory}
-              />
-              </div>
-            </TabsContent>
-          </Tabs>
-        </ResizablePanel>
-
-        <ResizableHandle withHandle />
-
-        {/* Center: Preview */}
-        <ResizablePanel
-          id="center"
-          defaultSize={`${panelSizes["center"]}%`}
-          minSize="20%"
-          className="flex flex-col overflow-hidden"
-          onResize={(size) =>
-            setPanelSizes({ ...panelSizes, center: Math.round(size.asPercentage) })
-          }
-        >
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
-            <div className="mb-2 flex items-center gap-2">
-              <BatchQueueDialog
-                batchPresetSets={batchPresetSets}
-                onSaveSet={saveBatchPresetSet}
-                onRemoveSet={removeBatchPresetSet}
-                onRunPresets={runBatchPresets}
-                onCaptureCurrentSettings={captureCurrentSettings}
-              />
-              <QuickAddToBatch
-                batchPresetSets={batchPresetSets}
-                onCaptureCurrentSettings={captureCurrentSettings}
-                onSaveSet={saveBatchPresetSet}
-              />
-              {variationEnabled && (
-                <Badge variant="secondary" className="text-[10px]">
-                  ランダム構図 ON
-                </Badge>
-              )}
-            </div>
-            <PreviewPanel
-              previewUrl={previewUrl}
-              progress={progress}
-              isProcessing={isProcessing}
-              currentItem={currentItem}
-              batchCount={batchCount}
-              onBatchCountChange={setBatchCount}
-              onAddToQueue={handleAddToQueue}
-              onCancel={cancelCurrent}
-              currentJobImages={currentJobImages}
-            />
-          </div>
-        </ResizablePanel>
-
-        <ResizableHandle withHandle />
-
-        {/* Right panel: Queue & Gallery + GPU monitor */}
-        <ResizablePanel
-          id="right"
-          defaultSize={`${panelSizes["right"]}%`}
-          minSize="15%"
-          maxSize="50%"
-          className="flex flex-col border-l"
-          onResize={(size) =>
-            setPanelSizes({ ...panelSizes, right: Math.round(size.asPercentage) })
-          }
-        >
-          <Tabs
-            defaultValue="queue"
-            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          <ResizablePanel
+            id="center"
+            defaultSize={`${panelSizes["center"]}%`}
+            minSize="20%"
+            className="flex flex-col overflow-hidden"
+            onResize={(size) =>
+              setPanelSizes({
+                ...panelSizes,
+                center: Math.round(size.asPercentage),
+              })
+            }
           >
-            <TabsList className="m-2 mb-0 shrink-0">
-              <TabsTrigger value="queue" className="flex-1 text-xs">
-                キュー
-                {queue.length > 0 && (
-                  <Badge variant="secondary" className="ml-1.5 text-[10px]">
-                    {queue.length}
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <BatchQueueDialog
+                  batchPresetSets={batchPresetSets}
+                  onSaveSet={saveBatchPresetSet}
+                  onRemoveSet={removeBatchPresetSet}
+                  onRunPresets={runBatchPresets}
+                  onCaptureCurrentSettings={captureCurrentSettings}
+                />
+                <QuickAddToBatch
+                  batchPresetSets={batchPresetSets}
+                  onCaptureCurrentSettings={captureCurrentSettings}
+                  onSaveSet={saveBatchPresetSet}
+                />
+                {variationEnabled && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    ランダム構図 ON
                   </Badge>
                 )}
-              </TabsTrigger>
-              <TabsTrigger value="gallery" className="flex-1 text-xs">
-                ギャラリー
-                {gallery.length > 0 && (
-                  <Badge variant="secondary" className="ml-1.5 text-[10px]">
-                    {gallery.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent
-              value="queue"
-              className="min-h-0 flex-1 overflow-hidden p-2"
-            >
-              <QueueManager queue={queue} onRemove={removeFromQueue} />
-            </TabsContent>
-
-            <TabsContent
-              value="gallery"
-              className="min-h-0 flex-1 overflow-hidden p-2"
-            >
-              <GalleryPanel
-                gallery={gallery}
-                onClear={clearGallery}
-                onRefreshFs={refreshGalleryFromFs}
+              </div>
+              <PreviewPanel
+                previewUrl={previewUrl}
+                progress={progress}
+                isProcessing={isProcessing}
+                currentItem={currentItem}
+                batchCount={batchCount}
+                onBatchCountChange={setBatchCount}
+                onAddToQueue={handleAddToQueue}
+                onCancel={cancelCurrent}
+                currentJobImages={currentJobImages}
               />
-            </TabsContent>
-          </Tabs>
+            </div>
+          </ResizablePanel>
 
-          {/* GPU monitor */}
-          <GpuMonitor
-            snapshots={gpuSnapshots}
-            collapsed={gpuCollapsed}
-            onToggle={() => setGpuCollapsed((v) => !v)}
-          />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+          <ResizableHandle withHandle />
+
+          <ResizablePanel
+            id="right"
+            defaultSize={`${panelSizes["right"]}%`}
+            minSize="15%"
+            maxSize="50%"
+            className="flex flex-col border-l"
+            onResize={(size) =>
+              setPanelSizes({
+                ...panelSizes,
+                right: Math.round(size.asPercentage),
+              })
+            }
+          >
+            <Tabs
+              defaultValue="queue"
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            >
+              <TabsList className="m-2 mb-0 shrink-0">
+                <TabsTrigger value="queue" className="flex-1 text-xs">
+                  キュー
+                  {queue.length > 0 && (
+                    <Badge variant="secondary" className="ml-1.5 text-[10px]">
+                      {queue.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="gallery" className="flex-1 text-xs">
+                  ギャラリー
+                  {gallery.length > 0 && (
+                    <Badge variant="secondary" className="ml-1.5 text-[10px]">
+                      {gallery.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent
+                value="queue"
+                className="min-h-0 flex-1 overflow-hidden p-2"
+              >
+                <QueueManager queue={queue} onRemove={removeFromQueue} />
+              </TabsContent>
+
+              <TabsContent
+                value="gallery"
+                className="min-h-0 flex-1 overflow-hidden p-2"
+              >
+                <GalleryPanel
+                  gallery={gallery}
+                  onClear={clearGallery}
+                  onRefreshFs={refreshGalleryFromFs}
+                />
+              </TabsContent>
+            </Tabs>
+
+            <GpuMonitor
+              snapshots={gpuSnapshots}
+              collapsed={gpuCollapsed}
+              onToggle={() => setGpuCollapsed((v) => !v)}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
 
       <PromptPreviewBar
@@ -1122,7 +1195,6 @@ export default function Home() {
         onRefresh={refreshPreview}
       />
 
-      {/* Esc → cancel running job confirmation */}
       <AlertDialog open={showCancelModal} onOpenChange={setShowCancelModal}>
         <AlertDialogContent size="sm">
           <AlertDialogHeader>

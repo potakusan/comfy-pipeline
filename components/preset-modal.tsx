@@ -68,7 +68,10 @@ export function CategoryManagerModal({
             </p>
           )}
           {categories.map((cat) => (
-            <div key={cat.id} className="flex items-center gap-1.5 rounded-md border px-2 py-1">
+            <div
+              key={cat.id}
+              className="flex items-center gap-1.5 rounded-md border px-2 py-1"
+            >
               {editingId === cat.id ? (
                 <>
                   <Input
@@ -153,7 +156,6 @@ export function CategoryManagerModal({
             </div>
           ))}
 
-          {/* Add new */}
           <div className="flex gap-2 pt-1">
             <Input
               placeholder="新しいカテゴリ名"
@@ -182,7 +184,11 @@ export function CategoryManagerModal({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+          >
             閉じる
           </Button>
         </DialogFooter>

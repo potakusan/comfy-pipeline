@@ -62,11 +62,17 @@ function getFolder(path: string) {
 }
 
 function downloadImageMeta(img: GalleryImage) {
-  const blob = new Blob([JSON.stringify(img, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(img, null, 2)], {
+    type: "application/json",
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  const stem = img.path.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "image";
+  const stem =
+    img.path
+      .split("/")
+      .pop()
+      ?.replace(/\.[^.]+$/, "") ?? "image";
   a.download = `${stem}.json`;
   a.click();
   URL.revokeObjectURL(url);
@@ -125,7 +131,6 @@ function FolderCard({
               onClick={() => onOpenViewer(images, i)}
               className="group relative overflow-hidden rounded border border-border bg-muted/20 transition-all hover:border-primary/50 hover:shadow-md hover:shadow-black/30"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={thumbUrl(img)}
                 alt={img.path}
@@ -156,7 +161,6 @@ function FolderCard({
                 onClick={() => onOpenViewer(images, i)}
                 className="group relative overflow-hidden rounded border border-border bg-muted/20 transition-all hover:border-primary/50 hover:shadow-md hover:shadow-black/30"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={thumbUrl(img)}
                   alt={img.path}
@@ -250,7 +254,6 @@ export default function GalleryPanel({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Toolbar */}
       <div className="mb-2 shrink-0 space-y-1.5">
         <div className="flex items-center gap-1.5">
           <Select value={filterLora} onValueChange={setFilterLora}>
@@ -304,7 +307,6 @@ export default function GalleryPanel({
         )}
       </div>
 
-      {/* Folder list */}
       <div
         ref={galleryScrollRef}
         onScroll={handleGalleryScroll}
@@ -335,7 +337,6 @@ export default function GalleryPanel({
         )}
       </div>
 
-      {/* Full-size viewer dialog */}
       <Dialog
         open={viewer !== null}
         onOpenChange={(open) => !open && setViewer(null)}
@@ -365,7 +366,6 @@ export default function GalleryPanel({
           {selectedImg && viewer && (
             <div className="relative flex min-h-0 flex-1 flex-col">
               <div className="relative flex min-h-0 flex-1 items-center justify-center bg-black/20 p-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={imageUrl(selectedImg)}
                   alt={selectedImg.path}
@@ -446,17 +446,27 @@ export default function GalleryPanel({
                     <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 rounded bg-muted/30 p-2 font-mono text-[10px]">
                       {[
                         ["チェックポイント", selectedImg.settings.checkpoint],
-                        ["サイズ", `${selectedImg.settings.width}×${selectedImg.settings.height}`],
+                        [
+                          "サイズ",
+                          `${selectedImg.settings.width}×${selectedImg.settings.height}`,
+                        ],
                         ["ステップ", selectedImg.settings.steps],
                         ["CFG", selectedImg.settings.cfg],
                         ["サンプラー", selectedImg.settings.sampler],
                         ["スケジューラ", selectedImg.settings.scheduler],
                         ["デノイズ", selectedImg.settings.denoise],
-                        ["シード", selectedImg.settings.randomizeSeed ? "ランダム" : selectedImg.settings.seed],
+                        [
+                          "シード",
+                          selectedImg.settings.randomizeSeed
+                            ? "ランダム"
+                            : selectedImg.settings.seed,
+                        ],
                       ].map(([k, v]) => (
                         <div key={k as string} className="flex gap-1">
                           <span className="text-muted-foreground">{k}:</span>
-                          <span className="truncate">{v as string | number}</span>
+                          <span className="truncate">
+                            {v as string | number}
+                          </span>
                         </div>
                       ))}
                     </div>

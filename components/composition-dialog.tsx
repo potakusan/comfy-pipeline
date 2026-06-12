@@ -238,7 +238,6 @@ function DrawingCanvas({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Canvas container with optional colormap overlay for pose mode */}
       <div className="relative w-full rounded border border-border overflow-hidden">
         <canvas
           ref={canvasRef}
@@ -323,9 +322,11 @@ function SavedImageCard({
         <CheckCircle className="absolute right-1 top-1 h-3.5 w-3.5 text-primary" />
       )}
       {isEditing && (
-        <span className="absolute right-1 top-1 text-[9px] font-bold text-amber-400">編集中</span>
+        <span className="absolute right-1 top-1 text-[9px] font-bold text-amber-400">
+          編集中
+        </span>
       )}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
+
       <img
         src={img.thumbnail}
         alt={img.name}
@@ -434,9 +435,11 @@ export default function CompositionDialog({
         ctx.drawImage(image, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
       };
       image.src = img.thumbnail;
-      toast.error("ComfyUIから画像を取得できませんでした。サムネイルで代用します。");
+      toast.error(
+        "ComfyUIから画像を取得できませんでした。サムネイルで代用します。",
+      );
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleModeChange = (newMode: "pose" | "colormap") => {
@@ -518,7 +521,9 @@ export default function CompositionDialog({
       setSavedImages(next);
       setSaveName("");
       setEditingImage(null);
-      toast.success(`「${saved.name}」を${isOverwrite ? "上書き" : ""}保存しました`);
+      toast.success(
+        `「${saved.name}」を${isOverwrite ? "上書き" : ""}保存しました`,
+      );
     } catch (err) {
       toast.error("保存に失敗しました: " + String(err));
     } finally {
@@ -582,9 +587,7 @@ export default function CompositionDialog({
         </DialogHeader>
 
         <div className="flex min-h-0 gap-0 overflow-hidden">
-          {/* Left: canvas + tools */}
           <div className="flex w-105 shrink-0 flex-col gap-3 border-r p-4">
-            {/* Mode tabs */}
             <Tabs
               value={mode}
               onValueChange={(v) => handleModeChange(v as "pose" | "colormap")}
@@ -607,7 +610,6 @@ export default function CompositionDialog({
               </TabsContent>
             </Tabs>
 
-            {/* Tools */}
             <div className="flex items-center gap-2">
               <div className="flex rounded-md border">
                 {(["pencil", "fill", "eraser"] as const).map((t) => (
@@ -656,7 +658,6 @@ export default function CompositionDialog({
               )}
             </div>
 
-            {/* Color palette */}
             <div className="flex flex-wrap gap-1">
               {colorPalette.map((color) => (
                 <button
@@ -680,7 +681,6 @@ export default function CompositionDialog({
               />
             </div>
 
-            {/* Canvas */}
             <DrawingCanvas
               mode={mode}
               regions={regions}
@@ -694,7 +694,6 @@ export default function CompositionDialog({
 
             <Separator />
 
-            {/* Save */}
             <div className="space-y-2">
               {editingImage && (
                 <div className="flex items-center gap-1.5 rounded bg-amber-500/10 px-2 py-1">
@@ -703,7 +702,11 @@ export default function CompositionDialog({
                   </span>
                   <button
                     className="text-[10px] text-muted-foreground hover:text-foreground"
-                    onClick={() => { setEditingImage(null); setSaveName(""); handleClear(); }}
+                    onClick={() => {
+                      setEditingImage(null);
+                      setSaveName("");
+                      handleClear();
+                    }}
                   >
                     キャンセル
                   </button>
@@ -726,7 +729,11 @@ export default function CompositionDialog({
                   disabled={isSaving || !saveName.trim()}
                 >
                   <Save className="mr-1 h-3 w-3" />
-                  {isSaving ? "保存中..." : editingImage ? "上書き保存" : "保存"}
+                  {isSaving
+                    ? "保存中..."
+                    : editingImage
+                      ? "上書き保存"
+                      : "保存"}
                 </Button>
               </div>
               <label className="flex cursor-pointer items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground">
@@ -742,7 +749,6 @@ export default function CompositionDialog({
             </div>
           </div>
 
-          {/* Right: saved images gallery */}
           <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
             <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               保存済み画像

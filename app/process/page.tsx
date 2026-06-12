@@ -153,7 +153,6 @@ function ResourceMonitor({ snapshots }: { snapshots: SysSnapshot[] }) {
 
   return (
     <div className="shrink-0 border-b px-4 py-2.5">
-      {/* Header row: label + stat pills + GPU name */}
       <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           システム
@@ -190,7 +189,6 @@ function ResourceMonitor({ snapshots }: { snapshots: SysSnapshot[] }) {
         )}
       </div>
 
-      {/* Chart */}
       <div className="h-16">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
@@ -248,7 +246,6 @@ function ResourceMonitor({ snapshots }: { snapshots: SysSnapshot[] }) {
         </ResponsiveContainer>
       </div>
 
-      {/* Legend */}
       <div className="mt-0.5 flex gap-3">
         <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
           <span className="inline-block h-0.5 w-3 rounded bg-blue-500" />
@@ -338,7 +335,6 @@ function FolderPickerModal({
                         : "border-border bg-card/30"
                     }`}
                   >
-                    {/* Thumbnail */}
                     <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted/30">
                       {folder.firstImage ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -362,7 +358,7 @@ function FolderPickerModal({
                         </div>
                       )}
                     </div>
-                    {/* Info */}
+
                     <div className="px-3 py-2">
                       <p className="truncate font-mono text-[11px] font-medium leading-tight">
                         {folder.name}
@@ -641,7 +637,6 @@ function ResizeConfig({
 
   return (
     <>
-      {/* Target size or manual scale */}
       <div>
         <div className="mb-1 flex items-center gap-2">
           <Label className="text-xs text-muted-foreground">
@@ -785,7 +780,6 @@ function JobProgress({
 
   return (
     <div className="rounded-lg border bg-card/30 p-3 space-y-2">
-      {/* Status row */}
       <div className="flex items-center gap-2">
         {isRunning && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
         {job.status === "completed" && (
@@ -808,7 +802,6 @@ function JobProgress({
         )}
       </div>
 
-      {/* Progress bar */}
       {isRunning && job.total > 0 && (
         <div className="h-1.5 rounded-full bg-muted overflow-hidden">
           <div
@@ -818,7 +811,6 @@ function JobProgress({
         </div>
       )}
 
-      {/* ETA row */}
       {isRunning && job.total > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px]">
           <span className="text-muted-foreground">
@@ -905,12 +897,11 @@ function BeforeAfterGallery({
                   {filename}
                 </p>
                 <div className="flex items-center gap-2">
-                  {/* Before */}
                   <div className="flex-1 min-w-0">
                     <p className="mb-1 text-[10px] text-muted-foreground">
                       処理前
                     </p>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+
                     <img
                       src={thumbUrl(beforePath)}
                       alt={`before ${filename}`}
@@ -921,12 +912,12 @@ function BeforeAfterGallery({
                   {afterPath && (
                     <>
                       <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
-                      {/* After */}
+
                       <div className="flex-1 min-w-0">
                         <p className="mb-1 text-[10px] text-muted-foreground">
                           処理後
                         </p>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+
                         <img
                           src={`${thumbUrl(afterPath)}&v=${cacheBust}`}
                           alt={`after ${filename}`}
@@ -1176,7 +1167,6 @@ export default function ProcessPage() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
-      {/* Header */}
       <header className="flex shrink-0 items-center gap-3 border-b px-4 py-2">
         <h1 className="text-sm font-bold tracking-tight">画像処理</h1>
         <Separator orientation="vertical" className="h-4" />
@@ -1187,11 +1177,9 @@ export default function ProcessPage() {
       </header>
 
       <div className="flex min-h-0 flex-1 gap-0">
-        {/* Left: config */}
         <div className="flex w-160 shrink-0 flex-col border-r">
           <ScrollArea className="flex-1 p-4">
             <div className="space-y-4">
-              {/* Folder select */}
               <div>
                 <div className="mb-1.5 flex items-center gap-2">
                   <Label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1260,7 +1248,6 @@ export default function ProcessPage() {
 
               <Separator />
 
-              {/* Mosaic config */}
               <ConfigSection
                 title="自動モザイク"
                 enabled={mosaicConfig.enabled}
@@ -1272,7 +1259,6 @@ export default function ProcessPage() {
                 />
               </ConfigSection>
 
-              {/* Resize config */}
               <ConfigSection
                 title="リサイズ / 圧縮"
                 enabled={resizeConfig.enabled}
@@ -1297,7 +1283,6 @@ export default function ProcessPage() {
             </div>
           </ScrollArea>
 
-          {/* Run button */}
           <div className="shrink-0 border-t p-3">
             <Button
               className="w-full gap-2"
@@ -1314,7 +1299,11 @@ export default function ProcessPage() {
               ) : (
                 <Play className="h-4 w-4" />
               )}
-              {uploading ? "アップロード中..." : isRunning || submitting ? "処理中..." : "処理を開始"}
+              {uploading
+                ? "アップロード中..."
+                : isRunning || submitting
+                  ? "処理中..."
+                  : "処理を開始"}
             </Button>
             {!mosaicConfig.enabled && !resizeConfig.enabled && (
               <p className="mt-1 text-center text-[10px] text-muted-foreground">
@@ -1324,7 +1313,6 @@ export default function ProcessPage() {
           </div>
         </div>
 
-        {/* Right: resource monitor + job status + before/after */}
         <div className="flex min-h-0 flex-1 flex-col">
           <ResourceMonitor snapshots={snapshots} />
           <ScrollArea className="flex-1 p-4">
@@ -1358,7 +1346,8 @@ export default function ProcessPage() {
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       出力先:{" "}
                       <span className="font-mono">
-                        {selectedFolder}/{mosaicConfig.enabled ? "mosaic" : "resized"}/
+                        {selectedFolder}/
+                        {mosaicConfig.enabled ? "mosaic" : "resized"}/
                       </span>
                     </p>
                     {jobId?.startsWith("remote:") && !syncResult && (
@@ -1406,7 +1395,6 @@ export default function ProcessPage() {
         </div>
       </div>
 
-      {/* Folder picker modal */}
       <FolderPickerModal
         open={pickerOpen}
         folders={folders}

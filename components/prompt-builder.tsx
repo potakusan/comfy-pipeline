@@ -80,7 +80,9 @@ function SectionHeader({ label, badge }: { label: string; badge: string }) {
 function CategoryDivider({ name }: { name: string }) {
   return (
     <div className="flex items-center gap-1.5 py-0.5">
-      <span className="text-[10px] font-medium text-muted-foreground">{name}</span>
+      <span className="text-[10px] font-medium text-muted-foreground">
+        {name}
+      </span>
       <div className="flex-1 border-t border-dashed border-border/60" />
     </div>
   );
@@ -117,7 +119,9 @@ function CategoryGroupHeader({
 
   return (
     <div className="flex items-center gap-1.5 py-0.5">
-      <span className="text-[10px] font-medium text-muted-foreground">{name}</span>
+      <span className="text-[10px] font-medium text-muted-foreground">
+        {name}
+      </span>
       <div className="flex-1 border-t border-dashed border-border/60" />
       {groupIds.length > 0 && (
         <button
@@ -127,7 +131,11 @@ function CategoryGroupHeader({
               ? "text-blue-500 hover:text-blue-700"
               : "text-muted-foreground hover:text-foreground"
           }`}
-          title={anySelected ? "このカテゴリの選択を解除" : "このカテゴリをすべて選択"}
+          title={
+            anySelected
+              ? "このカテゴリの選択を解除"
+              : "このカテゴリをすべて選択"
+          }
         >
           {anySelected ? (allSelected ? "全解除" : "解除") : "全選択"}
         </button>
@@ -234,7 +242,10 @@ export default function PromptBuilder({
   ) => {
     const uncategorized = presets.filter((p) => !p.category);
     const categorized = presetCategories
-      .map((cat) => ({ cat, items: presets.filter((p) => p.category === cat.id) }))
+      .map((cat) => ({
+        cat,
+        items: presets.filter((p) => p.category === cat.id),
+      }))
       .filter(({ items }) => items.length > 0);
     const hasCategories = categorized.length > 0;
 
@@ -311,7 +322,6 @@ export default function PromptBuilder({
 
   return (
     <div className="space-y-3">
-      {/* Fixed prefix */}
       <div id="p-fixed">
         <div className="mb-1 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -329,7 +339,11 @@ export default function PromptBuilder({
         <TagAutocompleteTextarea
           value={fixedTags}
           onChange={onSetFixedTags}
-          style={{ minHeight: "60px", fontSize: "10px", fontFamily: "monospace" }}
+          style={{
+            minHeight: "60px",
+            fontSize: "10px",
+            fontFamily: "monospace",
+          }}
         />
       </div>
 
@@ -395,7 +409,6 @@ export default function PromptBuilder({
 
       <Separator />
 
-      {/* Additional prompt */}
       <div id="p-add">
         <div className="mb-1.5 flex items-center justify-between">
           <Label className="text-xs">追加プロンプト（自由記述）</Label>
@@ -436,7 +449,6 @@ export default function PromptBuilder({
         )}
       </div>
 
-      {/* Negative prompt */}
       <div id="p-neg">
         <div className="mb-1 flex items-center justify-between">
           <Label className="text-xs">ネガティブプロンプト</Label>
@@ -460,7 +472,6 @@ export default function PromptBuilder({
         />
       </div>
 
-      {/* Preview */}
       <div>
         <button
           onClick={() => setShowPreview((v) => !v)}

@@ -474,7 +474,6 @@ function CharacterTab({
 
   return (
     <div className="space-y-3 pt-2">
-      {/* Name */}
       <div className="flex items-center gap-2">
         <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${col.bar}`} />
         <Input
@@ -485,7 +484,6 @@ function CharacterTab({
         />
       </div>
 
-      {/* LoRA */}
       <LoraSection
         lora={region.lora ?? undefined}
         onChange={(lora) => onUpdate({ lora: lora ?? null })}
@@ -493,7 +491,6 @@ function CharacterTab({
 
       <Separator />
 
-      {/* Preset lists — checkbox auto-include */}
       <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">
           プリセット（チェックしたものを自動追加）
@@ -551,7 +548,6 @@ function CharacterTab({
 
       <Separator />
 
-      {/* Character prompt textarea */}
       <div>
         <div className="mb-1 flex items-center justify-between">
           <Label className="text-xs text-muted-foreground">
@@ -731,7 +727,6 @@ export default function CouplePanel({
 
   return (
     <div className="flex flex-col space-y-2 py-2">
-      {/* Config selector */}
       <div className="px-3">
         <ConfigSelector
           configs={configs}
@@ -743,7 +738,6 @@ export default function CouplePanel({
         />
       </div>
 
-      {/* Inner tabs: ベース | キャラA | キャラB | ... */}
       <Tabs
         value={safeInnerTab}
         onValueChange={setInnerTab}
@@ -772,10 +766,8 @@ export default function CouplePanel({
           </TabsList>
         </div>
 
-        {/* ===== BASE TAB ===== */}
         <TabsContent value="base" className="px-3">
           <div className="space-y-3">
-            {/* Character list (add/remove) */}
             <div className="flex items-center justify-between">
               <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 キャラクター
@@ -812,7 +804,6 @@ export default function CouplePanel({
 
             <Separator />
 
-            {/* Fixed tags from normal mode (read-only) */}
             <div className="space-y-1">
               <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 固定タグ（通常モードと共有）
@@ -825,7 +816,6 @@ export default function CouplePanel({
               />
             </div>
 
-            {/* Couple-specific base prompt */}
             <div className="space-y-1">
               <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 マルチキャラ専用ベースプロンプト
@@ -841,7 +831,6 @@ export default function CouplePanel({
 
             <Separator />
 
-            {/* Count presets */}
             <div className="space-y-1.5">
               <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 人数
@@ -872,7 +861,6 @@ export default function CouplePanel({
               </div>
             </div>
 
-            {/* Scene presets */}
             <div className="space-y-1.5">
               <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 シーン
@@ -905,7 +893,6 @@ export default function CouplePanel({
 
             <Separator />
 
-            {/* Negative prompt */}
             <div className="space-y-1">
               <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 ネガティブプロンプト
@@ -920,7 +907,6 @@ export default function CouplePanel({
 
             <Separator />
 
-            {/* ControlNet / Color-mask section */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -935,7 +921,6 @@ export default function CouplePanel({
 
               {activeConfig.controlNet.enabled && (
                 <div className="space-y-2 rounded-md border bg-muted/20 p-2">
-                  {/* Open drawing editor */}
                   <Button
                     variant="outline"
                     size="sm"
@@ -946,7 +931,6 @@ export default function CouplePanel({
                     構図エディタを開く
                   </Button>
 
-                  {/* Color hex per region */}
                   <div className="space-y-1">
                     <span className="text-[10px] text-muted-foreground">
                       カラーマップの色 (各キャラの塗り色と一致させてください)
@@ -982,7 +966,6 @@ export default function CouplePanel({
 
                   <Separator />
 
-                  {/* Active image names */}
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <FileImage className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -1026,7 +1009,6 @@ export default function CouplePanel({
 
                   <Separator />
 
-                  {/* ControlNet model */}
                   <div className="space-y-1">
                     <Label className="text-[10px] text-muted-foreground">
                       ControlNetモデル
@@ -1041,7 +1023,6 @@ export default function CouplePanel({
                     />
                   </div>
 
-                  {/* Strength / range */}
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
                       <Label className="text-[10px] text-muted-foreground">
@@ -1110,7 +1091,6 @@ export default function CouplePanel({
 
             <Separator />
 
-            {/* Prompt preview */}
             <PromptPreview prompt={assembledPrompt} />
             {cn.enabled && (
               <div className="space-y-1 rounded-md border bg-muted/20 px-2.5 py-2">
@@ -1139,7 +1119,6 @@ export default function CouplePanel({
               </div>
             )}
 
-            {/* Composition editor dialog */}
             <CompositionDialog
               open={compositionOpen}
               onOpenChange={setCompositionOpen}
@@ -1158,7 +1137,6 @@ export default function CouplePanel({
           </div>
         </TabsContent>
 
-        {/* ===== CHARACTER TABS ===== */}
         {activeConfig.regions.map((r, i) => (
           <TabsContent key={r.id} value={`char-${i}`} className="px-3">
             <CharacterTab

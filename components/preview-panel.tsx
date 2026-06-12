@@ -90,7 +90,6 @@ export default function PreviewPanel({
 
   return (
     <div className="flex h-full flex-col gap-3">
-      {/* Main preview area */}
       <div className="relative flex-1 overflow-hidden rounded-xl border bg-muted/30">
         {mainUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -116,7 +115,6 @@ export default function PreviewPanel({
         )}
       </div>
 
-      {/* Completed image strip */}
       {currentJobImages.length > 0 && (
         <TooltipProvider delayDuration={300}>
           <div className="flex gap-1.5 overflow-x-auto rounded-lg border bg-muted/20 p-1.5 shrink-0">
@@ -134,7 +132,6 @@ export default function PreviewPanel({
                     }`}
                     style={{ width: 72, height: 72 }}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={thumbUrl(img.path)}
                       alt={`完成 ${i + 1}`}
@@ -146,7 +143,6 @@ export default function PreviewPanel({
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="p-1">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={outputImageUrl(img.path)}
                     alt={`プレビュー ${i + 1}`}
@@ -164,7 +160,6 @@ export default function PreviewPanel({
         </TooltipProvider>
       )}
 
-      {/* Progress */}
       {isProcessing && (
         <div className="space-y-1 shrink-0">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -184,7 +179,6 @@ export default function PreviewPanel({
         </div>
       )}
 
-      {/* Controls */}
       <div className="flex items-end gap-2 rounded-xl border bg-card p-3 shrink-0">
         <div className="flex flex-col gap-1">
           <Label className="text-xs">枚数</Label>

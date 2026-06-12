@@ -243,7 +243,6 @@ export default function LoraPanel({
 
   return (
     <div className="space-y-3">
-      {/* Fixed LoRAs */}
       <div>
         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           固定LoRA（常時適用）
@@ -273,7 +272,6 @@ export default function LoraPanel({
 
       <Separator />
 
-      {/* Variable LoRAs */}
       <div>
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -304,7 +302,6 @@ export default function LoraPanel({
           </button>
         ) : (
           <div className="space-y-1.5">
-            {/* None option */}
             <button
               onClick={() => onSelectVariableLora(null)}
               className={`flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-xs transition-colors ${
@@ -338,7 +335,6 @@ export default function LoraPanel({
                     : "border-border"
                 }`}
               >
-                {/* Select button */}
                 <button
                   onClick={() =>
                     onSelectVariableLora(
@@ -377,7 +373,6 @@ export default function LoraPanel({
                   </div>
                 </button>
 
-                {/* Edit button */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -392,7 +387,6 @@ export default function LoraPanel({
         )}
       </div>
 
-      {/* Modal */}
       {modalState.open && (
         <LoraModal
           open={modalState.open}

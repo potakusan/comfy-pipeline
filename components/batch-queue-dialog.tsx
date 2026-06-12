@@ -276,7 +276,6 @@ export default function BatchQueueDialog({
           </DialogTitle>
         </DialogHeader>
 
-        {/* ── LIST VIEW ── */}
         {view === "list" && (
           <div className="flex flex-1 flex-col overflow-hidden">
             <ScrollArea className="flex-1 px-4 py-3">
@@ -393,10 +392,8 @@ export default function BatchQueueDialog({
           </div>
         )}
 
-        {/* ── EDIT VIEW ── */}
         {view === "edit" && editingSet && (
           <div className="flex flex-1 flex-col overflow-hidden">
-            {/* Set name */}
             <div className="shrink-0 border-b px-4 py-2">
               <Input
                 value={editingSet.name}
@@ -418,7 +415,6 @@ export default function BatchQueueDialog({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {/* Table header */}
                   <div className="grid grid-cols-[1fr_80px_80px_80px_50px_60px] gap-2 px-2 text-[10px] font-semibold uppercase text-muted-foreground">
                     <span>名前</span>
                     <span>シーン</span>
