@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-const COMFYUI_URL = process.env.COMFYUI_URL || 'http://localhost:8188'
+import { getComfyUIUrl } from '@/lib/setup/config'
 
 export async function GET(req: NextRequest) {
+  const comfyUrl = getComfyUIUrl()
   const promptId = req.nextUrl.searchParams.get('promptId')
   const url = promptId
-    ? `${COMFYUI_URL}/history/${promptId}`
-    : `${COMFYUI_URL}/history`
+    ? `${comfyUrl}/history/${promptId}`
+    : `${comfyUrl}/history`
 
   try {
     const res = await fetch(url)

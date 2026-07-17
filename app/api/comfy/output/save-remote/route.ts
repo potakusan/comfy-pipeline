@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-
-function getOutputDir(): string {
-  return (
-    process.env.COMFYUI_OUTPUT_DIR ||
-    path.join(process.cwd(), "..", "ComfyUI", "output")
-  );
-}
+import { getOutputDir } from "@/lib/server/output-dir";
+import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 /**
  * POST /api/comfy/output/save-remote
@@ -19,7 +14,7 @@ function getOutputDir(): string {
  * No-op if REMOTE_PROCESS_URL is not configured.
  */
 export async function POST(req: NextRequest) {
-  const remoteUrl = process.env.REMOTE_PROCESS_URL;
+  const remoteUrl = getRemoteProcessUrl();
   if (!remoteUrl) return NextResponse.json({ saved: 0 });
 
   const { paths } = (await req.json()) as { paths: string[] };

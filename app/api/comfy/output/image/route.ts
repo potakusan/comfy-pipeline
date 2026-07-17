@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-
-function getOutputDir(): string {
-  return (
-    process.env.COMFYUI_OUTPUT_DIR ||
-    path.join(process.cwd(), "..", "ComfyUI", "output")
-  );
-}
+import { getOutputDir } from "@/lib/server/output-dir";
 
 const MIME: Record<string, string> = {
   png: "image/png",

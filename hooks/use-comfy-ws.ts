@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { usePublicSettings } from "./use-public-settings";
 
 const LOG = (...args: unknown[]) =>
   console.log("[ComfyWS]", ...args);
@@ -47,11 +48,12 @@ export function useComfyWS(
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
   const prevPreviewUrlRef = useRef<string | null>(null);
+  const publicSettings = usePublicSettings();
 
   useEffect(() => {
-    const comfyUrl =
-      process.env.NEXT_PUBLIC_COMFYUI_URL || "http://localhost:8188";
-    const apiKey = process.env.NEXT_PUBLIC_COMFYUI_API_KEY;
+    if (!publicSettings) return;
+    const comfyUrl = publicSettings.comfyuiUrl || "http://localhost:8188";
+    const apiKey = publicSettings.comfyuiApiKey ?? undefined;
     const wsBase = comfyUrl.replace(/^http/, "ws");
     const wsUrl = apiKey
       ? `${wsBase}/ws?clientId=${clientId}&token=${apiKey}`
@@ -235,5 +237,5 @@ export function useComfyWS(
       ws?.close();
       revokePreview();
     };
-  }, [clientId]);
+  }, [clientId, publicSettings]);
 }

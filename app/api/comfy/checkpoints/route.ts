@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { getComfyUIUrl } from "@/lib/setup/config";
 
 export async function GET() {
   try {
     const res = await fetch(
-      process.env.COMFYUI_URL + "/api/lm/checkpoints/list?page=1&page_size=100&sort_by=name%3Aasc&recursive=true&tag_logic=any",
+      getComfyUIUrl() + "/api/lm/checkpoints/list?page=1&page_size=100&sort_by=name%3Aasc&recursive=true&tag_logic=any",
       { cache: "no-store" },
     );
     if (!res.ok) {

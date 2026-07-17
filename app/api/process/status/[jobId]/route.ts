@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getJob } from "@/lib/process-jobs";
+import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 /** GET /api/process/status/:jobId */
 export async function GET(
@@ -9,7 +10,7 @@ export async function GET(
   const { jobId } = await params;
 
   if (jobId.startsWith("remote:")) {
-    const remoteUrl = process.env.REMOTE_PROCESS_URL;
+    const remoteUrl = getRemoteProcessUrl();
     if (!remoteUrl) return NextResponse.json({ error: "Remote URL not configured" }, { status: 500 });
     const actualJobId = jobId.slice("remote:".length);
     const res = await fetch(`${remoteUrl}/api/process/status/${actualJobId}`);

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-const COMFYUI_URL = process.env.COMFYUI_URL || 'http://localhost:8188'
+import { getComfyUIUrl } from '@/lib/setup/config'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
@@ -9,7 +8,7 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get('type') || 'output'
 
   try {
-    const url = `${COMFYUI_URL}/view?filename=${encodeURIComponent(filename)}&subfolder=${encodeURIComponent(subfolder)}&type=${type}`
+    const url = `${getComfyUIUrl()}/view?filename=${encodeURIComponent(filename)}&subfolder=${encodeURIComponent(subfolder)}&type=${type}`
     const res = await fetch(url)
     const buffer = await res.arrayBuffer()
     return new NextResponse(buffer, {

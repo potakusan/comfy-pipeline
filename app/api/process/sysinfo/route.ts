@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 const execAsync = promisify(exec);
 
@@ -64,7 +65,7 @@ function calcCpuPct(s1: CpuTimes[], s2: CpuTimes[]): number {
  *  When REMOTE_PROCESS_URL is set, proxies to the remote machine (shows remote GPU).
  */
 export async function GET() {
-  const remoteUrl = process.env.REMOTE_PROCESS_URL;
+  const remoteUrl = getRemoteProcessUrl();
   if (remoteUrl) {
     try {
       const res = await fetch(`${remoteUrl}/api/process/sysinfo`);

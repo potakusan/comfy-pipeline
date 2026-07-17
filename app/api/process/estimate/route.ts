@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-
-function getOutputDir(): string {
-  return (
-    process.env.COMFYUI_OUTPUT_DIR ||
-    path.join(process.cwd(), "..", "ComfyUI", "output")
-  );
-}
+import { getOutputDir } from "@/lib/server/output-dir";
+import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 const IMAGE_EXTS = /\.(png|jpe?g|webp|avif|bmp)$/i;
 
@@ -40,7 +35,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { folder, scalePercent } = body;
 
-  const remoteUrl = process.env.REMOTE_PROCESS_URL;
+  const remoteUrl = getRemoteProcessUrl();
   if (remoteUrl && !body.local) {
     const res = await fetch(`${remoteUrl}/api/process/estimate`, {
       method: "POST",

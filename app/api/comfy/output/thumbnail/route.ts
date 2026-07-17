@@ -2,16 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
+import { getOutputDir } from "@/lib/server/output-dir";
+import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 const THUMB_WIDTH = 400;
 const THUMB_DIR = ".thumbcache";
-
-function getOutputDir(): string {
-  return (
-    process.env.COMFYUI_OUTPUT_DIR ||
-    path.join(process.cwd(), "..", "ComfyUI", "output")
-  );
-}
 
 /** GET /api/comfy/output/thumbnail?path=20240101-loraname/out_00001_.png */
 export async function GET(req: NextRequest) {
@@ -28,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   // If the file doesn't exist locally and we have a remote, proxy from remote
   if (!fs.existsSync(fullPath)) {
-    const remoteUrl = process.env.REMOTE_PROCESS_URL;
+    const remoteUrl = getRemoteProcessUrl();
     if (remoteUrl) {
       try {
         const res = await fetch(

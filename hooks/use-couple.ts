@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   type CoupleConfig,
   type CoupleRegion,
@@ -86,23 +86,23 @@ function migrateConfig(raw: unknown): CoupleConfig {
 }
 
 export function useCouple() {
-  const [configs, setConfigsRaw] = useState<CoupleConfig[]>(() => {
-    const stored = lsGet<unknown[]>(LS.configs, [DEFAULT_COUPLE_CONFIG]);
-    return stored.map(migrateConfig);
-  });
-  const [activeConfigId, setActiveConfigIdRaw] = useState<string>(() =>
-    lsGet(LS.activeId, DEFAULT_COUPLE_CONFIG.id),
-  );
+  const [configs, setConfigsRaw] = useState<CoupleConfig[]>([DEFAULT_COUPLE_CONFIG]);
+  const [activeConfigId, setActiveConfigIdRaw] = useState<string>(DEFAULT_COUPLE_CONFIG.id);
   // Selected IDs from normal-mode presets (count/scene shared state)
-  const [selectedNormalCountId, setSelectedNormalCountIdRaw] = useState<string | null>(() =>
-    lsGet(LS.countId, null),
-  );
-  const [selectedNormalSceneId, setSelectedNormalSceneIdRaw] = useState<string | null>(() =>
-    lsGet(LS.sceneId, null),
-  );
-  const [selectedPositionPresetId, setSelectedPositionPresetIdRaw] = useState<string | null>(() =>
-    lsGet(LS.positionId, null),
-  );
+  const [selectedNormalCountId, setSelectedNormalCountIdRaw] = useState<string | null>(null);
+  const [selectedNormalSceneId, setSelectedNormalSceneIdRaw] = useState<string | null>(null);
+  const [selectedPositionPresetId, setSelectedPositionPresetIdRaw] = useState<string | null>(null);
+
+  // Load from localStorage after mount (avoids SSR/client hydration mismatch)
+  useEffect(() => {
+    const stored = lsGet<unknown[]>(LS.configs, [DEFAULT_COUPLE_CONFIG]);
+    setConfigsRaw(stored.map(migrateConfig));
+    setActiveConfigIdRaw(lsGet(LS.activeId, DEFAULT_COUPLE_CONFIG.id));
+    setSelectedNormalCountIdRaw(lsGet(LS.countId, null));
+    setSelectedNormalSceneIdRaw(lsGet(LS.sceneId, null));
+    setSelectedPositionPresetIdRaw(lsGet(LS.positionId, null));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // --- Persist helpers ---
   const setConfigs = useCallback((next: CoupleConfig[]) => {

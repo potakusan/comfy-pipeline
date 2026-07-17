@@ -20,9 +20,14 @@ import {
   LoraPickerDialog,
   type LmLoraItem,
 } from "@/components/lora-picker-dialog";
-import { FIXED_LORAS } from "@/lib/config";
 
 interface LoraPanelProps {
+  // Fixed LoRAs (editable)
+  fixedLoras: LoraEntry[];
+  onAddFixedLora: (lora: LoraEntry) => void;
+  onUpdateFixedLora: (index: number, lora: LoraEntry) => void;
+  onRemoveFixedLora: (index: number) => void;
+  // Variable LoRAs
   variableLoras: LoraEntry[];
   selectedVariableLora: LoraEntry | null;
   onSelectVariableLora: (lora: LoraEntry | null) => void;
@@ -38,16 +43,19 @@ const EMPTY_LORA: LoraEntry = {
   triggerWords: "",
 };
 
-// --- LoRA Edit Modal ---
+// ---------------------------------------------------------------------------
+// Shared LoRA Edit Modal
+// ---------------------------------------------------------------------------
 interface LoraModalProps {
   open: boolean;
   lora: LoraEntry | null; // null = add new
+  title?: string;
   onClose: () => void;
   onSave: (lora: LoraEntry) => void;
   onDelete?: () => void;
 }
 
-function LoraModal({ open, lora, onClose, onSave, onDelete }: LoraModalProps) {
+function LoraModal({ open, lora, title, onClose, onSave, onDelete }: LoraModalProps) {
   const [draft, setDraft] = useState<LoraEntry>(lora ?? { ...EMPTY_LORA });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -67,7 +75,7 @@ function LoraModal({ open, lora, onClose, onSave, onDelete }: LoraModalProps) {
     setDraft((d) => ({ ...d, [key]: val }));
 
   const handlePickerSelect = (item: LmLoraItem) => {
-    const triggerWords = item.civitai?.trainedWords?.join("\n") ?? "";
+    const triggerWords = item.civitai?.trainedWords?.join(", ") ?? "";
     setDraft((d) => ({ ...d, name: item.file_name, triggerWords }));
   };
 
@@ -77,7 +85,7 @@ function LoraModal({ open, lora, onClose, onSave, onDelete }: LoraModalProps) {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-sm">
-              {isNew ? "可変LoRA追加" : "可変LoRA編集"}
+              {title ?? (isNew ? "LoRA追加" : "LoRA編集")}
             </DialogTitle>
           </DialogHeader>
 
@@ -209,7 +217,15 @@ function LoraModal({ open, lora, onClose, onSave, onDelete }: LoraModalProps) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Main panel
+// ---------------------------------------------------------------------------
+
 export default function LoraPanel({
+  fixedLoras,
+  onAddFixedLora,
+  onUpdateFixedLora,
+  onRemoveFixedLora,
   variableLoras,
   selectedVariableLora,
   onSelectVariableLora,
@@ -217,22 +233,45 @@ export default function LoraPanel({
   onUpdateVariableLora,
   onRemoveVariableLora,
 }: LoraPanelProps) {
-  const [modalState, setModalState] = useState<{
+  const [fixedModalState, setFixedModalState] = useState<{
     open: boolean;
     lora: LoraEntry | null;
     index: number | null;
   }>({ open: false, lora: null, index: null });
 
-  const openAdd = () => setModalState({ open: true, lora: null, index: null });
-  const openEdit = (lora: LoraEntry, index: number) =>
-    setModalState({ open: true, lora, index });
-  const closeModal = () => setModalState((s) => ({ ...s, open: false }));
+  const [variableModalState, setVariableModalState] = useState<{
+    open: boolean;
+    lora: LoraEntry | null;
+    index: number | null;
+  }>({ open: false, lora: null, index: null });
 
-  const handleSave = (updated: LoraEntry) => {
-    if (modalState.index !== null) {
-      onUpdateVariableLora(modalState.index, updated);
+  const openFixedAdd = () =>
+    setFixedModalState({ open: true, lora: null, index: null });
+  const openFixedEdit = (lora: LoraEntry, index: number) =>
+    setFixedModalState({ open: true, lora, index });
+  const closeFixedModal = () =>
+    setFixedModalState((s) => ({ ...s, open: false }));
+
+  const openVariableAdd = () =>
+    setVariableModalState({ open: true, lora: null, index: null });
+  const openVariableEdit = (lora: LoraEntry, index: number) =>
+    setVariableModalState({ open: true, lora, index });
+  const closeVariableModal = () =>
+    setVariableModalState((s) => ({ ...s, open: false }));
+
+  const handleFixedSave = (updated: LoraEntry) => {
+    if (fixedModalState.index !== null) {
+      onUpdateFixedLora(fixedModalState.index, updated);
+    } else {
+      onAddFixedLora(updated);
+    }
+  };
+
+  const handleVariableSave = (updated: LoraEntry) => {
+    if (variableModalState.index !== null) {
+      onUpdateVariableLora(variableModalState.index, updated);
       if (
-        selectedVariableLora?.name === variableLoras[modalState.index]?.name
+        selectedVariableLora?.name === variableLoras[variableModalState.index]?.name
       ) {
         onSelectVariableLora(updated);
       }
@@ -243,35 +282,81 @@ export default function LoraPanel({
 
   return (
     <div className="space-y-3">
+      {/* ------------------------------------------------------------------ */}
+      {/* 固定LoRA                                                            */}
+      {/* ------------------------------------------------------------------ */}
       <div>
-        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          固定LoRA（常時適用）
-        </p>
-        <div className="space-y-1">
-          {FIXED_LORAS.map((lora) => (
-            <div
-              key={lora.name}
-              className="flex items-center gap-2 rounded-md bg-muted/50 px-2 py-1.5 text-xs"
-            >
-              <Badge variant="secondary" className="shrink-0 text-[10px]">
-                固定
-              </Badge>
-              <span
-                className="min-w-0 flex-1 truncate font-mono text-[10px]"
-                title={lora.name}
-              >
-                {lora.name}
-              </span>
-              <span className="shrink-0 text-muted-foreground">
-                {lora.strength}
-              </span>
-            </div>
-          ))}
+        <div className="mb-1.5 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            固定LoRA（常時適用）
+          </p>
+          <Button
+            variant="default"
+            size="sm"
+            className="h-6 gap-1 text-xs"
+            onClick={openFixedAdd}
+          >
+            <Plus className="h-3 w-3" />
+            追加
+          </Button>
         </div>
+
+        {fixedLoras.length === 0 ? (
+          <button
+            onClick={openFixedAdd}
+            className="flex w-full flex-col items-center gap-1 rounded-lg border border-dashed px-3 py-3 text-center hover:border-muted-foreground/50 hover:bg-muted/30"
+          >
+            <Plus className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">
+              固定LoRAを追加
+            </span>
+          </button>
+        ) : (
+          <div className="space-y-1">
+            {fixedLoras.map((lora, i) => (
+              <div
+                key={i}
+                className="flex min-w-0 items-center gap-1.5 overflow-hidden rounded-md border bg-muted/30 px-2 py-1.5"
+              >
+                <Badge variant="secondary" className="shrink-0 text-[10px]">
+                  固定
+                </Badge>
+                <div className="min-w-0 flex-1">
+                  <p
+                    className="truncate font-mono text-[10px] font-medium"
+                    title={lora.name}
+                  >
+                    {lora.name || "(名前未設定)"}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    str: {lora.strength} / clip: {lora.clipStrength}
+                    {lora.triggerWords && (
+                      <span className="ml-1 italic">
+                        · {lora.triggerWords.substring(0, 18)}
+                        {lora.triggerWords.length > 18 ? "..." : ""}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => openFixedEdit(lora, i)}
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <Separator />
 
+      {/* ------------------------------------------------------------------ */}
+      {/* 可変LoRA                                                            */}
+      {/* ------------------------------------------------------------------ */}
       <div>
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -281,7 +366,7 @@ export default function LoraPanel({
             variant="default"
             size="sm"
             className="h-6 gap-1 text-xs"
-            onClick={openAdd}
+            onClick={openVariableAdd}
           >
             <Plus className="h-3 w-3" />
             追加
@@ -290,7 +375,7 @@ export default function LoraPanel({
 
         {variableLoras.length === 0 ? (
           <button
-            onClick={openAdd}
+            onClick={openVariableAdd}
             className="flex w-full flex-col items-center gap-1 rounded-lg border border-dashed px-3 py-4 text-center hover:border-muted-foreground/50 hover:bg-muted/30"
           >
             <Plus className="h-5 w-5 text-muted-foreground" />
@@ -377,7 +462,7 @@ export default function LoraPanel({
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 shrink-0"
-                  onClick={() => openEdit(lora, i)}
+                  onClick={() => openVariableEdit(lora, i)}
                 >
                   <Pencil className="h-3 w-3" />
                 </Button>
@@ -387,16 +472,34 @@ export default function LoraPanel({
         )}
       </div>
 
-      {modalState.open && (
+      {/* Fixed LoRA modal */}
+      {fixedModalState.open && (
         <LoraModal
-          open={modalState.open}
-          lora={modalState.lora}
-          onClose={closeModal}
-          onSave={handleSave}
+          open={fixedModalState.open}
+          lora={fixedModalState.lora}
+          title={fixedModalState.lora ? "固定LoRA編集" : "固定LoRA追加"}
+          onClose={closeFixedModal}
+          onSave={handleFixedSave}
           onDelete={
-            modalState.index !== null
+            fixedModalState.index !== null
+              ? () => onRemoveFixedLora(fixedModalState.index!)
+              : undefined
+          }
+        />
+      )}
+
+      {/* Variable LoRA modal */}
+      {variableModalState.open && (
+        <LoraModal
+          open={variableModalState.open}
+          lora={variableModalState.lora}
+          title={variableModalState.lora ? "可変LoRA編集" : "可変LoRA追加"}
+          onClose={closeVariableModal}
+          onSave={handleVariableSave}
+          onDelete={
+            variableModalState.index !== null
               ? () => {
-                  onRemoveVariableLora(modalState.index!);
+                  onRemoveVariableLora(variableModalState.index!);
                 }
               : undefined
           }

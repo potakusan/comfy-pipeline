@@ -64,6 +64,8 @@ export interface QueueItem {
   variationTags: string[];
   additionalPromptMode: "all" | "random";
   additionalPromptLines: string[];
+  /** fixedTags used for random-mode per-batch re-resolution */
+  fixedTags: string;
   createdAt: number;
   batchPresets: QueueItemBatchPresets;
   /** When true, uses PCLazyTextEncode workflow for COUPLE prompt syntax */
@@ -74,6 +76,8 @@ export interface QueueItem {
   colorMaskControlNet?: import("./couple").CoupleControlNet;
   /** Region info (colorHex + prompt + lora) used when colorMaskWorkflow is true */
   colorMaskRegions?: import("./couple").CoupleRegion[];
+  /** Custom file name prefix (e.g. batch preset name). Replaces "out" in the output path. */
+  filePrefix?: string;
 }
 
 export interface SizePreset {
@@ -103,17 +107,27 @@ export const DEFAULT_COMPOSITION_TAGS = [
 export interface BatchPreset {
   id: string;
   name: string;
-  physicalPresets: Preset[];
-  countPreset: Preset | null;
-  posePreset: Preset | null;
-  scenePreset: Preset | null;
-  otherPresets: Preset[];
+  /** プリセットIDで参照（実行時に最新内容を解決） */
+  countPresetId: string | null;
+  posePresetId: string | null;
+  otherPresetIds: string[];
   additionalPrompt: string;
   additionalPromptMode: "all" | "random";
-  settings: GenerationSettings;
+  /** 固定タグ (プリセット保存) */
+  fixedTags: string;
+  /** ネガティブプロンプト (プリセット保存) */
+  negativePrompt: string;
   variationEnabled: boolean;
   variationTags: string[];
   batchCount: number;
+}
+
+/** 一括キュー実行時に手動指定するオーバーライド設定 */
+export interface BatchRunOverrides {
+  variableLora: LoraEntry | null;
+  physicalPresets: Preset[];
+  scenePreset: Preset | null;
+  settings: GenerationSettings;
 }
 
 export interface BatchPresetSet {
@@ -219,13 +233,16 @@ export const SCHEDULER_OPTIONS = [
   "ddim_uniform",
 ];
 
-export function buildOutputPrefix(loraName: string): string {
+export function buildOutputPrefix(loraName: string, filePrefix?: string): string {
   const d = new Date();
   const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
   const safeName = (loraName || "no-lora")
     .replace(/[^a-zA-Z0-9_-]/g, "_")
     .substring(0, 40);
-  return `${dateStr}-${safeName}/out`;
+  const safePrefix = filePrefix
+    ? filePrefix.replace(/[/\\:*?"<>|]/g, "_").substring(0, 40)
+    : "out";
+  return `${dateStr}-${safeName}/${safePrefix}`;
 }
 
 function pushPreset(parts: string[], preset: Preset) {
@@ -236,6 +253,7 @@ function pushPreset(parts: string[], preset: Preset) {
 
 export function assemblePositivePrompt({
   variableLora,
+  fixedLoras = [],
   selectedPhysicalPresets,
   selectedCountPreset,
   selectedPosePreset,
@@ -245,6 +263,7 @@ export function assemblePositivePrompt({
   fixedPrefix = FIXED_POSITIVE_PREFIX,
 }: {
   variableLora: LoraEntry | null;
+  fixedLoras?: LoraEntry[];
   selectedPhysicalPresets: Preset[];
   selectedCountPreset: Preset | null;
   selectedPosePreset: Preset | null;
@@ -254,6 +273,10 @@ export function assemblePositivePrompt({
   fixedPrefix?: string;
 }): string {
   const parts: string[] = [fixedPrefix];
+
+  for (const lora of fixedLoras) {
+    if (lora.triggerWords?.trim()) parts.push(lora.triggerWords.trim());
+  }
 
   if (variableLora?.triggerWords?.trim()) {
     parts.push(variableLora.triggerWords.trim());

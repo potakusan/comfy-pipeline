@@ -3,8 +3,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ImageOff, Loader2 } from 'lucide-react'
+import { usePublicSettings } from '@/hooks/use-public-settings'
 
-const LM_BASE = process.env.NEXT_PUBLIC_COMFYUI_URL;
 const PAGE_SIZE = 50;
 
 export interface LmLoraItem {
@@ -16,12 +16,33 @@ export interface LmLoraItem {
   civitai?: {
     trainedWords?: string[]
   }
+  /** ローカルAPIから取得したサムネイルURL（フル絶対パス） */
+  _thumbnailSrc?: string
 }
 
-function LoraPickerItem({ item, onSelect }: { item: LmLoraItem; onSelect: () => void }) {
+// ---------------------------------------------------------------------------
+// Local API item shape
+// ---------------------------------------------------------------------------
+interface LocalLoraItem {
+  fileName: string
+  name: string
+  thumbnail: string | null
+  trainedWords: string[]
+}
+
+function LoraPickerItem({
+  item,
+  lmBase,
+  onSelect,
+}: {
+  item: LmLoraItem
+  lmBase: string
+  onSelect: () => void
+}) {
   const [imgError, setImgError] = useState(false)
-  const isVideo = item.preview_url.endsWith('.mp4')
-  const previewSrc = `${LM_BASE}${item.preview_url}`
+  const isVideo = !item._thumbnailSrc && item.preview_url.endsWith('.mp4')
+  // Use local thumbnail URL if available, otherwise build from LM base
+  const previewSrc = item._thumbnailSrc ?? `${lmBase}${item.preview_url}`
 
   return (
     <button
@@ -61,7 +82,10 @@ interface LoraPickerDialogProps {
 }
 
 export function LoraPickerDialog({ open, onClose, onSelect }: LoraPickerDialogProps) {
-  const [items, setItems] = useState<LmLoraItem[]>([])
+  const publicSettings = usePublicSettings()
+  const lmBase = publicSettings?.comfyuiUrl ?? ''
+  const [lmItems, setLmItems] = useState<LmLoraItem[]>([])
+  const [localItems, setLocalItems] = useState<LmLoraItem[]>([])
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -69,17 +93,18 @@ export function LoraPickerDialog({ open, onClose, onSelect }: LoraPickerDialogPr
   const sentinelRef = useRef<HTMLDivElement>(null)
   const fetchingRef = useRef(false)
 
-  const fetchPage = useCallback(async (p: number) => {
-    if (fetchingRef.current) return
+  // Fetch from LM API (paginated)
+  const fetchLmPage = useCallback(async (p: number) => {
+    if (fetchingRef.current || !lmBase) return
     fetchingRef.current = true
     setLoading(true)
     try {
       const res = await fetch(
-        `${LM_BASE}/api/lm/loras/list?page=${p}&page_size=${PAGE_SIZE}&sort_by=date%3Adesc&recursive=true&tag_logic=any`,
+        `${lmBase}/api/lm/loras/list?page=${p}&page_size=${PAGE_SIZE}&sort_by=date%3Adesc&recursive=true&tag_logic=any`,
       )
       const data = await res.json()
       const newItems: LmLoraItem[] = data.items ?? []
-      setItems((prev) => (p === 1 ? newItems : [...prev, ...newItems]))
+      setLmItems((prev) => (p === 1 ? newItems : [...prev, ...newItems]))
       setHasMore(newItems.length === PAGE_SIZE)
     } catch {
       setHasMore(false)
@@ -87,21 +112,45 @@ export function LoraPickerDialog({ open, onClose, onSelect }: LoraPickerDialogPr
       setLoading(false)
       fetchingRef.current = false
     }
+  }, [lmBase])
+
+  // Fetch from local disk API (all at once, no pagination)
+  const fetchLocalItems = useCallback(async () => {
+    try {
+      const res = await fetch('/api/models/loras')
+      if (!res.ok) return
+      const data = await res.json()
+      const items: LocalLoraItem[] = data.items ?? []
+      const converted: LmLoraItem[] = items.map((item) => ({
+        model_name: item.name,
+        file_name: item.name,
+        preview_url: '',
+        preview_nsfw_level: 0,
+        base_model: '',
+        civitai: { trainedWords: item.trainedWords },
+        _thumbnailSrc: item.thumbnail ?? undefined,
+      }))
+      setLocalItems(converted)
+    } catch {
+      // local API not configured — ignore
+    }
   }, [])
 
   useEffect(() => {
-    if (!open) return
-    setItems([])
+    if (!open || !lmBase) return
+    setLmItems([])
+    setLocalItems([])
     setPage(1)
     setSearch('')
     setHasMore(true)
-    fetchPage(1)
-  }, [open, fetchPage])
+    fetchLmPage(1)
+    fetchLocalItems()
+  }, [open, lmBase, fetchLmPage, fetchLocalItems])
 
   useEffect(() => {
     if (page === 1) return
-    fetchPage(page)
-  }, [page, fetchPage])
+    fetchLmPage(page)
+  }, [page, fetchLmPage])
 
   useEffect(() => {
     const el = sentinelRef.current
@@ -111,15 +160,20 @@ export function LoraPickerDialog({ open, onClose, onSelect }: LoraPickerDialogPr
     })
     obs.observe(el)
     return () => obs.disconnect()
-  }, [hasMore, loading, items.length])
+  }, [hasMore, loading, lmItems.length])
+
+  // Merge: local items not already present in LM list come first
+  const lmFileNames = new Set(lmItems.map((i) => i.file_name))
+  const localOnly = localItems.filter((i) => !lmFileNames.has(i.file_name))
+  const merged = [...localOnly, ...lmItems]
 
   const filtered = search.trim()
-    ? items.filter(
+    ? merged.filter(
         (item) =>
           item.model_name.toLowerCase().includes(search.toLowerCase()) ||
           item.file_name.toLowerCase().includes(search.toLowerCase()),
       )
-    : items
+    : merged
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -137,8 +191,9 @@ export function LoraPickerDialog({ open, onClose, onSelect }: LoraPickerDialogPr
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {filtered.map((item, i) => (
               <LoraPickerItem
-                key={i}
+                key={`${item.file_name}-${i}`}
                 item={item}
+                lmBase={lmBase}
                 onSelect={() => {
                   onSelect(item)
                   onClose()

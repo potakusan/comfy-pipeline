@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-
-function getOutputDir(): string {
-  return (
-    process.env.COMFYUI_OUTPUT_DIR ||
-    path.join(process.cwd(), "..", "ComfyUI", "output")
-  );
-}
+import { getOutputDir } from "@/lib/server/output-dir";
+import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 /**
  * POST /api/process/sync
@@ -22,7 +17,7 @@ function getOutputDir(): string {
  *   GET REMOTE/api/comfy/output/image?path=folder/sub/file → raw image bytes
  */
 export async function POST(req: NextRequest) {
-  const remoteUrl = process.env.REMOTE_PROCESS_URL;
+  const remoteUrl = getRemoteProcessUrl();
   if (!remoteUrl) {
     return NextResponse.json(
       { error: "REMOTE_PROCESS_URL not configured" },

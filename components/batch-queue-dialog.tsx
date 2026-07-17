@@ -1,6 +1,13 @@
 "use client";
 import { useState } from "react";
-import { type BatchPreset, type BatchPresetSet } from "@/lib/comfy";
+import {
+  type BatchPreset,
+  type BatchPresetSet,
+  type BatchRunOverrides,
+  type LoraEntry,
+  type Preset,
+  type GenerationSettings,
+} from "@/lib/comfy";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import SamplerSettings from "@/components/sampler-settings";
 import {
   Layers,
   Plus,
@@ -23,23 +31,45 @@ import {
   ArrowLeft,
   ChevronUp,
   ChevronDown,
+  ChevronDown as ChevronDownIcon,
 } from "lucide-react";
 
 interface BatchQueueDialogProps {
   batchPresetSets: BatchPresetSet[];
   onSaveSet: (set: BatchPresetSet) => void;
   onRemoveSet: (id: string) => void;
-  onRunPresets: (presets: BatchPreset[]) => void;
+  onRunPresets: (presets: BatchPreset[], overrides: BatchRunOverrides) => void;
   onCaptureCurrentSettings: (name?: string) => BatchPreset;
+  /** 可変LoRA一覧 (実行前設定で選択させる) */
+  variableLoras: LoraEntry[];
+  /** 身体的特徴プリセット一覧 (実行前設定で選択させる) */
+  physicalPresets: Preset[];
+  /** シーンプリセット一覧 (実行前設定で選択させる) */
+  scenePresets: Preset[];
+  /** 人数プリセット一覧 (保存内容編集用) */
+  countPresets: Preset[];
+  /** ポーズプリセット一覧 (保存内容編集用) */
+  posePresets: Preset[];
+  /** その他プリセット一覧 (保存内容編集用) */
+  otherPresets: Preset[];
+  /** サンプラー設定の初期値 */
+  currentSettings: GenerationSettings;
 }
 
-// Sub-dialog for editing a single preset's editable fields
+// ---------------------------------------------------------------------------
+// Preset editor (inline within set-edit view)
+// ---------------------------------------------------------------------------
+
 interface PresetEditorProps {
   preset: BatchPreset;
+  countPresets: Preset[];
+  posePresets: Preset[];
+  otherPresets: Preset[];
   onSave: (updated: BatchPreset) => void;
   onCancel: () => void;
 }
-function PresetEditor({ preset, onSave, onCancel }: PresetEditorProps) {
+
+function PresetEditor({ preset, countPresets, posePresets, otherPresets, onSave, onCancel }: PresetEditorProps) {
   const [name, setName] = useState(preset.name);
   const [additionalPrompt, setAdditionalPrompt] = useState(
     preset.additionalPrompt,
@@ -48,18 +78,21 @@ function PresetEditor({ preset, onSave, onCancel }: PresetEditorProps) {
     preset.additionalPromptMode,
   );
   const [batchCount, setBatchCount] = useState(preset.batchCount);
+  const [selectedCountId, setSelectedCountId] = useState<string | null>(preset.countPresetId);
+  const [selectedPoseId, setSelectedPoseId] = useState<string | null>(preset.posePresetId);
+  const [selectedOtherIds, setSelectedOtherIds] = useState<string[]>([...preset.otherPresetIds]);
 
-  const selectionSummary = [
-    ...(preset.physicalPresets.length > 0
-      ? preset.physicalPresets.map((p) => p.name)
-      : []),
-    preset.countPreset?.name,
-    preset.posePreset?.name,
-    preset.scenePreset?.name,
-    ...(preset.otherPresets.length > 0
-      ? preset.otherPresets.map((p) => p.name)
-      : []),
-  ].filter(Boolean) as string[];
+  const toggleOther = (id: string) =>
+    setSelectedOtherIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+
+  const chipClass = (active: boolean) =>
+    `rounded border px-2 py-0.5 text-[10px] transition-colors cursor-pointer ${
+      active
+        ? "border-primary bg-primary text-primary-foreground"
+        : "border-border text-muted-foreground hover:border-muted-foreground"
+    }`;
 
   return (
     <div className="space-y-3 rounded-lg border bg-card p-3">
@@ -85,6 +118,9 @@ function PresetEditor({ preset, onSave, onCancel }: PresetEditorProps) {
                 additionalPrompt,
                 additionalPromptMode,
                 batchCount,
+                countPresetId: selectedCountId,
+                posePresetId: selectedPoseId,
+                otherPresetIds: selectedOtherIds,
               })
             }
           >
@@ -116,16 +152,40 @@ function PresetEditor({ preset, onSave, onCancel }: PresetEditorProps) {
           />
         </div>
       </div>
-      {selectionSummary.length > 0 && (
+      {countPresets.length > 0 && (
         <div>
-          <Label className="mb-1 text-xs text-muted-foreground">
-            選択内容（読み取り専用）
-          </Label>
+          <Label className="mb-1 text-xs">人数</Label>
           <div className="flex flex-wrap gap-1">
-            {selectionSummary.map((s) => (
-              <Badge key={s} variant="secondary" className="text-[10px]">
-                {s}
-              </Badge>
+            <button className={chipClass(selectedCountId === null)} onClick={() => setSelectedCountId(null)}>なし</button>
+            {countPresets.map((p) => (
+              <button key={p.id} className={chipClass(selectedCountId === p.id)} onClick={() => setSelectedCountId((prev) => prev === p.id ? null : p.id)}>
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {posePresets.length > 0 && (
+        <div>
+          <Label className="mb-1 text-xs">ポーズ</Label>
+          <div className="flex flex-wrap gap-1">
+            <button className={chipClass(selectedPoseId === null)} onClick={() => setSelectedPoseId(null)}>なし</button>
+            {posePresets.map((p) => (
+              <button key={p.id} className={chipClass(selectedPoseId === p.id)} onClick={() => setSelectedPoseId((prev) => prev === p.id ? null : p.id)}>
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {otherPresets.length > 0 && (
+        <div>
+          <Label className="mb-1 text-xs">その他</Label>
+          <div className="flex flex-wrap gap-1">
+            {otherPresets.map((p) => (
+              <button key={p.id} className={chipClass(selectedOtherIds.includes(p.id))} onClick={() => toggleOther(p.id)}>
+                {p.name}
+              </button>
             ))}
           </div>
         </div>
@@ -161,18 +221,213 @@ function PresetEditor({ preset, onSave, onCancel }: PresetEditorProps) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Run setup view: 可変LoRA / 身体的特徴 / シーン / サンプラー設定
+// ---------------------------------------------------------------------------
+
+interface RunSetupProps {
+  variableLoras: LoraEntry[];
+  physicalPresets: Preset[];
+  scenePresets: Preset[];
+  initialSettings: GenerationSettings;
+  onConfirm: (overrides: BatchRunOverrides) => void;
+  onCancel: () => void;
+}
+
+function RunSetup({
+  variableLoras,
+  physicalPresets,
+  scenePresets,
+  initialSettings,
+  onConfirm,
+  onCancel,
+}: RunSetupProps) {
+  const [selectedLoraIdx, setSelectedLoraIdx] = useState<number | null>(null);
+  const [selectedPhysicalIds, setSelectedPhysicalIds] = useState<string[]>([]);
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
+  const [runSettings, setRunSettings] = useState<GenerationSettings>(initialSettings);
+  const [samplerOpen, setSamplerOpen] = useState(false);
+
+  const togglePhysical = (id: string) =>
+    setSelectedPhysicalIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+
+  const handleConfirm = () => {
+    onConfirm({
+      variableLora: selectedLoraIdx !== null ? variableLoras[selectedLoraIdx] : null,
+      physicalPresets: physicalPresets.filter((p) => selectedPhysicalIds.includes(p.id)),
+      scenePreset: scenePresets.find((p) => p.id === selectedSceneId) ?? null,
+      settings: runSettings,
+    });
+  };
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <ScrollArea className="min-h-0 flex-1 px-4 py-3">
+        <div className="space-y-4">
+          {/* 可変LoRA */}
+          <div>
+            <p className="mb-1.5 text-xs font-semibold">可変LoRA</p>
+            <div className="flex flex-wrap gap-1">
+              <button
+                onClick={() => setSelectedLoraIdx(null)}
+                className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${
+                  selectedLoraIdx === null
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border text-muted-foreground hover:border-muted-foreground"
+                }`}
+              >
+                なし
+              </button>
+              {variableLoras.map((lora, idx) => {
+                const label =
+                  lora.name.split("/").pop()?.replace(".safetensors", "") ?? lora.name;
+                return (
+                  <button
+                    key={lora.name}
+                    onClick={() => setSelectedLoraIdx(idx === selectedLoraIdx ? null : idx)}
+                    className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${
+                      selectedLoraIdx === idx
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border text-muted-foreground hover:border-muted-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 身体的特徴 */}
+          <div>
+            <p className="mb-1.5 text-xs font-semibold">身体的特徴</p>
+            {physicalPresets.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground">プリセットなし</p>
+            ) : (
+              <div className="flex flex-wrap gap-1">
+                {physicalPresets.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => togglePhysical(p.id)}
+                    className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${
+                      selectedPhysicalIds.includes(p.id)
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border text-muted-foreground hover:border-muted-foreground"
+                    }`}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* シーン */}
+          <div>
+            <p className="mb-1.5 text-xs font-semibold">シーン</p>
+            {scenePresets.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground">プリセットなし</p>
+            ) : (
+              <div className="flex flex-wrap gap-1">
+                <button
+                  onClick={() => setSelectedSceneId(null)}
+                  className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${
+                    selectedSceneId === null
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border text-muted-foreground hover:border-muted-foreground"
+                  }`}
+                >
+                  なし
+                </button>
+                {scenePresets.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() =>
+                      setSelectedSceneId((prev) => (prev === p.id ? null : p.id))
+                    }
+                    className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${
+                      selectedSceneId === p.id
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border text-muted-foreground hover:border-muted-foreground"
+                    }`}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* サンプラー設定 (折りたたみ) */}
+          <div>
+            <button
+              onClick={() => setSamplerOpen((v) => !v)}
+              className="flex w-full items-center gap-1.5 text-xs font-semibold"
+            >
+              {samplerOpen ? (
+                <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+              ) : (
+                <ChevronDownIcon className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+              サンプラー設定
+            </button>
+            {samplerOpen && (
+              <div className="mt-2 rounded-lg border bg-card p-3">
+                <SamplerSettings settings={runSettings} onChange={setRunSettings} />
+              </div>
+            )}
+          </div>
+        </div>
+      </ScrollArea>
+
+      <div className="shrink-0 flex gap-2 border-t px-4 py-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="flex-1 text-xs"
+          onClick={onCancel}
+        >
+          キャンセル
+        </Button>
+        <Button
+          size="sm"
+          className="flex-1 gap-1.5 text-xs"
+          onClick={handleConfirm}
+        >
+          <Play className="h-3.5 w-3.5" />
+          実行
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main dialog
+// ---------------------------------------------------------------------------
+
 export default function BatchQueueDialog({
   batchPresetSets,
   onSaveSet,
   onRemoveSet,
   onRunPresets,
   onCaptureCurrentSettings,
+  variableLoras,
+  physicalPresets,
+  scenePresets,
+  countPresets,
+  posePresets,
+  otherPresets,
+  currentSettings,
 }: BatchQueueDialogProps) {
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<"list" | "edit">("list");
+  const [view, setView] = useState<"list" | "edit" | "run-setup">("list");
   const [editingSet, setEditingSet] = useState<BatchPresetSet | null>(null);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [pendingRunSet, setPendingRunSet] = useState<BatchPresetSet | null>(null);
 
   function openNewSet() {
     const newSet: BatchPresetSet = {
@@ -194,6 +449,7 @@ export default function BatchQueueDialog({
     setView("list");
     setEditingSet(null);
     setEditingPresetId(null);
+    setPendingRunSet(null);
   }
 
   function saveSet() {
@@ -238,13 +494,27 @@ export default function BatchQueueDialog({
     setEditingSet({ ...editingSet, presets });
   }
 
-  function handleRun(set: BatchPresetSet) {
-    onRunPresets(set.presets);
+  function openRunSetup(set: BatchPresetSet) {
+    setPendingRunSet(set);
+    setView("run-setup");
+  }
+
+  function handleRunConfirm(overrides: BatchRunOverrides) {
+    if (!pendingRunSet) return;
+    onRunPresets(pendingRunSet.presets, overrides);
     setOpen(false);
+    backToList();
   }
 
   const totalImages = (presets: BatchPreset[]) =>
     presets.reduce((s, p) => s + p.batchCount, 0);
+
+  const dialogTitle =
+    view === "list"
+      ? "一括キュープリセット"
+      : view === "run-setup"
+        ? "実行前設定"
+        : "セット編集";
 
   return (
     <Dialog
@@ -264,7 +534,7 @@ export default function BatchQueueDialog({
       <DialogContent className="flex max-h-[85vh] max-w-4xl! flex-col gap-0 p-0">
         <DialogHeader className="shrink-0 border-b px-4 py-3">
           <DialogTitle className="flex items-center gap-2 text-sm">
-            {view === "edit" && (
+            {(view === "edit" || view === "run-setup") && (
               <button
                 onClick={backToList}
                 className="rounded p-0.5 hover:bg-muted"
@@ -272,13 +542,14 @@ export default function BatchQueueDialog({
                 <ArrowLeft className="h-4 w-4" />
               </button>
             )}
-            {view === "list" ? "一括キュープリセット" : "セット編集"}
+            {dialogTitle}
           </DialogTitle>
         </DialogHeader>
 
+        {/* ── LIST VIEW ── */}
         {view === "list" && (
           <div className="flex flex-1 flex-col overflow-hidden">
-            <ScrollArea className="flex-1 px-4 py-3">
+            <ScrollArea className="min-h-0 flex-1 px-4 py-3">
               {batchPresetSets.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
                   <Layers className="h-10 w-10 opacity-20" />
@@ -291,10 +562,10 @@ export default function BatchQueueDialog({
                 <div className="space-y-2">
                   {batchPresetSets.map((set) => (
                     <div key={set.id} className="rounded-lg border bg-card p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                        <div className="overflow-hidden">
                           <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-medium">
+                            <p className="min-w-0 truncate text-sm font-medium">
                               {set.name}
                             </p>
                             <Badge
@@ -364,7 +635,7 @@ export default function BatchQueueDialog({
                                 size="sm"
                                 className="h-7 gap-1 text-xs"
                                 disabled={set.presets.length === 0}
-                                onClick={() => handleRun(set)}
+                                onClick={() => openRunSetup(set)}
                               >
                                 <Play className="h-3 w-3" />
                                 実行
@@ -392,6 +663,7 @@ export default function BatchQueueDialog({
           </div>
         )}
 
+        {/* ── EDIT VIEW ── */}
         {view === "edit" && editingSet && (
           <div className="flex flex-1 flex-col overflow-hidden">
             <div className="shrink-0 border-b px-4 py-2">
@@ -405,7 +677,7 @@ export default function BatchQueueDialog({
               />
             </div>
 
-            <ScrollArea className="flex-1 px-4 py-3">
+            <ScrollArea className="min-h-0 flex-1 px-4 py-3">
               {editingSet.presets.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
                   <p className="text-xs">プリセットがありません</p>
@@ -415,9 +687,8 @@ export default function BatchQueueDialog({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="grid grid-cols-[1fr_80px_80px_80px_50px_60px] gap-2 px-2 text-[10px] font-semibold uppercase text-muted-foreground">
+                  <div className="grid grid-cols-[1fr_80px_80px_50px_60px] gap-2 px-2 text-[10px] font-semibold uppercase text-muted-foreground">
                     <span>名前</span>
-                    <span>シーン</span>
                     <span>ポーズ</span>
                     <span>人数</span>
                     <span className="text-right">枚数</span>
@@ -426,19 +697,16 @@ export default function BatchQueueDialog({
                   {editingSet.presets.map((preset, idx) => (
                     <div key={preset.id} className="space-y-1.5">
                       <div
-                        className={`grid grid-cols-[1fr_80px_80px_80px_50px_60px] items-center gap-2 rounded-md border px-2 py-1.5 text-xs ${editingPresetId === preset.id ? "border-primary bg-primary/5" : ""}`}
+                        className={`grid grid-cols-[1fr_80px_80px_50px_60px] items-center gap-2 rounded-md border px-2 py-1.5 text-xs ${editingPresetId === preset.id ? "border-primary bg-primary/5" : ""}`}
                       >
                         <span className="truncate font-medium">
                           {preset.name}
                         </span>
                         <span className="truncate text-muted-foreground">
-                          {preset.scenePreset?.name ?? "—"}
+                          {posePresets.find((p) => p.id === preset.posePresetId)?.name ?? "—"}
                         </span>
                         <span className="truncate text-muted-foreground">
-                          {preset.posePreset?.name ?? "—"}
-                        </span>
-                        <span className="truncate text-muted-foreground">
-                          {preset.countPreset?.name ?? "—"}
+                          {countPresets.find((p) => p.id === preset.countPresetId)?.name ?? "—"}
                         </span>
                         <span className="text-right text-muted-foreground">
                           {preset.batchCount}
@@ -481,6 +749,9 @@ export default function BatchQueueDialog({
                       {editingPresetId === preset.id && (
                         <PresetEditor
                           preset={preset}
+                          countPresets={countPresets}
+                          posePresets={posePresets}
+                          otherPresets={otherPresets}
                           onSave={updatePresetInSet}
                           onCancel={() => setEditingPresetId(null)}
                         />
@@ -525,7 +796,7 @@ export default function BatchQueueDialog({
                     className="flex-1 gap-1.5 text-xs"
                     onClick={() => {
                       saveSet();
-                      handleRun(editingSet);
+                      openRunSetup(editingSet);
                     }}
                   >
                     <Play className="h-3.5 w-3.5" />
@@ -535,6 +806,18 @@ export default function BatchQueueDialog({
               </div>
             </div>
           </div>
+        )}
+
+        {/* ── RUN SETUP VIEW ── */}
+        {view === "run-setup" && pendingRunSet && (
+          <RunSetup
+            variableLoras={variableLoras}
+            physicalPresets={physicalPresets}
+            scenePresets={scenePresets}
+            initialSettings={currentSettings}
+            onConfirm={handleRunConfirm}
+            onCancel={backToList}
+          />
         )}
       </DialogContent>
     </Dialog>

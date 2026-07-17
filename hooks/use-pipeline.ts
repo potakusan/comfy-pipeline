@@ -6,6 +6,8 @@ import {
   type QueueItem,
   type GalleryImage,
   type BatchPreset,
+  type BatchPresetSet,
+  type BatchRunOverrides,
   collectPresetLoras,
   assemblePositivePrompt,
   buildWorkflow,
@@ -14,81 +16,52 @@ import {
 import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/couple";
 import type { CoupleControlNet, CoupleRegion } from "@/lib/couple";
 import { useComfyWS } from "./use-comfy-ws";
-import { DEFAULT_SETTINGS, FIXED_LORAS } from "@/lib/config";
+import { DEFAULT_SETTINGS } from "@/lib/config";
 import { lsGet, lsSet } from "@/hooks/ls";
 import { useNormalMode } from "@/hooks/use-normal-mode";
+import {
+  submitPromptHttp,
+  listOutputFiles,
+  pollForCompletion,
+} from "@/lib/comfy-client";
+import { LS_GROUP_BY_POSE, type GenerationMode } from "@/lib/gallery";
+
+function migrateBatchPresetSets(raw: BatchPresetSet[]): BatchPresetSet[] {
+  return raw.map((set) => ({
+    ...set,
+    presets: (set.presets as unknown as Record<string, unknown>[]).map((p) => {
+      if ("countPreset" in p) {
+        return {
+          id: p.id as string,
+          name: p.name as string,
+          countPresetId: (p.countPreset as { id?: string } | null)?.id ?? null,
+          posePresetId: (p.posePreset as { id?: string } | null)?.id ?? null,
+          otherPresetIds: ((p.otherPresets as { id: string }[]) ?? []).map((op) => op.id),
+          additionalPrompt: (p.additionalPrompt as string) ?? "",
+          additionalPromptMode: (p.additionalPromptMode as "all" | "random") ?? "all",
+          fixedTags: (p.fixedTags as string) ?? "",
+          negativePrompt: (p.negativePrompt as string) ?? "",
+          variationEnabled: (p.variationEnabled as boolean) ?? false,
+          variationTags: (p.variationTags as string[]) ?? [],
+          batchCount: (p.batchCount as number) ?? 1,
+        };
+      }
+      return p as unknown as BatchPreset;
+    }),
+  }));
+}
 
 const LS = {
   settings: "cp_settings",
   batchCount: "cp_batch_count",
   gallery: "cp_gallery",
   panelSizes: "cp_panel_sizes",
+  promptPreview: "cp_prompt_preview",
+  queue: "cp_queue",
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-async function submitPromptHttp(
-  workflow: Record<string, unknown>,
-  clientId: string,
-): Promise<string> {
-  const res = await fetch("/api/comfy/prompt", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt: workflow, client_id: clientId }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error || `HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  return data.prompt_id as string;
-}
-
-async function listOutputFiles(subfolder: string): Promise<string[]> {
-  try {
-    const res = await fetch(
-      `/api/comfy/output?subfolder=${encodeURIComponent(subfolder)}`,
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data.files || []) as string[];
-  } catch {
-    return [];
-  }
-}
-
-async function pollForCompletion(
-  promptId: string,
-  signal: AbortSignal,
-): Promise<void> {
-  while (!signal.aborted) {
-    await new Promise((r) => setTimeout(r, 1500));
-    if (signal.aborted) throw new Error("Cancelled");
-    try {
-      const res = await fetch(`/api/comfy/history?promptId=${promptId}`, {
-        signal,
-      });
-      const data = await res.json();
-      const item = data[promptId];
-      if (item) {
-        if (!item.status || item.status.status_str === "success") return;
-        if (item.status.status_str === "error") {
-          const msgs =
-            (item.status.messages as string[][])?.flat().join(", ") ||
-            "Generation failed";
-          throw new Error(msgs);
-        }
-      }
-    } catch (e) {
-      if ((e as Error).name === "AbortError") throw new Error("Cancelled");
-      if ((e as Error).message === "Cancelled") throw e;
-      if ((e as Error).message.startsWith("Generation")) throw e;
-    }
-  }
-  throw new Error("Cancelled");
-}
+export type PromptPreviewPos = { x: number; y: number; collapsed: boolean; width?: number; height?: number };
+const DEFAULT_PROMPT_PREVIEW: PromptPreviewPos = { x: -1, y: -1, collapsed: false };
 
 // ---------------------------------------------------------------------------
 // Core hook — composes useNormalMode + queue/WS/gallery/settings
@@ -97,6 +70,7 @@ async function pollForCompletion(
 export function usePipeline() {
   const normalMode = useNormalMode();
   const {
+    fixedLoras,
     variableLoras,
     selectedVariableLora,
     physicalPresets,
@@ -123,6 +97,7 @@ export function usePipeline() {
     setPosePresets,
     setOtherPresets,
     setNegativePrompt,
+    setFixedTags,
     setVariationTags,
     setBatchPresetSets,
     presetCategories,
@@ -131,22 +106,51 @@ export function usePipeline() {
 
   const [clientId] = useState(() => crypto.randomUUID());
 
-  const [settings, setSettings] = useState<GenerationSettings>(() =>
-    lsGet(LS.settings, DEFAULT_SETTINGS),
-  );
-  const [batchCount, setBatchCount] = useState(() => lsGet(LS.batchCount, 4));
-  const [panelSizes, setPanelSizesState] = useState<Record<string, number>>(
-    () => lsGet(LS.panelSizes, { left: 28, center: 38, right: 34 }),
-  );
-  const setPanelSizes = useCallback((sizes: Record<string, number>) => {
-    setPanelSizesState(sizes);
-    lsSet(LS.panelSizes, sizes);
-  }, []);
+  const [settings, setSettings] = useState<GenerationSettings>(DEFAULT_SETTINGS);
+  const [batchCount, setBatchCount] = useState(4);
+  const DEFAULT_PANEL_SIZES = { left: 28, center: 38, right: 34 };
+  const [panelSizes, setPanelSizesState] = useState<Record<string, number>>(DEFAULT_PANEL_SIZES);
+  const [promptPreviewPos, setPromptPreviewPosState] = useState<PromptPreviewPos>(DEFAULT_PROMPT_PREVIEW);
+  const [pipelineLsLoaded, setPipelineLsLoaded] = useState(false);
 
   // Queue
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const queueRef = useRef<QueueItem[]>([]);
   queueRef.current = queue;
+
+  useEffect(() => {
+    setSettings(lsGet(LS.settings, DEFAULT_SETTINGS));
+    setBatchCount(lsGet(LS.batchCount, 4));
+    setPanelSizesState(lsGet(LS.panelSizes, DEFAULT_PANEL_SIZES));
+    setPromptPreviewPosState(lsGet(LS.promptPreview, DEFAULT_PROMPT_PREVIEW));
+    // A "running" item mid-generation at reload time has no way to actually
+    // resume (the abort controller / WS connection are gone) — put it back
+    // in the pending queue instead of leaving it stuck forever.
+    const savedQueue = lsGet<QueueItem[]>(LS.queue, []);
+    setQueue(
+      savedQueue.map((item) =>
+        item.status === "running"
+          ? { ...item, status: "pending" as const, currentBatch: 0 }
+          : item,
+      ),
+    );
+    setPipelineLsLoaded(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const setPanelSizes = useCallback((sizes: Record<string, number>) => {
+    setPanelSizesState(sizes);
+    lsSet(LS.panelSizes, sizes);
+  }, []);
+  const setPromptPreviewPos = useCallback((pos: PromptPreviewPos) => {
+    setPromptPreviewPosState(pos);
+    lsSet(LS.promptPreview, pos);
+  }, []);
+
+  // Queue must be started explicitly so items can be queued up (with tweaked
+  // params) without kicking off generation until the user is ready.
+  const [queueRunning, setQueueRunning] = useState(false);
+  const queueRunningRef = useRef(false);
+  queueRunningRef.current = queueRunning;
 
   // Runtime generation state
   const [isProcessing, setIsProcessing] = useState(false);
@@ -164,11 +168,18 @@ export function usePipeline() {
   const isProcessingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const cancelledItemIdRef = useRef<string | null>(null);
+  // "reroll" = re-draw all randomness (preset/additional/variation) with a fresh seed.
+  // "samePrompt" = keep the exact prompt already in flight, only change the seed.
+  const redoModeRef = useRef<"reroll" | "samePrompt" | null>(null);
+
+  // Current batch prompt (for preview display during generation)
+  const [currentBatchPrompt, setCurrentBatchPrompt] = useState<string | null>(null);
 
   // Persist core state
-  useEffect(() => { lsSet(LS.settings, settings); }, [settings]);
-  useEffect(() => { lsSet(LS.batchCount, batchCount); }, [batchCount]);
+  useEffect(() => { if (pipelineLsLoaded) lsSet(LS.settings, settings); }, [pipelineLsLoaded, settings]);
+  useEffect(() => { if (pipelineLsLoaded) lsSet(LS.batchCount, batchCount); }, [pipelineLsLoaded, batchCount]);
   useEffect(() => { lsSet(LS.gallery, gallery.slice(0, 300)); }, [gallery]);
+  useEffect(() => { if (pipelineLsLoaded) lsSet(LS.queue, queue); }, [pipelineLsLoaded, queue]);
 
   // WS: progress & preview only
   useComfyWS(clientId, {
@@ -193,6 +204,7 @@ export function usePipeline() {
 
   processQueueRef.current = async () => {
     if (isProcessingRef.current) return;
+    if (!queueRunningRef.current) return;
     const pendingItem = queueRef.current.find((i) => i.status === "pending");
     if (!pendingItem) return;
 
@@ -211,6 +223,7 @@ export function usePipeline() {
 
     const outputPrefix = buildOutputPrefix(
       pendingItem.variableLora?.name || "no-lora",
+      pendingItem.filePrefix,
     );
     const outputSubfolder = outputPrefix.split("/")[0];
 
@@ -231,6 +244,9 @@ export function usePipeline() {
     ].some((p) => p.promptMode === "random");
 
     let failed = false;
+    let lastBatchPrompt: string | null = null;
+    let lastPickedAdditional: string | undefined;
+    let lastBatchAllLoras: LoraEntry[] | null = null;
 
     for (let batch = 0; batch < pendingItem.batchCount; batch++) {
       if (cancelledItemIdRef.current === pendingItem.id) {
@@ -240,76 +256,98 @@ export function usePipeline() {
         break;
       }
 
-      let presetBase: string;
-      let batchPresetLoras: LoraEntry[];
+      const redoMode = redoModeRef.current;
+      redoModeRef.current = null;
+      const forceNewSeed = redoMode !== null;
 
-      if (anyPresetRandom) {
-        const batchPhysicals = bp.selectedPhysicals.map(resolvePreset);
-        const batchCount = bp.selectedCount ? resolvePreset(bp.selectedCount) : null;
-        const batchPose = bp.selectedPose ? resolvePreset(bp.selectedPose) : null;
-        const batchScene = bp.selectedScene ? resolvePreset(bp.selectedScene) : null;
-        const batchOthers = bp.selectedOthers.map(resolvePreset);
-
-        presetBase = assemblePositivePrompt({
-          variableLora: pendingItem.variableLora,
-          selectedPhysicalPresets: batchPhysicals,
-          selectedCountPreset: batchCount,
-          selectedPosePreset: batchPose,
-          selectedScenePreset: batchScene,
-          selectedOtherPresets: batchOthers,
-          additionalPrompt: "",
-          fixedPrefix: fixedTags,
-        });
-
-        batchPresetLoras = collectPresetLoras([
-          ...batchPhysicals,
-          ...(batchCount ? [batchCount] : []),
-          ...(batchPose ? [batchPose] : []),
-          ...(batchScene ? [batchScene] : []),
-          ...batchOthers,
-        ]);
-      } else {
-        presetBase = pendingItem.positivePromptBase;
-        batchPresetLoras = pendingItem.presetLoras;
-      }
-
-      const batchAllLoras: LoraEntry[] = [
-        ...FIXED_LORAS,
-        ...batchPresetLoras,
-        ...(pendingItem.variableLora ? [pendingItem.variableLora] : []),
-      ];
-
+      let batchPrompt: string;
       let pickedAdditional: string | undefined;
-      let promptWithAdditional: string;
-      if (
-        pendingItem.additionalPromptMode === "random" &&
-        pendingItem.additionalPromptLines.length > 0
-      ) {
-        pickedAdditional =
-          pendingItem.additionalPromptLines[
-            Math.floor(Math.random() * pendingItem.additionalPromptLines.length)
-          ];
-        promptWithAdditional = pickedAdditional
-          ? `${presetBase}\n\n${pickedAdditional}`
-          : presetBase;
-      } else if (pendingItem.additionalPromptLines.length > 0) {
-        pickedAdditional = pendingItem.additionalPromptLines.join("\n");
-        promptWithAdditional = `${presetBase}\n\n${pickedAdditional}`;
+      let batchAllLoras: LoraEntry[];
+
+      if (redoMode === "samePrompt" && lastBatchPrompt !== null) {
+        batchPrompt = lastBatchPrompt;
+        pickedAdditional = lastPickedAdditional;
+        batchAllLoras = lastBatchAllLoras!;
       } else {
-        promptWithAdditional = presetBase;
+        let presetBase: string;
+        let batchPresetLoras: LoraEntry[];
+
+        if (anyPresetRandom) {
+          const batchPhysicals = bp.selectedPhysicals.map(resolvePreset);
+          const batchCount = bp.selectedCount ? resolvePreset(bp.selectedCount) : null;
+          const batchPose = bp.selectedPose ? resolvePreset(bp.selectedPose) : null;
+          const batchScene = bp.selectedScene ? resolvePreset(bp.selectedScene) : null;
+          const batchOthers = bp.selectedOthers.map(resolvePreset);
+
+          presetBase = assemblePositivePrompt({
+            variableLora: pendingItem.variableLora,
+            fixedLoras,
+            selectedPhysicalPresets: batchPhysicals,
+            selectedCountPreset: batchCount,
+            selectedPosePreset: batchPose,
+            selectedScenePreset: batchScene,
+            selectedOtherPresets: batchOthers,
+            additionalPrompt: "",
+            fixedPrefix: pendingItem.fixedTags,
+          });
+
+          batchPresetLoras = collectPresetLoras([
+            ...batchPhysicals,
+            ...(batchCount ? [batchCount] : []),
+            ...(batchPose ? [batchPose] : []),
+            ...(batchScene ? [batchScene] : []),
+            ...batchOthers,
+          ]);
+        } else {
+          presetBase = pendingItem.positivePromptBase;
+          batchPresetLoras = pendingItem.presetLoras;
+        }
+
+        batchAllLoras = [
+          ...fixedLoras,
+          ...batchPresetLoras,
+          ...(pendingItem.variableLora ? [pendingItem.variableLora] : []),
+        ];
+
+        let promptWithAdditional: string;
+        if (
+          pendingItem.additionalPromptMode === "random" &&
+          pendingItem.additionalPromptLines.length > 0
+        ) {
+          pickedAdditional =
+            pendingItem.additionalPromptLines[
+              Math.floor(Math.random() * pendingItem.additionalPromptLines.length)
+            ];
+          promptWithAdditional = pickedAdditional
+            ? `${presetBase}\n\n${pickedAdditional}`
+            : presetBase;
+        } else if (pendingItem.additionalPromptLines.length > 0) {
+          pickedAdditional = pendingItem.additionalPromptLines.join("\n");
+          promptWithAdditional = `${presetBase}\n\n${pickedAdditional}`;
+        } else {
+          promptWithAdditional = presetBase;
+        }
+
+        batchPrompt = promptWithAdditional;
+        if (pendingItem.variationTags.length > 0) {
+          const tag =
+            pendingItem.variationTags[
+              Math.floor(Math.random() * pendingItem.variationTags.length)
+            ];
+          batchPrompt = `${promptWithAdditional}\n\n${tag}`;
+        }
+
+        lastBatchPrompt = batchPrompt;
+        lastPickedAdditional = pickedAdditional;
+        lastBatchAllLoras = batchAllLoras;
       }
 
-      let batchPrompt = promptWithAdditional;
-      if (pendingItem.variationTags.length > 0) {
-        const tag =
-          pendingItem.variationTags[
-            Math.floor(Math.random() * pendingItem.variationTags.length)
-          ];
-        batchPrompt = `${promptWithAdditional}\n\n${tag}`;
-      }
+      setCurrentBatchPrompt(batchPrompt);
 
       const workflowArgs = {
-        settings: pendingItem.settings,
+        settings: forceNewSeed
+          ? { ...pendingItem.settings, randomizeSeed: true }
+          : pendingItem.settings,
         loras: batchAllLoras,
         positivePrompt: batchPrompt,
         negativePrompt: pendingItem.negativePrompt,
@@ -361,9 +399,51 @@ export function usePipeline() {
           appliedAdditional: pickedAdditional,
         }));
 
+        // Fire-and-forget: persist prompt/seed metadata as a JSON sidecar next
+        // to each output file (there is no DB — the sidecar is the only
+        // durable record of the prompt used, since gallery FS-rescans can't
+        // recover it otherwise).
+        if (newImages.length > 0) {
+          const mode: GenerationMode = pendingItem.colorMaskWorkflow
+            ? "colorMask"
+            : pendingItem.coupleWorkflow
+              ? "couple"
+              : "normal";
+          for (const img of newImages) {
+            fetch("/api/gallery/metadata", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                path: img.path,
+                metadata: {
+                  mode,
+                  loraName: img.loraName,
+                  positivePrompt: img.positivePrompt,
+                  negativePrompt: img.negativePrompt,
+                  settings: img.settings,
+                  loras: img.loras,
+                  queueLabel: img.queueLabel,
+                  createdAt: img.createdAt,
+                  appliedAdditional: img.appliedAdditional,
+                  ...(mode === "colorMask"
+                    ? {
+                        colorMaskControlNet: pendingItem.colorMaskControlNet,
+                        colorMaskRegions: pendingItem.colorMaskRegions,
+                      }
+                    : {}),
+                },
+              }),
+            }).catch(() => {});
+          }
+        }
+
         if (newImages.length > 0) {
           setGallery((prev) => [...newImages, ...prev]);
-          setCurrentJobImages((prev) => [...prev, ...newImages]);
+          setCurrentJobImages((prev) => {
+            const existingPaths = new Set(prev.map((img) => img.path));
+            const deduped = newImages.filter((img) => !existingPaths.has(img.path));
+            return deduped.length > 0 ? [...prev, ...deduped] : prev;
+          });
           setQueue((prev) =>
             prev.map((item) =>
               item.id === pendingItem.id
@@ -377,6 +457,11 @@ export function usePipeline() {
       } catch (e) {
         const msg = (e as Error).message;
         if (msg === "Cancelled") {
+          if (redoModeRef.current) {
+            abortControllerRef.current = null;
+            batch--;
+            continue;
+          }
           updateQueueItem(pendingItem.id, { status: "cancelled" });
           cancelledItemIdRef.current = null;
         } else {
@@ -396,15 +481,30 @@ export function usePipeline() {
 
     isProcessingRef.current = false;
     setIsProcessing(false);
+    setCurrentBatchPrompt(null);
 
-    setTimeout(() => processQueueRef.current?.(), 100);
+    if (queueRunningRef.current) {
+      setTimeout(() => processQueueRef.current?.(), 100);
+    }
   };
 
   useEffect(() => {
-    if (!isProcessingRef.current && queue.some((i) => i.status === "pending")) {
+    if (
+      queueRunning &&
+      !isProcessingRef.current &&
+      queue.some((i) => i.status === "pending")
+    ) {
       processQueueRef.current?.();
     }
-  }, [queue]);
+  }, [queue, queueRunning]);
+
+  const startQueue = useCallback(() => {
+    setQueueRunning(true);
+  }, []);
+
+  const pauseQueue = useCallback(() => {
+    setQueueRunning(false);
+  }, []);
 
   // -------------------------------------------------------------------------
   // Queue actions
@@ -431,6 +531,7 @@ export function usePipeline() {
 
     const positivePromptBase = assemblePositivePrompt({
       variableLora: selectedVariableLora,
+      fixedLoras,
       selectedPhysicalPresets: selectedPhysicals,
       selectedCountPreset: selectedCount,
       selectedPosePreset: selectedPose,
@@ -475,6 +576,7 @@ export function usePipeline() {
       variationTags: variationEnabled ? [...variationTags] : [],
       additionalPromptMode,
       additionalPromptLines,
+      fixedTags,
       createdAt: Date.now(),
       batchPresets: {
         selectedPhysicals,
@@ -510,10 +612,6 @@ export function usePipeline() {
 
   const captureCurrentSettings = useCallback(
     (name?: string): BatchPreset => {
-      const selectedPhysicals = physicalPresets.filter((p) =>
-        selectedPhysicalIds.includes(p.id),
-      );
-      const selectedScene = scenePresets.find((p) => p.id === selectedSceneId) ?? null;
       const selectedCount = countPresets.find((p) => p.id === selectedCountId) ?? null;
       const selectedPose = posePresets.find((p) => p.id === selectedPoseId) ?? null;
       const selectedOthers = otherPresets.filter((p) =>
@@ -523,7 +621,6 @@ export function usePipeline() {
       let resolvedName = name;
       if (!resolvedName) {
         const parts: string[] = [];
-        if (selectedScene) parts.push(selectedScene.name);
         if (selectedPose) parts.push(selectedPose.name);
         if (selectedCount) parts.push(selectedCount.name);
         if (parts.length === 0) {
@@ -538,33 +635,29 @@ export function usePipeline() {
       return {
         id: crypto.randomUUID(),
         name: resolvedName,
-        physicalPresets: selectedPhysicals,
-        countPreset: selectedCount,
-        posePreset: selectedPose,
-        scenePreset: selectedScene,
-        otherPresets: selectedOthers,
+        countPresetId: selectedCountId,
+        posePresetId: selectedPoseId,
+        otherPresetIds: [...selectedOtherIds],
         additionalPrompt,
         additionalPromptMode,
-        settings: { ...settings },
+        fixedTags,
+        negativePrompt,
         variationEnabled,
         variationTags: [...variationTags],
         batchCount,
       };
     },
     [
-      physicalPresets,
-      scenePresets,
       countPresets,
       posePresets,
       otherPresets,
-      selectedPhysicalIds,
-      selectedSceneId,
       selectedCountId,
       selectedPoseId,
       selectedOtherIds,
       additionalPrompt,
       additionalPromptMode,
-      settings,
+      fixedTags,
+      negativePrompt,
       variationEnabled,
       variationTags,
       batchCount,
@@ -572,25 +665,34 @@ export function usePipeline() {
   );
 
   const runBatchPresets = useCallback(
-    (presets: BatchPreset[]) => {
+    (presets: BatchPreset[], overrides: BatchRunOverrides) => {
       const items: QueueItem[] = presets.map((preset) => {
+        // IDから最新のプリセット内容を解決
+        const resolvedCount = countPresets.find((p) => p.id === preset.countPresetId) ?? null;
+        const resolvedPose = posePresets.find((p) => p.id === preset.posePresetId) ?? null;
+        const resolvedOthers = otherPresets.filter((p) => preset.otherPresetIds.includes(p.id));
+
         const allSelectedPresets = [
-          ...preset.physicalPresets,
-          ...(preset.countPreset ? [preset.countPreset] : []),
-          ...(preset.posePreset ? [preset.posePreset] : []),
-          ...(preset.scenePreset ? [preset.scenePreset] : []),
-          ...preset.otherPresets,
+          ...overrides.physicalPresets,
+          ...(resolvedCount ? [resolvedCount] : []),
+          ...(resolvedPose ? [resolvedPose] : []),
+          ...(overrides.scenePreset ? [overrides.scenePreset] : []),
+          ...resolvedOthers,
         ];
 
+        const presetFixedTags = fixedTags;
+        const presetNegativePrompt = preset.negativePrompt ?? "";
+
         const positivePromptBase = assemblePositivePrompt({
-          variableLora: selectedVariableLora,
-          selectedPhysicalPresets: preset.physicalPresets,
-          selectedCountPreset: preset.countPreset,
-          selectedPosePreset: preset.posePreset,
-          selectedScenePreset: preset.scenePreset,
-          selectedOtherPresets: preset.otherPresets,
+          variableLora: overrides.variableLora,
+          fixedLoras,
+          selectedPhysicalPresets: overrides.physicalPresets,
+          selectedCountPreset: resolvedCount,
+          selectedPosePreset: resolvedPose,
+          selectedScenePreset: overrides.scenePreset,
+          selectedOtherPresets: resolvedOthers,
           additionalPrompt: "",
-          fixedPrefix: fixedTags,
+          fixedPrefix: presetFixedTags,
         });
 
         const additionalPromptLines = preset.additionalPrompt
@@ -606,18 +708,20 @@ export function usePipeline() {
         const presetLoras = collectPresetLoras(allSelectedPresets);
 
         const loraLabel =
-          selectedVariableLora?.name.split("/").pop()?.replace(".safetensors", "") ?? null;
+          overrides.variableLora?.name.split("/").pop()?.replace(".safetensors", "") ?? null;
         const label = [loraLabel, preset.name].filter(Boolean).join(" / ");
 
         return {
           id: crypto.randomUUID(),
           label: label || "(一括)",
-          variableLora: selectedVariableLora,
+          filePrefix: preset.name || undefined,
+          variableLora: overrides.variableLora,
           presetLoras,
           positivePrompt,
           positivePromptBase,
-          negativePrompt,
-          settings: { ...preset.settings },
+          negativePrompt: presetNegativePrompt,
+          settings: { ...overrides.settings },
+          fixedTags: presetFixedTags,
           batchCount: preset.batchCount,
           status: "pending",
           currentBatch: 0,
@@ -627,17 +731,17 @@ export function usePipeline() {
           additionalPromptLines,
           createdAt: Date.now(),
           batchPresets: {
-            selectedPhysicals: preset.physicalPresets,
-            selectedCount: preset.countPreset,
-            selectedPose: preset.posePreset,
-            selectedScene: preset.scenePreset,
-            selectedOthers: preset.otherPresets,
+            selectedPhysicals: overrides.physicalPresets,
+            selectedCount: resolvedCount,
+            selectedPose: resolvedPose,
+            selectedScene: overrides.scenePreset,
+            selectedOthers: resolvedOthers,
           },
         };
       });
       setQueue((prev) => [...prev, ...items]);
     },
-    [selectedVariableLora, negativePrompt],
+    [countPresets, posePresets, otherPresets, fixedTags],
   );
 
   const addCoupleToQueue = useCallback(
@@ -677,6 +781,7 @@ export function usePipeline() {
         variationTags: [],
         additionalPromptMode: "all",
         additionalPromptLines: [],
+        fixedTags: "",
         createdAt: Date.now(),
         batchPresets: {
           selectedPhysicals: [],
@@ -701,12 +806,85 @@ export function usePipeline() {
     );
   }, []);
 
+  // Move a pending item to the front of the queue so it's picked up next,
+  // and (re)start processing so it actually runs.
+  const runItemNext = useCallback((id: string) => {
+    setQueue((prev) => {
+      const idx = prev.findIndex((i) => i.id === id);
+      if (idx === -1 || prev[idx].status !== "pending") return prev;
+      const item = prev[idx];
+      const rest = prev.filter((i) => i.id !== id);
+      return [item, ...rest];
+    });
+    setQueueRunning(true);
+  }, []);
+
+  // Re-queue a completed or cancelled item as a fresh pending item, re-drawing
+  // any random elements (preset random lines, additional prompt random line,
+  // variation tags) again when it runs. Seed follows whatever the item's
+  // settings say (fixed stays fixed, random stays random) — original entry
+  // stays in the log as history.
+  const requeueItem = useCallback((id: string) => {
+    setQueue((prev) => {
+      const src = prev.find((i) => i.id === id);
+      if (
+        !src ||
+        (src.status !== "completed" && src.status !== "cancelled")
+      )
+        return prev;
+      const copy: QueueItem = {
+        ...src,
+        id: crypto.randomUUID(),
+        status: "pending",
+        currentBatch: 0,
+        completedImages: [],
+        createdAt: Date.now(),
+      };
+      return [...prev, copy];
+    });
+  }, []);
+
   const cancelCurrent = useCallback(async () => {
     const running = queueRef.current.find((i) => i.status === "running");
     if (!running) return;
     cancelledItemIdRef.current = running.id;
     abortControllerRef.current?.abort();
     await fetch("/api/comfy/interrupt", { method: "POST" }).catch(() => {});
+  }, []);
+
+  // Redo the batch currently in flight, re-drawing any random elements
+  // (preset random lines, additional prompt random line, variation tags)
+  // again, with a fresh seed.
+  const redoCurrentReroll = useCallback(async () => {
+    if (!isProcessingRef.current) return;
+    redoModeRef.current = "reroll";
+    abortControllerRef.current?.abort();
+    await fetch("/api/comfy/interrupt", { method: "POST" }).catch(() => {});
+  }, []);
+
+  // Redo the batch currently in flight with the exact same prompt already
+  // submitted (no re-drawing of randomness), only changing the seed.
+  const redoCurrentSamePrompt = useCallback(async () => {
+    if (!isProcessingRef.current) return;
+    redoModeRef.current = "samePrompt";
+    abortControllerRef.current?.abort();
+    await fetch("/api/comfy/interrupt", { method: "POST" }).catch(() => {});
+  }, []);
+
+  const cancelAllPending = useCallback(() => {
+    setQueue((prev) =>
+      prev.map((item) =>
+        item.status === "pending" ? { ...item, status: "cancelled" as const } : item,
+      ),
+    );
+  }, []);
+
+  const clearLog = useCallback(() => {
+    setQueue((prev) =>
+      prev.filter(
+        (item) => item.status === "pending" || item.status === "running",
+      ),
+    );
   }, []);
 
   // -------------------------------------------------------------------------
@@ -724,10 +902,15 @@ export function usePipeline() {
       otherPresets,
       settings,
       negativePrompt,
+      fixedTags,
       variationTags,
       batchPresetSets,
       presetCategories,
       panelSizes,
+      promptPreviewPos,
+      // Gallery page settings (owned by hooks/use-gallery.ts, read directly
+      // from localStorage here since it's a separate page/hook).
+      galleryGroupByPose: lsGet(LS_GROUP_BY_POSE, false),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: "application/json",
@@ -747,10 +930,12 @@ export function usePipeline() {
     otherPresets,
     settings,
     negativePrompt,
+    fixedTags,
     variationTags,
     batchPresetSets,
     presetCategories,
     panelSizes,
+    promptPreviewPos,
   ]);
 
   const importData = useCallback(
@@ -768,10 +953,13 @@ export function usePipeline() {
           if (Array.isArray(data.otherPresets)) setOtherPresets(data.otherPresets);
           if (data.settings && typeof data.settings === "object") setSettings(data.settings);
           if (typeof data.negativePrompt === "string") setNegativePrompt(data.negativePrompt);
+          if (typeof data.fixedTags === "string") setFixedTags(data.fixedTags);
           if (Array.isArray(data.variationTags)) setVariationTags(data.variationTags);
-          if (Array.isArray(data.batchPresetSets)) setBatchPresetSets(data.batchPresetSets);
+          if (Array.isArray(data.batchPresetSets)) setBatchPresetSets(migrateBatchPresetSets(data.batchPresetSets));
           if (Array.isArray(data.presetCategories)) setPresetCategories(data.presetCategories);
           if (data.panelSizes && typeof data.panelSizes === "object") setPanelSizes(data.panelSizes);
+          if (data.promptPreviewPos && typeof data.promptPreviewPos === "object") setPromptPreviewPos(data.promptPreviewPos as PromptPreviewPos);
+          if (typeof data.galleryGroupByPose === "boolean") lsSet(LS_GROUP_BY_POSE, data.galleryGroupByPose);
         } catch (err) {
           console.error("[pipeline] Import failed:", err);
         }
@@ -786,10 +974,12 @@ export function usePipeline() {
       setPosePresets,
       setOtherPresets,
       setNegativePrompt,
+      setFixedTags,
       setVariationTags,
       setBatchPresetSets,
       setPresetCategories,
       setPanelSizes,
+      setPromptPreviewPos,
     ],
   );
 
@@ -832,10 +1022,20 @@ export function usePipeline() {
     setBatchCount,
     // Queue
     queue,
+    queueRunning,
+    startQueue,
+    pauseQueue,
     addToQueue,
     addCoupleToQueue,
+    updateQueueItem,
     removeFromQueue,
+    runItemNext,
+    requeueItem,
     cancelCurrent,
+    redoCurrentReroll,
+    redoCurrentSamePrompt,
+    cancelAllPending,
+    clearLog,
     captureCurrentSettings,
     runBatchPresets,
     // Runtime
@@ -844,6 +1044,7 @@ export function usePipeline() {
     progress,
     previewUrl,
     currentJobImages,
+    currentBatchPrompt,
     // Gallery
     gallery,
     clearGallery,
@@ -854,5 +1055,7 @@ export function usePipeline() {
     // Layout
     panelSizes,
     setPanelSizes,
+    promptPreviewPos,
+    setPromptPreviewPos,
   };
 }

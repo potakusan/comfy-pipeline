@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const COMFYUI_URL = process.env.COMFYUI_URL || "http://localhost:8188";
+import { getComfyUIUrl } from "@/lib/setup/config";
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const res = await fetch(`${COMFYUI_URL}/upload/image`, {
+    const res = await fetch(`${getComfyUIUrl()}/upload/image`, {
       method: "POST",
       body: formData,
     });

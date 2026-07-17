@@ -12,10 +12,44 @@ import {
   DEFAULT_OTHER_PRESETS,
   DEFAULT_COMPOSITION_TAGS,
 } from "@/lib/comfy";
-import { DEFAULT_NEGATIVE, FIXED_POSITIVE_PREFIX } from "@/lib/config";
+import {
+  DEFAULT_NEGATIVE,
+  FIXED_POSITIVE_PREFIX,
+  FIXED_LORAS,
+} from "@/lib/config";
 import { lsGet, lsSet } from "@/hooks/ls";
 
+// 旧形式 (countPreset: Preset | null) → 新形式 (countPresetId: string | null) へ変換
+function migrateBatchPresetSets(raw: BatchPresetSet[]): BatchPresetSet[] {
+  return raw.map((set) => ({
+    ...set,
+    presets: (set.presets as unknown as Record<string, unknown>[]).map((p) => {
+      if ("countPreset" in p) {
+        return {
+          id: p.id as string,
+          name: p.name as string,
+          countPresetId: (p.countPreset as { id?: string } | null)?.id ?? null,
+          posePresetId: (p.posePreset as { id?: string } | null)?.id ?? null,
+          otherPresetIds: ((p.otherPresets as { id: string }[]) ?? []).map(
+            (op) => op.id,
+          ),
+          additionalPrompt: (p.additionalPrompt as string) ?? "",
+          additionalPromptMode:
+            (p.additionalPromptMode as "all" | "random") ?? "all",
+          fixedTags: (p.fixedTags as string) ?? "",
+          negativePrompt: (p.negativePrompt as string) ?? "",
+          variationEnabled: (p.variationEnabled as boolean) ?? false,
+          variationTags: (p.variationTags as string[]) ?? [],
+          batchCount: (p.batchCount as number) ?? 1,
+        };
+      }
+      return p as unknown as import("@/lib/comfy").BatchPreset;
+    }),
+  }));
+}
+
 const LS = {
+  fixedLoras: "cp_fixed_loras",
   variableLoras: "cp_variable_loras",
   selectedVariableLora: "cp_selected_variable_lora",
   physicalPresets: "cp_physical_presets",
@@ -44,60 +78,46 @@ const LS = {
 // ---------------------------------------------------------------------------
 
 export function useNormalMode() {
+  // lsLoaded gates persist effects so they don't write defaults to localStorage
+  // before the load effect has a chance to restore the user's saved values.
+  const [lsLoaded, setLsLoaded] = useState(false);
+
   // --- LoRA ---
-  const [variableLoras, setVariableLoras] = useState<LoraEntry[]>(() =>
-    lsGet(LS.variableLoras, []),
-  );
+  const [fixedLoras, setFixedLoras] = useState<LoraEntry[]>(FIXED_LORAS);
+  const [variableLoras, setVariableLoras] = useState<LoraEntry[]>([]);
   const [selectedVariableLora, setSelectedVariableLora] =
-    useState<LoraEntry | null>(() => lsGet(LS.selectedVariableLora, null));
+    useState<LoraEntry | null>(null);
 
   // --- Preset lists ---
-  const [physicalPresets, setPhysicalPresets] = useState<Preset[]>(() =>
-    lsGet(LS.physicalPresets, DEFAULT_PHYSICAL_PRESETS),
+  const [physicalPresets, setPhysicalPresets] = useState<Preset[]>(
+    DEFAULT_PHYSICAL_PRESETS,
   );
-  const [scenePresets, setScenePresets] = useState<Preset[]>(() =>
-    lsGet(LS.scenePresets, DEFAULT_SCENE_PRESETS),
+  const [scenePresets, setScenePresets] = useState<Preset[]>(
+    DEFAULT_SCENE_PRESETS,
   );
-  const [countPresets, setCountPresets] = useState<Preset[]>(() =>
-    lsGet(LS.countPresets, DEFAULT_COUNT_PRESETS),
+  const [countPresets, setCountPresets] = useState<Preset[]>(
+    DEFAULT_COUNT_PRESETS,
   );
-  const [posePresets, setPosePresets] = useState<Preset[]>(() =>
-    lsGet(LS.posePresets, DEFAULT_POSE_PRESETS),
-  );
-  const [otherPresets, setOtherPresets] = useState<Preset[]>(() =>
-    lsGet(LS.otherPresets, DEFAULT_OTHER_PRESETS),
+  const [posePresets, setPosePresets] =
+    useState<Preset[]>(DEFAULT_POSE_PRESETS);
+  const [otherPresets, setOtherPresets] = useState<Preset[]>(
+    DEFAULT_OTHER_PRESETS,
   );
 
   // --- Selection state ---
-  const [selectedPhysicalIds, setSelectedPhysicalIds] = useState<string[]>(() =>
-    lsGet(LS.selectedPhysicalIds, []),
-  );
-  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(() =>
-    lsGet(LS.selectedSceneId, null),
-  );
-  const [selectedCountId, setSelectedCountId] = useState<string | null>(() =>
-    lsGet(LS.selectedCountId, null),
-  );
-  const [selectedPoseId, setSelectedPoseId] = useState<string | null>(() =>
-    lsGet(LS.selectedPoseId, null),
-  );
-  const [selectedOtherIds, setSelectedOtherIds] = useState<string[]>(() =>
-    lsGet(LS.selectedOtherIds, []),
-  );
+  const [selectedPhysicalIds, setSelectedPhysicalIds] = useState<string[]>([]);
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
+  const [selectedCountId, setSelectedCountId] = useState<string | null>(null);
+  const [selectedPoseId, setSelectedPoseId] = useState<string | null>(null);
+  const [selectedOtherIds, setSelectedOtherIds] = useState<string[]>([]);
 
   // --- Prompt / shared UI state ---
-  const [additionalPrompt, setAdditionalPrompt] = useState(() =>
-    lsGet(LS.additionalPrompt, ""),
-  );
+  const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [additionalPromptMode, setAdditionalPromptMode] = useState<
     "all" | "random"
-  >(() => lsGet(LS.additionalPromptMode, "all"));
-  const [negativePrompt, setNegativePrompt] = useState(() =>
-    lsGet(LS.negativePrompt, DEFAULT_NEGATIVE),
-  );
-  const [fixedTagsRaw, setFixedTagsRaw] = useState(() =>
-    lsGet(LS.fixedTags, FIXED_POSITIVE_PREFIX),
-  );
+  >("all");
+  const [negativePrompt, setNegativePrompt] = useState(DEFAULT_NEGATIVE);
+  const [fixedTagsRaw, setFixedTagsRaw] = useState(FIXED_POSITIVE_PREFIX);
   const setFixedTags = useCallback((v: string) => {
     setFixedTagsRaw(v);
     lsSet(LS.fixedTags, v);
@@ -108,45 +128,122 @@ export function useNormalMode() {
   }, []);
 
   // --- Variation ---
-  const [variationEnabled, setVariationEnabled] = useState(() =>
-    lsGet(LS.variationEnabled, false),
-  );
-  const [variationTags, setVariationTags] = useState<string[]>(() =>
-    lsGet(LS.variationTags, DEFAULT_COMPOSITION_TAGS),
+  const [variationEnabled, setVariationEnabled] = useState(false);
+  const [variationTags, setVariationTags] = useState<string[]>(
+    DEFAULT_COMPOSITION_TAGS,
   );
 
   // --- Batch preset sets ---
-  const [batchPresetSets, setBatchPresetSets] = useState<BatchPresetSet[]>(() =>
-    lsGet(LS.batchPresetSets, []),
-  );
+  const [batchPresetSets, setBatchPresetSets] = useState<BatchPresetSet[]>([]);
 
   // --- Preset categories ---
-  const [presetCategories, setPresetCategories] = useState<PresetCategory[]>(() =>
-    lsGet(LS.presetCategories, []),
+  const [presetCategories, setPresetCategories] = useState<PresetCategory[]>(
+    [],
   );
 
-  // --- Persist ---
-  useEffect(() => { lsSet(LS.variableLoras, variableLoras); }, [variableLoras]);
-  useEffect(() => { lsSet(LS.selectedVariableLora, selectedVariableLora); }, [selectedVariableLora]);
-  useEffect(() => { lsSet(LS.physicalPresets, physicalPresets); }, [physicalPresets]);
-  useEffect(() => { lsSet(LS.scenePresets, scenePresets); }, [scenePresets]);
-  useEffect(() => { lsSet(LS.countPresets, countPresets); }, [countPresets]);
-  useEffect(() => { lsSet(LS.posePresets, posePresets); }, [posePresets]);
-  useEffect(() => { lsSet(LS.otherPresets, otherPresets); }, [otherPresets]);
-  useEffect(() => { lsSet(LS.selectedPhysicalIds, selectedPhysicalIds); }, [selectedPhysicalIds]);
-  useEffect(() => { lsSet(LS.selectedSceneId, selectedSceneId); }, [selectedSceneId]);
-  useEffect(() => { lsSet(LS.selectedCountId, selectedCountId); }, [selectedCountId]);
-  useEffect(() => { lsSet(LS.selectedPoseId, selectedPoseId); }, [selectedPoseId]);
-  useEffect(() => { lsSet(LS.selectedOtherIds, selectedOtherIds); }, [selectedOtherIds]);
-  useEffect(() => { lsSet(LS.additionalPrompt, additionalPrompt); }, [additionalPrompt]);
-  useEffect(() => { lsSet(LS.additionalPromptMode, additionalPromptMode); }, [additionalPromptMode]);
-  useEffect(() => { lsSet(LS.negativePrompt, negativePrompt); }, [negativePrompt]);
-  useEffect(() => { lsSet(LS.variationEnabled, variationEnabled); }, [variationEnabled]);
-  useEffect(() => { lsSet(LS.variationTags, variationTags); }, [variationTags]);
-  useEffect(() => { lsSet(LS.batchPresetSets, batchPresetSets); }, [batchPresetSets]);
-  useEffect(() => { lsSet(LS.presetCategories, presetCategories); }, [presetCategories]);
+  // --- Load from localStorage after mount (avoids SSR/client hydration mismatch) ---
+  useEffect(() => {
+    setFixedLoras(lsGet(LS.fixedLoras, FIXED_LORAS));
+    setVariableLoras(lsGet(LS.variableLoras, []));
+    setSelectedVariableLora(lsGet(LS.selectedVariableLora, null));
+    setPhysicalPresets(lsGet(LS.physicalPresets, DEFAULT_PHYSICAL_PRESETS));
+    setScenePresets(lsGet(LS.scenePresets, DEFAULT_SCENE_PRESETS));
+    setCountPresets(lsGet(LS.countPresets, DEFAULT_COUNT_PRESETS));
+    setPosePresets(lsGet(LS.posePresets, DEFAULT_POSE_PRESETS));
+    setOtherPresets(lsGet(LS.otherPresets, DEFAULT_OTHER_PRESETS));
+    setSelectedPhysicalIds(lsGet(LS.selectedPhysicalIds, []));
+    setSelectedSceneId(lsGet(LS.selectedSceneId, null));
+    setSelectedCountId(lsGet(LS.selectedCountId, null));
+    setSelectedPoseId(lsGet(LS.selectedPoseId, null));
+    setSelectedOtherIds(lsGet(LS.selectedOtherIds, []));
+    setAdditionalPrompt(lsGet(LS.additionalPrompt, ""));
+    setAdditionalPromptMode(lsGet(LS.additionalPromptMode, "all"));
+    setNegativePrompt(lsGet(LS.negativePrompt, DEFAULT_NEGATIVE));
+    setFixedTagsRaw(lsGet(LS.fixedTags, FIXED_POSITIVE_PREFIX));
+    setVariationEnabled(lsGet(LS.variationEnabled, false));
+    setVariationTags(lsGet(LS.variationTags, DEFAULT_COMPOSITION_TAGS));
+    setBatchPresetSets(migrateBatchPresetSets(lsGet(LS.batchPresetSets, [])));
+    setPresetCategories(lsGet(LS.presetCategories, []));
+    setLsLoaded(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // --- LoRA management ---
+  // --- Persist (guarded by lsLoaded to avoid overwriting LS with defaults on mount) ---
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.fixedLoras, fixedLoras);
+  }, [lsLoaded, fixedLoras]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.variableLoras, variableLoras);
+  }, [lsLoaded, variableLoras]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.selectedVariableLora, selectedVariableLora);
+  }, [lsLoaded, selectedVariableLora]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.physicalPresets, physicalPresets);
+  }, [lsLoaded, physicalPresets]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.scenePresets, scenePresets);
+  }, [lsLoaded, scenePresets]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.countPresets, countPresets);
+  }, [lsLoaded, countPresets]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.posePresets, posePresets);
+  }, [lsLoaded, posePresets]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.otherPresets, otherPresets);
+  }, [lsLoaded, otherPresets]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.selectedPhysicalIds, selectedPhysicalIds);
+  }, [lsLoaded, selectedPhysicalIds]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.selectedSceneId, selectedSceneId);
+  }, [lsLoaded, selectedSceneId]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.selectedCountId, selectedCountId);
+  }, [lsLoaded, selectedCountId]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.selectedPoseId, selectedPoseId);
+  }, [lsLoaded, selectedPoseId]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.selectedOtherIds, selectedOtherIds);
+  }, [lsLoaded, selectedOtherIds]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.additionalPrompt, additionalPrompt);
+  }, [lsLoaded, additionalPrompt]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.additionalPromptMode, additionalPromptMode);
+  }, [lsLoaded, additionalPromptMode]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.negativePrompt, negativePrompt);
+  }, [lsLoaded, negativePrompt]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.variationEnabled, variationEnabled);
+  }, [lsLoaded, variationEnabled]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.variationTags, variationTags);
+  }, [lsLoaded, variationTags]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.batchPresetSets, batchPresetSets);
+  }, [lsLoaded, batchPresetSets]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.presetCategories, presetCategories);
+  }, [lsLoaded, presetCategories]);
+
+  // --- Fixed LoRA management ---
+  const addFixedLora = useCallback((lora: LoraEntry) => {
+    setFixedLoras((prev) => [...prev, lora]);
+  }, []);
+
+  const updateFixedLora = useCallback((index: number, lora: LoraEntry) => {
+    setFixedLoras((prev) => prev.map((l, i) => (i === index ? lora : l)));
+  }, []);
+
+  const removeFixedLora = useCallback((index: number) => {
+    setFixedLoras((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // --- Variable LoRA management ---
   const addVariableLora = useCallback((lora: LoraEntry) => {
     setVariableLoras((prev) => [...prev, lora]);
   }, []);
@@ -177,7 +274,8 @@ export function useNormalMode() {
   // --- Preset CRUD ---
   const addPreset = useCallback((preset: Omit<Preset, "id">) => {
     const newPreset: Preset = { ...preset, id: crypto.randomUUID() };
-    if (preset.type === "physical") setPhysicalPresets((p) => [...p, newPreset]);
+    if (preset.type === "physical")
+      setPhysicalPresets((p) => [...p, newPreset]);
     else if (preset.type === "scene") setScenePresets((p) => [...p, newPreset]);
     else if (preset.type === "count") setCountPresets((p) => [...p, newPreset]);
     else if (preset.type === "pose") setPosePresets((p) => [...p, newPreset]);
@@ -250,12 +348,15 @@ export function useNormalMode() {
   }, []);
 
   const renameCategory = useCallback((id: string, name: string) => {
-    setPresetCategories((prev) => prev.map((c) => (c.id === id ? { ...c, name } : c)));
+    setPresetCategories((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, name } : c)),
+    );
   }, []);
 
   const removeCategory = useCallback((id: string) => {
     setPresetCategories((prev) => prev.filter((c) => c.id !== id));
-    const clearCat = (p: Preset) => p.category === id ? { ...p, category: undefined } : p;
+    const clearCat = (p: Preset) =>
+      p.category === id ? { ...p, category: undefined } : p;
     setPhysicalPresets((p) => p.map(clearCat));
     setScenePresets((p) => p.map(clearCat));
     setCountPresets((p) => p.map(clearCat));
@@ -281,7 +382,13 @@ export function useNormalMode() {
   }, []);
 
   return {
-    // LoRA
+    // Fixed LoRA
+    fixedLoras,
+    setFixedLoras,
+    addFixedLora,
+    updateFixedLora,
+    removeFixedLora,
+    // Variable LoRA
     variableLoras,
     setVariableLoras,
     selectedVariableLora,

@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-
-function getOutputDir(): string {
-  return (
-    process.env.COMFYUI_OUTPUT_DIR ||
-    path.join(process.cwd(), "..", "ComfyUI", "output")
-  );
-}
+import { getOutputDir } from "@/lib/server/output-dir";
+import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 const IMAGE_EXT = /\.(png|jpe?g|webp|avif)$/i;
 
@@ -24,7 +19,7 @@ export interface FolderInfo {
  *  When REMOTE_PROCESS_URL is set, proxies to the remote machine.
  */
 export async function GET(req: NextRequest) {
-  const remoteUrl = process.env.REMOTE_PROCESS_URL;
+  const remoteUrl = getRemoteProcessUrl();
   const local = new URL(req.url).searchParams.get("local") === "true";
   if (remoteUrl && !local) {
     const res = await fetch(`${remoteUrl}/api/process/dirs`);

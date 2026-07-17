@@ -1,57 +1,98 @@
-'use client'
-import { useState, useEffect } from 'react'
-import { type GenerationSettings, SAMPLER_OPTIONS, SCHEDULER_OPTIONS, SIZE_PRESETS } from '@/lib/comfy'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Slider } from '@/components/ui/slider'
-import { Switch } from '@/components/ui/switch'
+"use client";
+import { useState, useEffect, useCallback } from "react";
+import {
+  type GenerationSettings,
+  SAMPLER_OPTIONS,
+  SCHEDULER_OPTIONS,
+  SIZE_PRESETS,
+} from "@/lib/comfy";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from "@/components/ui/select";
+import { RefreshCw, Wand2 } from "lucide-react";
 
 interface CheckpointItem {
-  model_name: string
-  file_name: string
-  sub_type: string
+  model_name: string;
+  file_name: string;
+  sub_type: string;
 }
 
 function useCheckpoints() {
-  const [checkpoints, setCheckpoints] = useState<CheckpointItem[]>([])
-  const [loading, setLoading] = useState(false)
+  const [checkpoints, setCheckpoints] = useState<CheckpointItem[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setLoading(true)
-    fetch('/api/comfy/checkpoints')
+    setLoading(true);
+    fetch("/api/comfy/checkpoints")
       .then((r) => r.json())
       .then((data) => {
         const items: CheckpointItem[] = (data.items ?? []).filter(
-          (i: CheckpointItem) => i.sub_type === 'checkpoint',
-        )
-        setCheckpoints(items)
+          (i: CheckpointItem) => i.sub_type === "checkpoint",
+        );
+        setCheckpoints(items);
       })
       .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+      .finally(() => setLoading(false));
+  }, []);
 
-  return { checkpoints, loading }
+  return { checkpoints, loading };
+}
+
+interface UpscalerItem {
+  fileName: string;
+  name: string;
+}
+
+function useUpscalers() {
+  const [upscalers, setUpscalers] = useState<UpscalerItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = useCallback(() => {
+    setLoading(true);
+    fetch("/api/models/upscalers")
+      .then((r) => r.json())
+      .then((data) => setUpscalers(data.items ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { upscalers, loading, refresh };
 }
 
 interface SamplerSettingsProps {
-  settings: GenerationSettings
-  onChange: (settings: GenerationSettings) => void
+  settings: GenerationSettings;
+  onChange: (settings: GenerationSettings) => void;
+  onOpenModelManager?: () => void;
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex items-center gap-2">
-      <Label className="w-24 shrink-0 text-xs text-muted-foreground">{label}</Label>
+      <Label className="w-24 shrink-0 text-xs text-muted-foreground">
+        {label}
+      </Label>
       <div className="flex-1">{children}</div>
     </div>
-  )
+  );
 }
 
 function SliderWithInput({
@@ -61,11 +102,11 @@ function SliderWithInput({
   step,
   onChange,
 }: {
-  value: number
-  min: number
-  max: number
-  step: number
-  onChange: (v: number) => void
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -87,54 +128,130 @@ function SliderWithInput({
         className="h-7 w-16 text-xs"
       />
     </div>
-  )
+  );
 }
 
-export default function SamplerSettings({ settings, onChange }: SamplerSettingsProps) {
-  const set = <K extends keyof GenerationSettings>(key: K, value: GenerationSettings[K]) =>
-    onChange({ ...settings, [key]: value })
+export default function SamplerSettings({
+  settings,
+  onChange,
+  onOpenModelManager,
+}: SamplerSettingsProps) {
+  const set = <K extends keyof GenerationSettings>(
+    key: K,
+    value: GenerationSettings[K],
+  ) => onChange({ ...settings, [key]: value });
 
-  const { checkpoints, loading } = useCheckpoints()
+  const { checkpoints, loading: ckptLoading } = useCheckpoints();
+  const {
+    upscalers,
+    loading: upscaleLoading,
+    refresh: refreshUpscalers,
+  } = useUpscalers();
 
   return (
     <div className="space-y-2.5 text-sm">
       <Row label="チェックポイント">
-        {checkpoints.length > 0 ? (
-          <Select
-            value={settings.checkpoint}
-            onValueChange={(v) => set('checkpoint', v)}
-          >
-            <SelectTrigger className="h-7 text-xs">
-              <SelectValue placeholder={loading ? '読み込み中...' : settings.checkpoint} />
-            </SelectTrigger>
-            <SelectContent>
-              {checkpoints.map((c) => {
-                const value = `${c.file_name}.safetensors`
-                const label = c.model_name !== c.file_name ? c.model_name : c.file_name
-                return (
-                  <SelectItem key={c.file_name} value={value} className="text-xs">
-                    {label}
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
-        ) : (
-          <Input
-            value={settings.checkpoint}
-            onChange={(e) => set('checkpoint', e.target.value)}
-            className="h-7 text-xs"
-            placeholder={loading ? '読み込み中...' : 'チェックポイント名'}
-          />
-        )}
+        <div className="flex gap-1">
+          {checkpoints.length > 0 ? (
+            <Select
+              value={settings.checkpoint}
+              onValueChange={(v) => set("checkpoint", v)}
+            >
+              <SelectTrigger className="h-7 flex-1 text-xs">
+                <SelectValue
+                  placeholder={
+                    ckptLoading ? "読み込み中..." : settings.checkpoint
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {checkpoints.map((c) => {
+                  const value = `${c.file_name}.safetensors`;
+                  const label =
+                    c.model_name !== c.file_name ? c.model_name : c.file_name;
+                  return (
+                    <SelectItem
+                      key={c.file_name}
+                      value={value}
+                      className="text-xs"
+                    >
+                      {label}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              value={settings.checkpoint}
+              onChange={(e) => set("checkpoint", e.target.value)}
+              className="h-7 flex-1 text-xs"
+              placeholder={ckptLoading ? "読み込み中..." : "チェックポイント名"}
+            />
+          )}
+          {onOpenModelManager && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={onOpenModelManager}
+              title="モデル管理から選択"
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
       </Row>
 
       <Row label="アップスケール">
-        <Input
-          value={settings.upscaleModel}
-          onChange={(e) => set('upscaleModel', e.target.value)}
-          className="h-7 text-xs"
-        />
+        <div className="flex gap-1">
+          {upscalers.length > 0 ? (
+            <Select
+              value={settings.upscaleModel}
+              onValueChange={(v) => set("upscaleModel", v)}
+            >
+              <SelectTrigger className="h-7 flex-1 text-xs">
+                <SelectValue
+                  placeholder={
+                    upscaleLoading ? "読み込み中..." : settings.upscaleModel
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {upscalers.map((u) => (
+                  <SelectItem
+                    key={u.fileName}
+                    value={u.fileName}
+                    className="text-xs"
+                  >
+                    {u.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              value={settings.upscaleModel}
+              onChange={(e) => set("upscaleModel", e.target.value)}
+              className="h-7 flex-1 text-xs"
+              placeholder={
+                upscaleLoading ? "読み込み中..." : "アップスケーラー名"
+              }
+            />
+          )}
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            onClick={refreshUpscalers}
+            disabled={upscaleLoading}
+            title="一覧を更新"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${upscaleLoading ? "animate-spin" : ""}`}
+            />
+          </Button>
+        </div>
       </Row>
 
       <Row label="サイズ">
@@ -144,11 +261,13 @@ export default function SamplerSettings({ settings, onChange }: SamplerSettingsP
               <button
                 key={p.label}
                 type="button"
-                onClick={() => onChange({ ...settings, width: p.width, height: p.height })}
+                onClick={() =>
+                  onChange({ ...settings, width: p.width, height: p.height })
+                }
                 className={`rounded px-2 py-0.5 text-[10px] border transition-colors ${
                   settings.width === p.width && settings.height === p.height
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border hover:border-muted-foreground'
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border hover:border-muted-foreground"
                 }`}
               >
                 {p.label}
@@ -159,7 +278,7 @@ export default function SamplerSettings({ settings, onChange }: SamplerSettingsP
             <Input
               type="number"
               value={settings.width}
-              onChange={(e) => set('width', parseInt(e.target.value) || 512)}
+              onChange={(e) => set("width", parseInt(e.target.value) || 512)}
               className="h-7 w-20 text-xs"
               step={64}
             />
@@ -167,7 +286,7 @@ export default function SamplerSettings({ settings, onChange }: SamplerSettingsP
             <Input
               type="number"
               value={settings.height}
-              onChange={(e) => set('height', parseInt(e.target.value) || 512)}
+              onChange={(e) => set("height", parseInt(e.target.value) || 512)}
               className="h-7 w-20 text-xs"
               step={64}
             />
@@ -178,7 +297,7 @@ export default function SamplerSettings({ settings, onChange }: SamplerSettingsP
       <Row label="シードランダム">
         <Switch
           checked={settings.randomizeSeed}
-          onCheckedChange={(v) => set('randomizeSeed', v)}
+          onCheckedChange={(v) => set("randomizeSeed", v)}
         />
       </Row>
 
@@ -187,7 +306,7 @@ export default function SamplerSettings({ settings, onChange }: SamplerSettingsP
           <Input
             type="number"
             value={settings.seed}
-            onChange={(e) => set('seed', parseInt(e.target.value) || 0)}
+            onChange={(e) => set("seed", parseInt(e.target.value) || 0)}
             className="h-7 text-xs"
           />
         </Row>
@@ -199,7 +318,7 @@ export default function SamplerSettings({ settings, onChange }: SamplerSettingsP
           min={1}
           max={100}
           step={1}
-          onChange={(v) => set('steps', v)}
+          onChange={(v) => set("steps", v)}
         />
       </Row>
 
@@ -209,12 +328,15 @@ export default function SamplerSettings({ settings, onChange }: SamplerSettingsP
           min={1}
           max={20}
           step={0.5}
-          onChange={(v) => set('cfg', v)}
+          onChange={(v) => set("cfg", v)}
         />
       </Row>
 
       <Row label="サンプラー">
-        <Select value={settings.sampler} onValueChange={(v) => set('sampler', v)}>
+        <Select
+          value={settings.sampler}
+          onValueChange={(v) => set("sampler", v)}
+        >
           <SelectTrigger className="h-7 text-xs">
             <SelectValue />
           </SelectTrigger>
@@ -229,7 +351,10 @@ export default function SamplerSettings({ settings, onChange }: SamplerSettingsP
       </Row>
 
       <Row label="スケジューラ">
-        <Select value={settings.scheduler} onValueChange={(v) => set('scheduler', v)}>
+        <Select
+          value={settings.scheduler}
+          onValueChange={(v) => set("scheduler", v)}
+        >
           <SelectTrigger className="h-7 text-xs">
             <SelectValue />
           </SelectTrigger>
@@ -249,9 +374,9 @@ export default function SamplerSettings({ settings, onChange }: SamplerSettingsP
           min={0}
           max={1}
           step={0.01}
-          onChange={(v) => set('denoise', v)}
+          onChange={(v) => set("denoise", v)}
         />
       </Row>
     </div>
-  )
+  );
 }

@@ -1,19 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
-import path from 'path'
-
-function getOutputDir(): string {
-  return process.env.COMFYUI_OUTPUT_DIR || path.join(process.cwd(), '..', 'ComfyUI', 'output')
-}
-
-function safePath(outputDir: string, subfolder: string): string | null {
-  const resolved = path.resolve(outputDir, subfolder)
-  // Prevent directory traversal
-  if (!resolved.startsWith(path.resolve(outputDir))) return null
-  return resolved
-}
-
-const IMAGE_EXT = /\.(png|jpg|jpeg|webp|gif)$/i
+import { getOutputDir, safePath, IMAGE_EXT } from '@/lib/server/output-dir'
+import { getRemoteProcessUrl } from '@/lib/setup/config'
 
 /** GET /api/comfy/output?subfolder=20240101-loraname
  *  Returns list of image filenames in that subfolder.
@@ -24,7 +12,7 @@ export async function GET(req: NextRequest) {
   const outputDir = getOutputDir()
   const subfolder = req.nextUrl.searchParams.get('subfolder') ?? ''
 
-  const remoteUrl = process.env.REMOTE_PROCESS_URL;
+  const remoteUrl = getRemoteProcessUrl();
   if (remoteUrl) {
     const proxyUrl = subfolder
       ? `${remoteUrl}/api/comfy/output?subfolder=${encodeURIComponent(subfolder)}`

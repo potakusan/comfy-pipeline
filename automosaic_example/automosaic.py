@@ -63,7 +63,7 @@ def apply_mosaic_with_meta(
     combined_masks: list[Image.Image],
     mosaic_size: int = 10,
     no_meta: bool = False,
-    use_masks: bool = False,
+    box_only: bool = False,
     expand: float = 0.0,
 ):
     t_process_start = time.perf_counter()
@@ -72,17 +72,25 @@ def apply_mosaic_with_meta(
     img_w, img_h = pil_image.size
 
     for (bbox, mask) in zip(bboxes, combined_masks):
-        x1, y1, x2, y2 = map(int, bbox)
+        ox1, oy1, ox2, oy2 = map(int, bbox)
+        if ox2 - ox1 <= 0 or oy2 - oy1 <= 0:
+            continue
 
         if expand > 0:
-            dx = int((x2 - x1) * expand)
-            dy = int((y2 - y1) * expand)
-            expand_px = max(dx, dy)
-            x1 = max(0, x1 - dx)
-            y1 = max(0, y1 - dy)
-            x2 = min(img_w, x2 + dx)
-            y2 = min(img_h, y2 + dy)
+            dx = int((ox2 - ox1) * expand)
+            dy = int((oy2 - oy1) * expand)
+            x1 = max(0, ox1 - dx)
+            y1 = max(0, oy1 - dy)
+            x2 = min(img_w, ox2 + dx)
+            y2 = min(img_h, oy2 + dy)
+
+            # Dilate the mask based on the object's own footprint (area), not the
+            # axis-aligned bbox. A diagonal/thin object's bbox can be far larger
+            # than its actual silhouette, which otherwise produces an oversized margin.
+            area = np.count_nonzero(np.asarray(mask.crop((ox1, oy1, ox2, oy2))))
+            expand_px = max(1, int((area ** 0.5) * expand))
         else:
+            x1, y1, x2, y2 = ox1, oy1, ox2, oy2
             expand_px = 0
 
         w, h = x2 - x1, y2 - y1
@@ -94,7 +102,7 @@ def apply_mosaic_with_meta(
         roi_mosaic = roi.resize((shrink_w, shrink_h), Image.Resampling.BOX)
         roi_mosaic = roi_mosaic.resize((w, h), Image.Resampling.NEAREST)
 
-        if use_masks:
+        if box_only:
             pil_image.paste(roi_mosaic, (x1, y1, x2, y2))
         else:
             mask_roi = mask.crop((x1, y1, x2, y2))
@@ -395,7 +403,7 @@ def process_single_image(image_file: str, model_paths: list[str], args) -> None:
         combined_masks,
         max(1, args_mosaic_size),
         no_meta=args.no_meta,
-        use_masks=args.use_masks,
+        box_only=args.box_only,
         expand=args.expand,
     )
 
@@ -458,7 +466,7 @@ parser.add_argument("-sm", "--save-masks", action="store_true", help="マスク�
 parser.add_argument("-ssd", "--save-same-dir", action="store_true", help="入力画像ファイルと同じ場所に出力する")
 parser.add_argument("-s", "--mosaic-size", type=int, default=10, help="モザイクのサイズ")
 parser.add_argument("--auto-size", action="store_true", help="画像ごとの長辺からモザイクサイズを自動算出する（長辺/100、最小4px）。-s より優先")
-parser.add_argument("-um", "--use-masks", action="store_false", help="マスク画像を使用する")
+parser.add_argument("-bo", "--box-only", action="store_true", help="検出形状(マスク)を無視し、bboxの矩形全体にモザイクをかける（斜めの物体では余分な範囲までモザイクがかかる）")
 parser.add_argument("-rm", "--retina_masks", action="store_true", help="高解像度セグメンテーションマスクを使用する")
 parser.add_argument("-c", "--confidence", type=float, default=0.25, help="信頼度スコアのしきい値(0.01-1.00)")
 parser.add_argument("-d", "--device", default="", help="処理デバイス(CPUで処理したい場合：--device cpu)")

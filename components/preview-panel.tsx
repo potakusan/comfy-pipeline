@@ -6,7 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { StopCircle, Play, ImageIcon } from "lucide-react";
+import { StopCircle, Play, ImageIcon, RefreshCw, Repeat } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -23,6 +23,8 @@ interface PreviewPanelProps {
   onBatchCountChange: (n: number) => void;
   onAddToQueue: () => void;
   onCancel: () => void;
+  onRedoReroll: () => void;
+  onRedoSamePrompt: () => void;
   currentJobImages: GalleryImage[];
 }
 
@@ -43,6 +45,8 @@ export default function PreviewPanel({
   onBatchCountChange,
   onAddToQueue,
   onCancel,
+  onRedoReroll,
+  onRedoSamePrompt,
   currentJobImages,
 }: PreviewPanelProps) {
   const progressPct =
@@ -119,7 +123,7 @@ export default function PreviewPanel({
         <TooltipProvider delayDuration={300}>
           <div className="flex gap-1.5 overflow-x-auto rounded-lg border bg-muted/20 p-1.5 shrink-0">
             {currentJobImages.map((img, i) => (
-              <Tooltip key={img.path}>
+              <Tooltip key={img.id ?? `${img.path}-${i}`}>
                 <TooltipTrigger asChild>
                   <button
                     onClick={() =>
@@ -197,6 +201,30 @@ export default function PreviewPanel({
         <Button onClick={onAddToQueue} className="flex-1 gap-2" size="lg">
           <Play className="h-4 w-4" />
           キューに追加
+        </Button>
+
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={onRedoSamePrompt}
+          disabled={!isProcessing}
+          className="gap-2"
+          title="全く同じプロンプトのまま、違うシードでやり直す"
+        >
+          <Repeat className="h-4 w-4" />
+          プロンプト固定
+        </Button>
+
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={onRedoReroll}
+          disabled={!isProcessing}
+          className="gap-2"
+          title="ランダム要素を引き直し、シードも変えてやり直す"
+        >
+          <RefreshCw className="h-4 w-4" />
+          やり直し
         </Button>
 
         <Button
