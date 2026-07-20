@@ -235,6 +235,15 @@ export function useGallery() {
           const newFiles = filesAfter.filter((f) => !filesBefore.includes(f));
           if (newFiles.length === 0) throw new Error("生成された画像が見つかりませんでした");
 
+          // In remote mode the file was just written on the remote machine's
+          // disk — pull it down to local COMFYUI_OUTPUT_DIR before finalizing,
+          // mirroring the main queue's flow in hooks/use-pipeline.ts.
+          await fetch("/api/comfy/output/save-remote", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ paths: [`${folder}/${newFiles[0]}`] }),
+          }).catch(() => {});
+
           const newMetadata: ImageMetadata = {
             ...meta,
             settings,

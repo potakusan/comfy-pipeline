@@ -861,6 +861,7 @@ export default function ProcessPage() {
     setSubmitting(true);
     setJob(null);
     setJobId(null);
+    setSyncResult(null);
     setLogOpen(true);
     try {
       if (localMode) {

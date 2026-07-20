@@ -19,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import SamplerSettings from "@/components/sampler-settings";
 import {
@@ -263,8 +262,8 @@ function RunSetup({
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <ScrollArea className="min-h-0 flex-1 px-4 py-3">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <div className="space-y-4">
           {/* 可変LoRA */}
           <div>
@@ -380,7 +379,7 @@ function RunSetup({
             )}
           </div>
         </div>
-      </ScrollArea>
+      </div>
 
       <div className="shrink-0 flex gap-2 border-t px-4 py-3">
         <Button
@@ -531,7 +530,7 @@ export default function BatchQueueDialog({
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="flex max-h-[85vh] max-w-4xl! flex-col gap-0 p-0">
+      <DialogContent className="flex max-h-[85vh] max-w-4xl! flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="shrink-0 border-b px-4 py-3">
           <DialogTitle className="flex items-center gap-2 text-sm">
             {(view === "edit" || view === "run-setup") && (
@@ -548,8 +547,8 @@ export default function BatchQueueDialog({
 
         {/* ── LIST VIEW ── */}
         {view === "list" && (
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <ScrollArea className="min-h-0 flex-1 px-4 py-3">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
               {batchPresetSets.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
                   <Layers className="h-10 w-10 opacity-20" />
@@ -648,7 +647,7 @@ export default function BatchQueueDialog({
                   ))}
                 </div>
               )}
-            </ScrollArea>
+            </div>
             <div className="shrink-0 border-t px-4 py-3">
               <Button
                 variant="outline"
@@ -665,7 +664,7 @@ export default function BatchQueueDialog({
 
         {/* ── EDIT VIEW ── */}
         {view === "edit" && editingSet && (
-          <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="shrink-0 border-b px-4 py-2">
               <Input
                 value={editingSet.name}
@@ -677,7 +676,7 @@ export default function BatchQueueDialog({
               />
             </div>
 
-            <ScrollArea className="min-h-0 flex-1 px-4 py-3">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
               {editingSet.presets.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
                   <p className="text-xs">プリセットがありません</p>
@@ -760,7 +759,7 @@ export default function BatchQueueDialog({
                   ))}
                 </div>
               )}
-            </ScrollArea>
+            </div>
 
             <div className="shrink-0 space-y-2 border-t px-4 py-3">
               <Button

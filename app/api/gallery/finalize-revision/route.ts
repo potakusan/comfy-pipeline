@@ -14,6 +14,9 @@ function escapeRegex(s: string): string {
  *  Renames the file ComfyUI just wrote (under a throwaway prefix) to
  *  "<sourceBase>_rev_NNNN.<ext>", where NNNN is the next unused increment
  *  for that source image in the folder, and writes the sidecar metadata.
+ *  Always operates on the local COMFYUI_OUTPUT_DIR — when running in remote
+ *  mode, the caller must first pull the generated file down via
+ *  /api/comfy/output/save-remote (see hooks/use-gallery.ts).
  */
 export async function POST(req: NextRequest) {
   const outputDir = getOutputDir();
