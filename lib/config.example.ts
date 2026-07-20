@@ -16,6 +16,7 @@ export const DEFAULT_NEGATIVE = ``;
 export const DEFAULT_SETTINGS: GenerationSettings = {
   checkpoint: "",
   upscaleModel: "",
+  upscaleSteps: 0,
   width: 512,
   height: 512,
   randomizeSeed: true,

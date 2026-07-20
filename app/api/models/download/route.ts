@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { createJob, updateJob } from '@/lib/download-jobs';
-import { getLoraDir, getCheckpointDir, getCivitaiApiKey } from '@/lib/setup/config';
+import { getLoraDir, getCheckpointDir, getCivitaiApiKey, getRemoteProcessUrl } from '@/lib/setup/config';
 
 function parseCivitaiUrl(url: string): { modelId?: string; versionId?: string } {
   try {
@@ -108,6 +108,19 @@ async function runDownload(
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
+
+  const remoteUrl = getRemoteProcessUrl();
+  if (remoteUrl) {
+    const res = await fetch(`${remoteUrl}/api/models/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.jobId) data.jobId = `remote:${data.jobId}`;
+    return NextResponse.json(data, { status: res.status });
+  }
+
   const type: string = body.type;
   const civitaiUrl: string = body.civitaiUrl;
   const apiKey: string = body.apiKey || getCivitaiApiKey() || '';

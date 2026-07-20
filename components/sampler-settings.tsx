@@ -322,6 +322,16 @@ export default function SamplerSettings({
         />
       </Row>
 
+      <Row label="UPステップ">
+        <SliderWithInput
+          value={settings.upscaleSteps}
+          min={0}
+          max={60}
+          step={1}
+          onChange={(v) => set("upscaleSteps", v)}
+        />
+      </Row>
+
       <Row label="CFG">
         <SliderWithInput
           value={settings.cfg}

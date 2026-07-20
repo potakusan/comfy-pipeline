@@ -15,6 +15,7 @@ export interface LoraEntry {
 export interface GenerationSettings {
   checkpoint: string;
   upscaleModel: string;
+  upscaleSteps: number;
   width: number;
   height: number;
   randomizeSeed: boolean;
@@ -393,8 +394,36 @@ export function buildWorkflow({
     class_type: "ImageUpscaleWithModel",
   };
 
+  let saveSource: [string, number] = ["upi", 0];
+  if (settings.upscaleSteps > 0) {
+    wf["vae2"] = {
+      inputs: { pixels: ["upi", 0], vae: ["chk", 2] },
+      class_type: "VAEEncode",
+    };
+    wf["ksamp2"] = {
+      inputs: {
+        seed: Math.floor(Math.random() * 2 ** 32),
+        steps: settings.upscaleSteps,
+        cfg: settings.cfg,
+        sampler_name: settings.sampler,
+        scheduler: settings.scheduler,
+        denoise: 0.5,
+        model: lastModel,
+        positive: ["pos", 0],
+        negative: ["neg", 0],
+        latent_image: ["vae2", 0],
+      },
+      class_type: "KSampler",
+    };
+    wf["vae3"] = {
+      inputs: { samples: ["ksamp2", 0], vae: ["chk", 2] },
+      class_type: "VAEDecode",
+    };
+    saveSource = ["vae3", 0];
+  }
+
   wf["save"] = {
-    inputs: { filename_prefix: outputPrefix, images: ["upi", 0] },
+    inputs: { filename_prefix: outputPrefix, images: saveSource },
     class_type: "SaveImage",
   };
 
