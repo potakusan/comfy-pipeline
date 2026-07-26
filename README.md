@@ -286,7 +286,7 @@ Electron 版の初回起動時、または未セットアップ環境で `/setup
 
 ## ワークフロー構成
 
-ComfyUI に送信するワークフローは以下の構成で固定されています：
+ComfyUI に送信するワークフローは基本的に以下の構成です（通常モード）：
 
 ```
 CheckpointLoaderSimple
@@ -296,11 +296,23 @@ CheckpointLoaderSimple
        └─ KSampler
             └─ VAEDecode
                  └─ ImageUpscaleWithModel
-                      └─ SaveImage
+                      └─ SaveImage（upscaleSteps = 0 の場合はここで完了）
+```
+
+**アップスケール精密化パス**（`upscaleSteps > 0` の場合）を有効にすると、アップスケール後にさらに以下が追加されます：
+
+```
+                      └─ ImageUpscaleWithModel
+                           └─ VAEEncode（アップスケール画像を再エンコード）
+                                └─ KSampler（新しいシード, steps=upscaleSteps, denoise=0.5）
+                                     └─ VAEDecode
+                                          └─ SaveImage
 ```
 
 固定 LoRA（`FIXED_LORAS`）は常にチェーンの先頭に適用されます。  
-カスタマイズする場合は [lib/comfy.ts](lib/comfy.ts) の `buildWorkflow` と `FIXED_LORAS` を編集してください。
+カスタマイズする場合は [lib/comfy.ts](lib/comfy.ts) の `buildWorkflow` / `FIXED_LORAS` を編集してください。
+
+カップルモードでは代わりに [lib/couple.ts](lib/couple.ts) の `buildCoupleWorkflow`（`COUPLE()` テキスト領域指定 + Prompt Control）または `buildColorMaskWorkflow`（カラーマスク + `RegionalConditioningColorMask` + 任意で ControlNet）が使われ、領域ごとに異なる LoRA・プロンプトを合成しますが、アップスケール精密化パスは通常モードと共通で適用されます。
 
 ---
 
