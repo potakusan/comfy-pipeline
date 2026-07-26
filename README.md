@@ -20,12 +20,30 @@ ComfyUI（ローカル / リモート）に接続し、**LoRA ごとの量産・
 
 ## セットアップ
 
-### 前提
+### 方法 A: Electron デスクトップアプリとして使う
 
-- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) がローカルで起動していること
+ComfyUI 未導入の環境でも、初回起動ウィザード（`/setup`）が Python / Git / ComfyUI 本体 / CUDA 版 PyTorch / automosaic 用 venv を自動セットアップします。
+
+```bash
+git clone <このリポジトリ>
+cd comfy-pipeline
+pnpm install
+
+pnpm electron:dev    # 開発時（Next.js + Electron を同時起動）
+# もしくは
+pnpm electron:build  # NSIS(win) / dmg(mac) / AppImage(linux) を生成
+```
+
+初回起動時に `/setup` 画面が表示され、GPU（`nvidia-smi` からドライバ→CUDA バージョンを判定）に応じた PyTorch のインストールを含め、必要なセットアップを自動で行います。完了後は「メイン画面を開く」からいつも通り利用できます。設定（ComfyUI のパス/URL、各種モデルディレクトリ、リモート URL 等）はビルド後もアプリ内の「設定」ダイアログからいつでも変更できます（`.comfy-pipeline.json` に保存）。
+
+### 方法 B: Web サーバーとして使う（手動セットアップ）
+
+#### 前提
+
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) がローカル（またはリモートマシン）で起動していること
 - Node.js 18 以上、pnpm
 
-### ComfyUI 側の設定
+#### ComfyUI 側の設定
 
 プレビュー画像をリアルタイム受信するため、ComfyUI の起動オプションに以下を追加してください。
 
@@ -33,7 +51,7 @@ ComfyUI（ローカル / リモート）に接続し、**LoRA ごとの量産・
 --preview-method auto
 ```
 
-### インストール
+#### インストール
 
 ```bash
 git clone <このリポジトリ>
@@ -51,13 +69,20 @@ cp .env.example .env.local
 COMFYUI_URL=http://localhost:8188
 NEXT_PUBLIC_COMFYUI_URL=http://localhost:8188
 
-# ComfyUI の output ディレクトリへの絶対パス
+# ComfyUI の各種ディレクトリへの絶対パス
 # Windows: C:/Users/yourname/ComfyUI/output
 # Mac/Linux: /home/yourname/ComfyUI/output
 COMFYUI_OUTPUT_DIR=C:/path/to/ComfyUI/output
+COMFYUI_LORA_DIR=C:/path/to/ComfyUI/models/loras
+COMFYUI_CHECKPOINT_DIR=C:/path/to/ComfyUI/models/checkpoints
+
+# Civitai からのモデルダウンロードに使用（任意）
+CIVITAI_API_KEY=
 ```
 
-### 起動
+> `.env.example` に載っていない `COMFYUI_UPSCALER_DIR`（アップスケールモデルのディレクトリ）や `REMOTE_PROCESS_URL`（リモートモード先 URL）、`comfyuiApiKey` などは、起動後にアプリ内の「設定」ダイアログから設定することもできます。環境変数を設定した項目は設定ダイアログ側では変更不可（優先度: 環境変数 > `.comfy-pipeline.json` > デフォルト値）として表示されます。
+
+#### 起動
 
 ```bash
 pnpm dev
