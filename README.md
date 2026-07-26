@@ -275,9 +275,12 @@ Electron 版の初回起動時、または未セットアップ環境で `/setup
 
 ## 技術スタック
 
-- **Next.js** (App Router) + TypeScript
-- **Tailwind CSS v4** + **shadcn/ui**
-- **ComfyUI** との通信: HTTP API（プロンプト送信・履歴取得）+ WebSocket（進捗・プレビュー）
+- **Next.js 16**（App Router）+ TypeScript、React 19
+- **Tailwind CSS v4** + **shadcn/ui**（Radix UI / Base UI）
+- **Electron**（`electron-builder` によるデスクトップアプリ化。Windows(NSIS) / macOS(dmg) / Linux(AppImage) 対応）
+- **ComfyUI** との通信: HTTP API（プロンプト送信・履歴取得・モデル一覧）+ WebSocket（進捗・プレビュー）
+- 画像処理: `sharp`（サムネイル生成）
+- 状態管理: 追加ライブラリなし（React state/hooks + `fetch` + localStorage）
 
 ---
 
