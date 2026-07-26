@@ -262,6 +262,17 @@ LoRA / チェックポイント / アップスケールモデルを一覧・管�
 
 ---
 
+## 初回セットアップウィザード（`/setup`）
+
+Electron 版の初回起動時、または未セットアップ環境で `/setup` にアクセスすると表示されます。
+
+1. Python / Git / ComfyUI 本体（`main.py` の有無、起動中かどうか）/ ComfyUI 用 venv / PyTorch（CPU/CUDA どちらが入っているか）/ automosaic 用 venv / GPU（`nvidia-smi` からドライバ→CUDA バージョンを判定）の状態をチェック
+2. ComfyUI のインストール先フォルダをその場で編集可能
+3. 「自動インストール開始」で、Python 3.12 / Git（winget）→ ComfyUI の `git clone`（未導入の場合）→ ComfyUI 用 venv 作成 → GPU に適した PyTorch（またはCPU版）インストール → `requirements.txt` インストール → automosaic 用 venv 作成・依存インストール、を自動実行（進捗・ログをリアルタイム表示）
+4. 完了後「メイン画面を開く」から通常利用を開始
+
+---
+
 ## 技術スタック
 
 - **Next.js** (App Router) + TypeScript
