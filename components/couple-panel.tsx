@@ -25,6 +25,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import CategoryDivider from "@/components/category-divider";
+import DeleteConfirmDialog from "@/components/delete-confirm-dialog";
 import {
   Plus,
   Trash2,
@@ -80,6 +81,7 @@ function ConfigSelector({
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<CoupleConfig | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const active = configs.find((c) => c.id === activeId) ?? configs[0];
 
   return (
@@ -138,13 +140,20 @@ function ConfigSelector({
         className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
         disabled={configs.length <= 1}
         title="この設定を削除"
-        onClick={() => {
-          if (confirm(`「${active?.name}」を削除しますか？`))
-            onDelete(activeId);
-        }}
+        onClick={() => setDeleteConfirmOpen(true)}
       >
         <Trash2 className="h-3.5 w-3.5" />
       </Button>
+
+      <DeleteConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title={`「${active?.name}」を削除しますか?`}
+        onConfirm={() => {
+          onDelete(activeId);
+          setDeleteConfirmOpen(false);
+        }}
+      />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-sm">

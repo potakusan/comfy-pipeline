@@ -22,10 +22,10 @@ import {
   Check,
   Loader2,
   RefreshCw,
-  X,
   ExternalLink,
 } from 'lucide-react';
 import type { LoraEntry } from '@/lib/comfy';
+import DeleteConfirmDialog from '@/components/delete-confirm-dialog';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -312,38 +312,24 @@ function ModelCard({
             </Button>
           )}
 
-          {confirmDelete ? (
-            <div className="flex gap-0.5">
-              <Button
-                size="sm"
-                variant="destructive"
-                className="h-6 px-1.5 text-[10px]"
-                disabled={deleting}
-                onClick={handleDelete}
-              >
-                {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : '削除'}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 w-6 p-0"
-                onClick={() => setConfirmDelete(false)}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          ) : (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 w-6 shrink-0 p-0 text-muted-foreground hover:text-destructive"
-              onClick={() => setConfirmDelete(true)}
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 w-6 shrink-0 p-0 text-muted-foreground hover:text-destructive"
+            onClick={() => setConfirmDelete(true)}
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
         </div>
       </div>
+
+      <DeleteConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`「${item.name}」を削除しますか?`}
+        confirming={deleting}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

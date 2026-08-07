@@ -20,6 +20,7 @@ import {
   LoraPickerDialog,
   type LmLoraItem,
 } from "@/components/lora-picker-dialog";
+import DeleteConfirmDialog from "@/components/delete-confirm-dialog";
 
 interface LoraPanelProps {
   // Fixed LoRAs (editable)
@@ -192,7 +193,7 @@ function LoraModal({
           </div>
 
           <DialogFooter className="flex-col gap-2 sm:flex-row">
-            {onDelete && !confirmDelete && (
+            {onDelete && (
               <Button
                 variant="outline"
                 className="mr-auto text-destructive hover:bg-destructive hover:text-destructive-foreground"
@@ -201,27 +202,6 @@ function LoraModal({
                 <Trash2 className="mr-1 h-3.5 w-3.5" />
                 削除
               </Button>
-            )}
-            {confirmDelete && (
-              <div className="mr-auto flex gap-2">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    onDelete?.();
-                    onClose();
-                  }}
-                >
-                  本当に削除
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setConfirmDelete(false)}
-                >
-                  キャンセル
-                </Button>
-              </div>
             )}
             <Button variant="outline" onClick={onClose}>
               閉じる
@@ -243,6 +223,17 @@ function LoraModal({
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onSelect={handlePickerSelect}
+      />
+
+      <DeleteConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="このLoRAを削除しますか?"
+        onConfirm={() => {
+          onDelete?.();
+          setConfirmDelete(false);
+          onClose();
+        }}
       />
     </>
   );

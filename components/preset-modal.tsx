@@ -14,6 +14,7 @@ import {
 import { LoraSection } from "@/components/lora-section";
 import TagAutocompleteTextarea from "@/components/tag-autocomplete-textarea";
 import { Pencil, Trash2 } from "lucide-react";
+import DeleteConfirmDialog from "@/components/delete-confirm-dialog";
 
 export type PresetType = "physical" | "count" | "pose" | "scene" | "other";
 
@@ -54,7 +55,10 @@ export function CategoryManagerModal({
     setEditingId(null);
   };
 
+  const deleteTarget = categories.find((c) => c.id === confirmDeleteId) ?? null;
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
@@ -111,46 +115,18 @@ export function CategoryManagerModal({
                     onClick={() => {
                       setEditingId(cat.id);
                       setEditDraft(cat.name);
-                      setConfirmDeleteId(null);
                     }}
                   >
                     <Pencil className="h-3 w-3" />
                   </Button>
-                  {confirmDeleteId === cat.id ? (
-                    <>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="h-6 text-xs"
-                        onClick={() => {
-                          onRemove(cat.id);
-                          setConfirmDeleteId(null);
-                        }}
-                      >
-                        削除
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-xs"
-                        onClick={() => setConfirmDeleteId(null)}
-                      >
-                        ×
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                      onClick={() => {
-                        setConfirmDeleteId(cat.id);
-                        setEditingId(null);
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    onClick={() => setConfirmDeleteId(cat.id)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
                 </>
               )}
             </div>
@@ -194,6 +170,17 @@ export function CategoryManagerModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <DeleteConfirmDialog
+      open={confirmDeleteId !== null}
+      onOpenChange={(v) => !v && setConfirmDeleteId(null)}
+      title={`カテゴリ「${deleteTarget?.name ?? ""}」を削除しますか?`}
+      onConfirm={() => {
+        if (confirmDeleteId) onRemove(confirmDeleteId);
+        setConfirmDeleteId(null);
+      }}
+    />
+    </>
   );
 }
 
@@ -243,6 +230,7 @@ export function PresetModal({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
@@ -323,7 +311,7 @@ export function PresetModal({
           <LoraSection lora={lora} onChange={setLora} />
         </div>
         <DialogFooter className="flex-col gap-2 sm:flex-row">
-          {onDelete && !confirmDelete && (
+          {onDelete && (
             <Button
               variant="outline"
               className="mr-auto text-destructive hover:bg-destructive hover:text-destructive-foreground"
@@ -332,27 +320,6 @@ export function PresetModal({
               <Trash2 className="mr-1 h-3.5 w-3.5" />
               削除
             </Button>
-          )}
-          {confirmDelete && (
-            <div className="mr-auto flex gap-2">
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  onDelete?.();
-                  onClose();
-                }}
-              >
-                本当に削除
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setConfirmDelete(false)}
-              >
-                キャンセル
-              </Button>
-            </div>
           )}
           <Button variant="outline" onClick={onClose}>
             閉じる
@@ -375,5 +342,17 @@ export function PresetModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <DeleteConfirmDialog
+      open={confirmDelete}
+      onOpenChange={setConfirmDelete}
+      title="このプリセットを削除しますか?"
+      onConfirm={() => {
+        onDelete?.();
+        setConfirmDelete(false);
+        onClose();
+      }}
+    />
+    </>
   );
 }
