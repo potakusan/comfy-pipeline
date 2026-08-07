@@ -1,0 +1,161 @@
+"use client";
+import { useState } from "react";
+import type { LoraEntry } from "@/lib/comfy";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import {
+  LoraPickerDialog,
+  type LmLoraItem,
+} from "@/components/lora-picker-dialog";
+import TagAutocompleteTextarea from "@/components/tag-autocomplete-textarea";
+import { Library } from "lucide-react";
+
+export const EMPTY_LORA: LoraEntry = {
+  name: "",
+  strength: 1.0,
+  clipStrength: 1.0,
+  triggerWords: "",
+};
+
+/**
+ * Shared LoRA edit fields (name/picker, strength/CLIP strength, trigger words,
+ * and the optional "prompt only" toggle). Used both inside a full dialog
+ * (lora-panel.tsx's LoraModal) and inline within a smaller form
+ * (lora-section.tsx's LoraSection) — `compact` scales text/spacing down for
+ * the latter without duplicating the field logic itself.
+ */
+export default function LoraFields({
+  draft,
+  onChange,
+  allowPromptOnly,
+  compact,
+}: {
+  draft: LoraEntry;
+  onChange: (lora: LoraEntry) => void;
+  allowPromptOnly?: boolean;
+  compact?: boolean;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const set = <K extends keyof LoraEntry>(key: K, val: LoraEntry[K]) =>
+    onChange({ ...draft, [key]: val });
+
+  const handlePickerSelect = (item: LmLoraItem) => {
+    const triggerWords = item.civitai?.trainedWords?.join(", ") ?? "";
+    onChange({ ...draft, name: item.file_name, triggerWords });
+  };
+
+  const labelClass = compact ? "text-[10px]" : "text-xs";
+
+  return (
+    <>
+      {allowPromptOnly && (
+        <label className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs">
+          <input
+            type="checkbox"
+            checked={!!draft.isPromptOnly}
+            onChange={(e) => set("isPromptOnly", e.target.checked)}
+          />
+          プロンプトのみ（LoRA無し・フォルダ分け用）
+        </label>
+      )}
+
+      <div>
+        <div className="mb-1 flex items-center justify-between">
+          <Label className={labelClass}>
+            {draft.isPromptOnly
+              ? "タイトル（任意の文字列）"
+              : compact
+                ? "LoRAファイル名"
+                : "LoRA名（.safetensors不要）"}
+          </Label>
+          {!draft.isPromptOnly && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 gap-1 text-xs"
+              onClick={() => setPickerOpen(true)}
+            >
+              <Library className="h-3 w-3" />
+              {compact ? "選択" : "一覧から選択"}
+            </Button>
+          )}
+        </div>
+        <Input
+          value={draft.name}
+          onChange={(e) => set("name", e.target.value)}
+          placeholder={
+            draft.isPromptOnly ? "例: 屋外・私服" : "例: my_character_lora_v1"
+          }
+          className={compact ? "h-7 font-mono text-xs" : "font-mono text-sm"}
+        />
+        {!compact && (
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            {draft.isPromptOnly
+              ? "実際のLoRAは適用されません。画像の保存フォルダ名として使われます"
+              : "ComfyUIのmodels/lorasフォルダ内のファイル名を入力"}
+          </p>
+        )}
+      </div>
+
+      {!draft.isPromptOnly && (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <Label className={labelClass}>強度</Label>
+              <span className={`font-mono ${labelClass} text-muted-foreground`}>
+                {draft.strength.toFixed(2)}
+              </span>
+            </div>
+            <Slider
+              min={0}
+              max={2}
+              step={0.05}
+              value={[draft.strength]}
+              onValueChange={([v]) => set("strength", v)}
+            />
+          </div>
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <Label className={labelClass}>CLIP強度</Label>
+              <span className={`font-mono ${labelClass} text-muted-foreground`}>
+                {draft.clipStrength.toFixed(2)}
+              </span>
+            </div>
+            <Slider
+              min={0}
+              max={2}
+              step={0.05}
+              value={[draft.clipStrength]}
+              onValueChange={([v]) => set("clipStrength", v)}
+            />
+          </div>
+        </div>
+      )}
+
+      <div>
+        <Label className={`mb-1 ${labelClass}`}>
+          {compact ? "トリガーワード" : "トリガーワード（プロンプトに自動追加）"}
+        </Label>
+        <TagAutocompleteTextarea
+          value={draft.triggerWords}
+          onChange={(v) => set("triggerWords", v)}
+          placeholder={
+            compact
+              ? "例: character_name, blue hair, ..."
+              : "例: my_character, blue hair, cat ears, ..."
+          }
+          style={{ minHeight: compact ? "50px" : "70px" }}
+        />
+      </div>
+
+      <LoraPickerDialog
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={handlePickerSelect}
+      />
+    </>
+  );
+}
