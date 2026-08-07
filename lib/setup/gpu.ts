@@ -1,5 +1,4 @@
 import { execSync } from "child_process";
-import path from "path";
 import fs from "fs";
 
 export interface GpuInfo {
@@ -50,7 +49,14 @@ function findNvidiaSmi(): string {
     "C:\\Program Files\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe",
   ];
   for (const cmd of candidates) {
-    if (cmd === "nvidia-smi") return cmd;
+    if (cmd === "nvidia-smi") {
+      try {
+        execSync("where nvidia-smi", { stdio: "ignore" });
+        return cmd;
+      } catch {
+        continue;
+      }
+    }
     if (fs.existsSync(cmd)) return `"${cmd}"`;
   }
   return "nvidia-smi";
