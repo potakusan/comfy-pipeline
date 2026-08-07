@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const files = formData.getAll("file") as File[];
   for (const file of files) {
     const buffer = Buffer.from(await file.arrayBuffer());
-    fs.writeFileSync(path.join(targetDir, file.name), buffer);
+    fs.writeFileSync(path.join(targetDir, path.basename(file.name)), buffer);
   }
 
   return NextResponse.json({ folder: folderName, count: files.length });
