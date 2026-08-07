@@ -17,6 +17,14 @@ function getAutomosaicDir(): string {
   return path.join(process.cwd(), "automosaic");
 }
 
+// Guards against two concurrent runs on the same folder (double-click, retry,
+// multiple tabs) racing to write/clean up the same temp dir. Keyed by the
+// resolved input path. Uses globalThis so a dev hot-reload doesn't drop the
+// lock while an already-spawned subprocess is still running.
+const g = globalThis as typeof globalThis & { __runningFolders?: Set<string> };
+if (!g.__runningFolders) g.__runningFolders = new Set();
+const runningFolders = g.__runningFolders;
+
 function getPythonPath(): string {
   const venv = path.join(getAutomosaicDir(), "venv", "Scripts", "python.exe");
   return fs.existsSync(venv) ? venv : "python";
@@ -202,127 +210,137 @@ export async function startProcessRun(
   const inputPath = safePath(outputDir, folder);
   if (!inputPath) return { error: "Invalid path", status: 400 };
 
+  if (runningFolders.has(inputPath)) {
+    return { error: "このフォルダは既に処理中です", status: 409 };
+  }
+  runningFolders.add(inputPath);
+
   const mosaicOutputDir = path.join(inputPath, "mosaic");
-  // Temp dir used only when both resize + mosaic are enabled
-  const tempResizeDir = path.join(inputPath, "_resize_tmp");
   const automosaicDir = getAutomosaicDir();
   const python = getPythonPath();
 
   const total = countImages(inputPath);
   const jobId = crypto.randomUUID();
+  // jobIDを含めてジョブごとに一意にし、同一フォルダへの多重実行が
+  // 互いの一時ファイルを削除し合わないようにする
+  const tempResizeDir = path.join(inputPath, `_resize_tmp_${jobId}`);
   createJob(jobId, total);
   updateJob(jobId, { status: "running" });
 
   (async () => {
-    // -----------------------------------------------------------------------
-    // Step 1: Resize  (runs FIRST so mosaic works on smaller images)
-    // -----------------------------------------------------------------------
-    if (resize.enabled) {
-      // When only resizing, put output in "resized/"; when both, use temp dir
-      const resizeOutputPath = mosaic.enabled
-        ? tempResizeDir
-        : path.join(inputPath, "resized");
-
-      appendLog(
-        jobId,
-        `[resize] 開始: scale=${resize.scalePercent}%, quality=${resize.quality}`,
-      );
-
-      const resizeArgs = [
-        path.join(automosaicDir, "resize.py"),
-        inputPath,
-        "-o",
-        resizeOutputPath,
-        "-s",
-        String(resize.scalePercent),
-        "-q",
-        String(resize.quality),
-        // workers: default (CPU count) is fine; no UI knob needed
-      ];
-
-      // Track progress only when resize is the sole operation
-      const progressFn = mosaic.enabled ? null : resizeProgress(jobId);
-
-      const resizeOk = await new Promise<boolean>((resolve) =>
-        runProcess(jobId, python, resizeArgs, automosaicDir, progressFn, (code) =>
-          resolve(code === 0),
-        ),
-      );
-
-      if (!resizeOk) {
-        updateJob(jobId, {
-          status: "failed",
-          error: "Resize failed",
-          finishedAt: Date.now(),
-        });
-        return;
-      }
-      appendLog(jobId, "[resize] 完了");
-    }
-
-    // -----------------------------------------------------------------------
-    // Step 2: Mosaic  (applied to resized images if resize ran, else originals)
-    // -----------------------------------------------------------------------
-    if (mosaic.enabled) {
-      const mosaicInputPath = resize.enabled ? tempResizeDir : inputPath;
-      appendLog(jobId, `[mosaic] 開始: ${folder}`);
-
-      const models = (
-        mosaic.models.length ? mosaic.models : ["pussyV2.pt", "penis.pt"]
-      ).join(",");
-      const mosaicArgs = [
-        "automosaic.py",
-        mosaicInputPath,
-        "-o",
-        mosaicOutputDir,
-        "-m",
-        models,
-        "-s",
-        String(mosaic.mosaicSize),
-        "-c",
-        String(mosaic.confidence),
-      ];
-      // Per-image auto sizing is handled inside automosaic.py
-      if (mosaic.autoSize) mosaicArgs.push("--auto-size");
-      if (mosaic.retinaMasks) mosaicArgs.push("--retina_masks");
-      if (!mosaic.useMasks) mosaicArgs.push("-bo");
-      if (mosaic.noMeta) mosaicArgs.push("-n");
-      if (mosaic.device) mosaicArgs.push("-d", mosaic.device);
-      if (mosaic.bboxExpand > 0)
-        mosaicArgs.push("-e", String(mosaic.bboxExpand / 100));
-      if (mosaic.targetClasses.length > 0)
-        mosaicArgs.push("--classes", mosaic.targetClasses.join(","));
-
-      const mosaicOk = await new Promise<boolean>((resolve) =>
-        runProcess(
-          jobId,
-          python,
-          mosaicArgs,
-          automosaicDir,
-          mosaicProgress(jobId, outputDir),
-          (code) => resolve(code === 0),
-        ),
-      );
-
-      // Clean up temp resize dir regardless of success/failure
+    try {
+      // -----------------------------------------------------------------------
+      // Step 1: Resize  (runs FIRST so mosaic works on smaller images)
+      // -----------------------------------------------------------------------
       if (resize.enabled) {
-        try {
-          fs.rmSync(tempResizeDir, { recursive: true, force: true });
-        } catch {}
+        // When only resizing, put output in "resized/"; when both, use temp dir
+        const resizeOutputPath = mosaic.enabled
+          ? tempResizeDir
+          : path.join(inputPath, "resized");
+
+        appendLog(
+          jobId,
+          `[resize] 開始: scale=${resize.scalePercent}%, quality=${resize.quality}`,
+        );
+
+        const resizeArgs = [
+          path.join(automosaicDir, "resize.py"),
+          inputPath,
+          "-o",
+          resizeOutputPath,
+          "-s",
+          String(resize.scalePercent),
+          "-q",
+          String(resize.quality),
+          // workers: default (CPU count) is fine; no UI knob needed
+        ];
+
+        // Track progress only when resize is the sole operation
+        const progressFn = mosaic.enabled ? null : resizeProgress(jobId);
+
+        const resizeOk = await new Promise<boolean>((resolve) =>
+          runProcess(jobId, python, resizeArgs, automosaicDir, progressFn, (code) =>
+            resolve(code === 0),
+          ),
+        );
+
+        if (!resizeOk) {
+          updateJob(jobId, {
+            status: "failed",
+            error: "Resize failed",
+            finishedAt: Date.now(),
+          });
+          return;
+        }
+        appendLog(jobId, "[resize] 完了");
       }
 
-      if (!mosaicOk) {
-        updateJob(jobId, {
-          status: "failed",
-          error: "Mosaic processing failed",
-          finishedAt: Date.now(),
-        });
-        return;
+      // -----------------------------------------------------------------------
+      // Step 2: Mosaic  (applied to resized images if resize ran, else originals)
+      // -----------------------------------------------------------------------
+      if (mosaic.enabled) {
+        const mosaicInputPath = resize.enabled ? tempResizeDir : inputPath;
+        appendLog(jobId, `[mosaic] 開始: ${folder}`);
+
+        const models = (
+          mosaic.models.length ? mosaic.models : ["pussyV2.pt", "penis.pt"]
+        ).join(",");
+        const mosaicArgs = [
+          "automosaic.py",
+          mosaicInputPath,
+          "-o",
+          mosaicOutputDir,
+          "-m",
+          models,
+          "-s",
+          String(mosaic.mosaicSize),
+          "-c",
+          String(mosaic.confidence),
+        ];
+        // Per-image auto sizing is handled inside automosaic.py
+        if (mosaic.autoSize) mosaicArgs.push("--auto-size");
+        if (mosaic.retinaMasks) mosaicArgs.push("--retina_masks");
+        if (!mosaic.useMasks) mosaicArgs.push("-bo");
+        if (mosaic.noMeta) mosaicArgs.push("-n");
+        if (mosaic.device) mosaicArgs.push("-d", mosaic.device);
+        if (mosaic.bboxExpand > 0)
+          mosaicArgs.push("-e", String(mosaic.bboxExpand / 100));
+        if (mosaic.targetClasses.length > 0)
+          mosaicArgs.push("--classes", mosaic.targetClasses.join(","));
+
+        const mosaicOk = await new Promise<boolean>((resolve) =>
+          runProcess(
+            jobId,
+            python,
+            mosaicArgs,
+            automosaicDir,
+            mosaicProgress(jobId, outputDir),
+            (code) => resolve(code === 0),
+          ),
+        );
+
+        // Clean up temp resize dir regardless of success/failure
+        if (resize.enabled) {
+          try {
+            fs.rmSync(tempResizeDir, { recursive: true, force: true });
+          } catch {}
+        }
+
+        if (!mosaicOk) {
+          updateJob(jobId, {
+            status: "failed",
+            error: "Mosaic processing failed",
+            finishedAt: Date.now(),
+          });
+          return;
+        }
+        appendLog(jobId, "[mosaic] 完了");
       }
-      appendLog(jobId, "[mosaic] 完了");
+
+      updateJob(jobId, { status: "completed", finishedAt: Date.now() });
+    } finally {
+      runningFolders.delete(inputPath);
     }
-
-    updateJob(jobId, { status: "completed", finishedAt: Date.now() });
   })();
 
   return { jobId };
