@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import struct
 import sys
 import time
 import threading
@@ -17,6 +16,8 @@ from pathlib import Path
 from PIL import Image, PngImagePlugin
 import pillow_avif  # noqa: F401  (registers AVIF support)
 
+from webp_utils import check_lossless_webp
+
 # Console codepage (e.g. cp932 on Japanese Windows) can't encode arbitrary
 # filename characters; force UTF-8 output so non-ASCII filenames never crash printing.
 sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
@@ -24,27 +25,6 @@ sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
 
 # Serialize file-existence checks + directory creation to avoid races
 _fs_lock = threading.Lock()
-
-
-def check_lossless_webp(filepath: str) -> bool:
-    with open(filepath, "rb") as f:
-        header = f.read(12)
-        riff, _, webp = struct.unpack("<4sI4s", header)
-        if riff != b"RIFF" or webp != b"WEBP":
-            return False
-        data_length = struct.unpack("<I", header[4:8])[0] - 4
-        while data_length > 0:
-            chunk_header = f.read(8)
-            if len(chunk_header) < 8:
-                break
-            fourcc, chunk_size = struct.unpack("<4sI", chunk_header)
-            f.seek(chunk_size, 1)
-            data_length -= chunk_size + 8
-            if fourcc == b"VP8L":
-                return True
-            if fourcc == b"VP8 ":
-                return False
-    return False
 
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".bmp"}

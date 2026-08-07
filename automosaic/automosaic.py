@@ -12,8 +12,9 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, PngImagePlugin
 import pillow_avif
-import struct
 from torchvision.transforms.functional import to_pil_image
+
+from webp_utils import check_lossless_webp
 
 if TYPE_CHECKING:
     import torch
@@ -90,7 +91,10 @@ def apply_mosaic_with_meta(
             area = np.count_nonzero(np.asarray(mask.crop((ox1, oy1, ox2, oy2))))
             expand_px = max(1, int((area ** 0.5) * expand))
         else:
-            x1, y1, x2, y2 = ox1, oy1, ox2, oy2
+            x1 = max(0, ox1)
+            y1 = max(0, oy1)
+            x2 = min(img_w, ox2)
+            y2 = min(img_h, oy2)
             expand_px = 0
 
         w, h = x2 - x1, y2 - y1
@@ -124,7 +128,8 @@ def apply_mosaic_with_meta(
         else:
             metadata = PngImagePlugin.PngInfo()
             for k, v in pil_image.info.items():
-                metadata.add_itxt(k, str(v))
+                if isinstance(v, str):
+                    metadata.add_itxt(k, v)
             save_params['pnginfo'] = metadata
 
     t_save_start = time.perf_counter()
@@ -288,40 +293,33 @@ def get_target_files(target_files_dir: list[str]) -> list[str]:
     return valid_imgfiles
 
 
+_filename_lock = threading.Lock()
+
+
 def get_org_filename(p_file_path: Path) -> str:
-    if p_file_path.exists():
-        parent = p_file_path.parent
-        for i in range(1, 1000):
-            new_path = parent / f"{p_file_path.stem}{i}{p_file_path.suffix}"
-            if not new_path.exists():
-                return str(new_path)
-        raise ValueError(f"{p_file_path}のユニーク名の生成に失敗しました")
-    return str(p_file_path)
+    # check-then-actをロックで囲むだけでは、実際の保存(pil_image.save)までの
+    # 間に別スレッドが同じ「まだ存在しない」名前を選んでしまう競合が残る。
+    # ロックを保持したままtouch()で名前を即座に予約し、他スレッドからは
+    # 既存ファイルとして見えるようにする
+    with _filename_lock:
+        candidate = p_file_path
+        if candidate.exists():
+            parent = candidate.parent
+            for i in range(1, 1000):
+                new_path = parent / f"{candidate.stem}{i}{candidate.suffix}"
+                if not new_path.exists():
+                    candidate = new_path
+                    break
+            else:
+                raise ValueError(f"{p_file_path}のユニーク名の生成に失敗しました")
+        candidate.touch()
+        return str(candidate)
 
 
 def get_output_filename(output_dir: Path, file_path: str, add_txt: str = "") -> str:
     p = Path(file_path)
     candidate = output_dir / f"{p.stem}_{add_txt}{p.suffix}"
     return get_org_filename(candidate)
-
-
-def check_lossless_webp(filepath: str) -> bool:
-    with open(filepath, 'br') as f:
-        header = f.read(12)
-        riff, data_length, webp = struct.unpack('<4sI4s', header)
-        if riff != b'RIFF' or webp != b'WEBP':
-            return False
-        data_length -= len(webp)
-        while data_length > 0:
-            header = f.read(8)
-            chunk_fourCC, chunk_size = struct.unpack('<4sI', header)
-            f.seek(chunk_size, 1)
-            data_length -= chunk_size + len(header)
-            if chunk_fourCC == b'VP8L':
-                return True
-            if chunk_fourCC == b'VP8 ':
-                return False
-    return False
 
 
 # ---------------------------------------------------------------------------
