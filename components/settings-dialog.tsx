@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import type { SetupConfig } from "@/lib/setup/config";
+import { apiFetch } from "@/lib/api-client";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -57,8 +58,9 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/settings");
-      const data = await res.json();
+      const data = await apiFetch<{ config?: SetupConfig; envOverrides?: Partial<Record<FieldKey, boolean>> }>(
+        "/api/settings",
+      );
       setConfig(data.config ?? {});
       setEnvOverrides(data.envOverrides ?? {});
     } finally {
@@ -73,7 +75,7 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch("/api/settings", {
+      await apiFetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),

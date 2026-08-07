@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ImageOff, Loader2 } from 'lucide-react'
 import { usePublicSettings } from '@/hooks/use-public-settings'
+import { apiFetch } from '@/lib/api-client'
 
 const PAGE_SIZE = 50;
 
@@ -117,9 +118,7 @@ export function LoraPickerDialog({ open, onClose, onSelect }: LoraPickerDialogPr
   // Fetch from local disk API (all at once, no pagination)
   const fetchLocalItems = useCallback(async () => {
     try {
-      const res = await fetch('/api/models/loras')
-      if (!res.ok) return
-      const data = await res.json()
+      const data = await apiFetch<{ items?: LocalLoraItem[] }>('/api/models/loras')
       const items: LocalLoraItem[] = data.items ?? []
       const converted: LmLoraItem[] = items.map((item) => ({
         model_name: item.name,

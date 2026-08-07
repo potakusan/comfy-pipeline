@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { CoupleRegion } from "@/lib/couple";
+import { apiFetch } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -496,12 +497,10 @@ export default function CompositionDialog({
       formData.append("overwrite", isOverwrite ? "true" : "false");
       formData.append("type", "input");
 
-      const res = await fetch("/api/comfy/upload", {
+      const data = await apiFetch<{ name?: string }>("/api/comfy/upload", {
         method: "POST",
         body: formData,
       });
-      if (!res.ok) throw new Error("Upload failed");
-      const data = await res.json();
       const comfyFileName: string = data.name ?? fileName;
 
       // Update or prepend in local list

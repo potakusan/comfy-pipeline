@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api-client";
 
 export interface PublicSettings {
   comfyuiUrl: string;
@@ -10,8 +11,7 @@ let cache: PublicSettings | null = null;
 let inflight: Promise<PublicSettings> | null = null;
 
 async function fetchPublicSettings(): Promise<PublicSettings> {
-  const res = await fetch("/api/settings/public");
-  const data = (await res.json()) as PublicSettings;
+  const data = await apiFetch<PublicSettings>("/api/settings/public");
   cache = data;
   return data;
 }

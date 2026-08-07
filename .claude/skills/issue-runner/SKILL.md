@@ -68,7 +68,7 @@ GitHubのopen issueを順序立てて解消する。1issue = 1ブランチ = 1�
 4. **検証**（プロジェクトに応じて存在するものを実行。全部揃っているとは限らない）:
    - `pnpm exec tsc --noEmit -p .`（型エラーなし）
    - `pnpm lint`（新規警告・エラーを増やさない。既存のベースライン件数と比較する）
-   - `pnpm test:unit`（全件パス）
+   - `pnpm test`（vitest、全件パス）
    - 大きめの変更やビルド設定が絡む場合は `pnpm exec next build` も通す
    - UIの見た目が変わる変更は、可能なら実際に動作確認する
    - issue本文に受け入れ基準がある場合はそれも確認する（`.claude/rules/issue-driven-development.md`参照）

@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import type { LoraEntry } from '@/lib/comfy';
 import DeleteConfirmDialog from '@/components/delete-confirm-dialog';
+import { apiFetch } from '@/lib/api-client';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -370,19 +371,16 @@ function DownloadSection({
     setDownloading(true);
 
     try {
-      const res = await fetch('/api/models/download', {
+      const data = await apiFetch<{ jobId: string }>('/api/models/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, civitaiUrl: trimmed }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'ダウンロード開始に失敗しました');
 
       const { jobId } = data;
       pollRef.current = setInterval(async () => {
         try {
-          const sr = await fetch(`/api/models/download/${jobId}`);
-          const status: DownloadJobStatus = await sr.json();
+          const status = await apiFetch<DownloadJobStatus>(`/api/models/download/${jobId}`);
           setJobStatus(status);
           if (status.status === 'done') {
             clearPoll();
@@ -489,9 +487,7 @@ function ModelList({
     try {
       const endpoint =
         type === 'lora' ? '/api/models/loras' : '/api/models/checkpoints';
-      const res = await fetch(endpoint);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await apiFetch<{ items?: ModelItem[] }>(endpoint);
       setItems(data.items ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -507,12 +503,16 @@ function ModelList({
   const deleteItem = async (fileName: string) => {
     const endpoint =
       type === 'lora' ? '/api/models/loras' : '/api/models/checkpoints';
-    await fetch(endpoint, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileName }),
-    });
-    setItems((prev) => prev.filter((i) => i.fileName !== fileName));
+    try {
+      await apiFetch(endpoint, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName }),
+      });
+      setItems((prev) => prev.filter((i) => i.fileName !== fileName));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   const displayed = sortItems(

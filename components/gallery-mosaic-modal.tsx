@@ -22,6 +22,7 @@ import {
   type MosaicConfigValue,
 } from "@/components/mosaic-config";
 import type { ProcessJob, MosaicImageResult } from "@/lib/process-jobs";
+import { apiFetch } from "@/lib/api-client";
 
 const DEFAULT_GALLERY_RESIZE = { scalePercent: 40, quality: 100 };
 type GalleryResizeValue = typeof DEFAULT_GALLERY_RESIZE;
@@ -128,9 +129,7 @@ export default function GalleryMosaicModal({
     if (!jobId) return;
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/process/status/${jobId}`);
-        if (!res.ok) return;
-        const data: ProcessJob = await res.json();
+        const data = await apiFetch<ProcessJob>(`/api/process/status/${jobId}`);
         if (!data.id) return;
         setJob(data);
         if (data.status === "completed" || data.status === "failed") {
