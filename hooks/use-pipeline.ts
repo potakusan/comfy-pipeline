@@ -6,12 +6,12 @@ import {
   type QueueItem,
   type GalleryImage,
   type BatchPreset,
-  type BatchPresetSet,
   type BatchRunOverrides,
   collectPresetLoras,
   assemblePositivePrompt,
   buildWorkflow,
   buildOutputPrefix,
+  migrateBatchPresetSets,
 } from "@/lib/comfy";
 import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/couple";
 import type { CoupleControlNet, CoupleRegion } from "@/lib/couple";
@@ -25,31 +25,6 @@ import {
   pollForCompletion,
 } from "@/lib/comfy-client";
 import { LS_GROUP_BY_POSE, type GenerationMode, type GalleryImageEntry } from "@/lib/gallery";
-
-function migrateBatchPresetSets(raw: BatchPresetSet[]): BatchPresetSet[] {
-  return raw.map((set) => ({
-    ...set,
-    presets: (set.presets as unknown as Record<string, unknown>[]).map((p) => {
-      if ("countPreset" in p) {
-        return {
-          id: p.id as string,
-          name: p.name as string,
-          countPresetId: (p.countPreset as { id?: string } | null)?.id ?? null,
-          posePresetId: (p.posePreset as { id?: string } | null)?.id ?? null,
-          otherPresetIds: ((p.otherPresets as { id: string }[]) ?? []).map((op) => op.id),
-          additionalPrompt: (p.additionalPrompt as string) ?? "",
-          additionalPromptMode: (p.additionalPromptMode as "all" | "random") ?? "all",
-          fixedTags: (p.fixedTags as string) ?? "",
-          negativePrompt: (p.negativePrompt as string) ?? "",
-          variationEnabled: (p.variationEnabled as boolean) ?? false,
-          variationTags: (p.variationTags as string[]) ?? [],
-          batchCount: (p.batchCount as number) ?? 1,
-        };
-      }
-      return p as unknown as BatchPreset;
-    }),
-  }));
-}
 
 const LS = {
   settings: "cp_settings",

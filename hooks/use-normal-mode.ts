@@ -11,6 +11,7 @@ import {
   DEFAULT_POSE_PRESETS,
   DEFAULT_OTHER_PRESETS,
   DEFAULT_COMPOSITION_TAGS,
+  migrateBatchPresetSets,
 } from "@/lib/comfy";
 import {
   DEFAULT_NEGATIVE,
@@ -18,35 +19,6 @@ import {
   FIXED_LORAS,
 } from "@/lib/config";
 import { lsGet, lsSet } from "@/hooks/ls";
-
-// 旧形式 (countPreset: Preset | null) → 新形式 (countPresetId: string | null) へ変換
-function migrateBatchPresetSets(raw: BatchPresetSet[]): BatchPresetSet[] {
-  return raw.map((set) => ({
-    ...set,
-    presets: (set.presets as unknown as Record<string, unknown>[]).map((p) => {
-      if ("countPreset" in p) {
-        return {
-          id: p.id as string,
-          name: p.name as string,
-          countPresetId: (p.countPreset as { id?: string } | null)?.id ?? null,
-          posePresetId: (p.posePreset as { id?: string } | null)?.id ?? null,
-          otherPresetIds: ((p.otherPresets as { id: string }[]) ?? []).map(
-            (op) => op.id,
-          ),
-          additionalPrompt: (p.additionalPrompt as string) ?? "",
-          additionalPromptMode:
-            (p.additionalPromptMode as "all" | "random") ?? "all",
-          fixedTags: (p.fixedTags as string) ?? "",
-          negativePrompt: (p.negativePrompt as string) ?? "",
-          variationEnabled: (p.variationEnabled as boolean) ?? false,
-          variationTags: (p.variationTags as string[]) ?? [],
-          batchCount: (p.batchCount as number) ?? 1,
-        };
-      }
-      return p as unknown as import("@/lib/comfy").BatchPreset;
-    }),
-  }));
-}
 
 const LS = {
   fixedLoras: "cp_fixed_loras",
