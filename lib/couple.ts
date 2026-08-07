@@ -1,6 +1,11 @@
 import type { LoraEntry, GenerationSettings, Preset, NodeRef } from "./comfy";
 import { buildBasePipeline, buildSamplingAndSaveTail } from "./comfy";
 
+/** カップルモードで同時に配置できるリージョンの上限数。
+ * DEFAULT_REGION_HEX_COLORS/REGION_COLORSは共にこの数だけ要素を持つ
+ * 必要がある(下部でその整合性を検証している)。 */
+export const MAX_COUPLE_REGIONS = 5;
+
 export const DEFAULT_REGION_HEX_COLORS = [
   "#ff0000",
   "#0000ff",
@@ -87,6 +92,15 @@ export const REGION_COLORS: readonly {
     ring: "ring-amber-500",
   },
 ] as const;
+
+if (
+  DEFAULT_REGION_HEX_COLORS.length !== MAX_COUPLE_REGIONS ||
+  REGION_COLORS.length !== MAX_COUPLE_REGIONS
+) {
+  throw new Error(
+    `DEFAULT_REGION_HEX_COLORS/REGION_COLORSの要素数がMAX_COUPLE_REGIONS(${MAX_COUPLE_REGIONS})と一致していません`,
+  );
+}
 
 export const DEFAULT_COUPLE_CONFIG: CoupleConfig = {
   id: "couple-default",

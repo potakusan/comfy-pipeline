@@ -7,6 +7,7 @@ import {
   DEFAULT_COUPLE_CONFIG,
   DEFAULT_CONTROL_NET,
   DEFAULT_REGION_HEX_COLORS,
+  MAX_COUPLE_REGIONS,
 } from "@/lib/couple";
 import type { LoraEntry } from "@/lib/comfy";
 
@@ -206,7 +207,7 @@ export function useCouple() {
 
   const addRegion = useCallback(() => {
     patchActiveConfig((c) => {
-      if (c.regions.length >= 5) return c;
+      if (c.regions.length >= MAX_COUPLE_REGIONS) return c;
       const names = ["A", "B", "C", "D", "E"];
       const count = c.regions.length + 1;
       const gap = 0.05;
