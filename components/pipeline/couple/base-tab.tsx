@@ -13,7 +13,7 @@ import {
   buildRegionPrompt,
 } from "@/lib/couple";
 import { type Preset } from "@/lib/comfy";
-import ControlNetSection from "@/components/couple/control-net-section";
+import ControlNetSection from "@/components/pipeline/couple/control-net-section";
 
 // ---------------------------------------------------------------------------
 // Prompt preview (collapsible)

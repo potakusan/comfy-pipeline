@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import CategoryDivider from "@/components/category-divider";
+import CategoryDivider from "@/components/pipeline/category-divider";
 import { useDragReorder } from "@/hooks/use-drag-reorder";
 import { GripVertical, Pencil, Settings2, Plus } from "lucide-react";
 import { type CoupleRegion, REGION_COLORS } from "@/lib/couple";
@@ -17,12 +17,12 @@ import {
   type PresetCategory,
   groupPresetsByCategory,
 } from "@/lib/comfy";
-import { LoraSection } from "@/components/lora-section";
+import { LoraSection } from "@/components/pipeline/lora/lora-section";
 import {
   PresetModal,
   CategoryManagerModal,
   type PresetType,
-} from "@/components/preset-modal";
+} from "@/components/pipeline/prompt/preset-modal";
 
 // ---------------------------------------------------------------------------
 // Single preset list item (checkbox select, draggable for reorder)

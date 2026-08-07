@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, CheckCircle } from "lucide-react";
-import type { SavedImage } from "@/components/composition-dialog";
+import type { SavedImage } from "@/components/pipeline/couple/composition-dialog";
 
 export default function SavedImageCard({
   img,

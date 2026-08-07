@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { startProcessRun, type RunRequest } from "@/lib/process-run";
-import type { MosaicConfigValue } from "@/components/mosaic-config";
+import type { MosaicConfigValue } from "@/components/common/mosaic-config";
 
 const DEFAULT_GALLERY_RESIZE = { scalePercent: 40, quality: 92 };
 

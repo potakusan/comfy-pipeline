@@ -11,10 +11,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { LoraSection } from "@/components/lora-section";
-import TagAutocompleteTextarea from "@/components/tag-autocomplete-textarea";
+import { LoraSection } from "@/components/pipeline/lora/lora-section";
+import TagAutocompleteTextarea from "@/components/common/tag-autocomplete-textarea";
 import { Pencil, Trash2 } from "lucide-react";
-import DeleteConfirmDialog from "@/components/delete-confirm-dialog";
+import DeleteConfirmDialog from "@/components/common/delete-confirm-dialog";
 
 export type PresetType = "physical" | "count" | "pose" | "scene" | "other";
 

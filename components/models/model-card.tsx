@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ImageOff, Plus, Check, Trash2, ExternalLink } from 'lucide-react';
-import DeleteConfirmDialog from '@/components/delete-confirm-dialog';
+import DeleteConfirmDialog from '@/components/common/delete-confirm-dialog';
 import { type ModelItem, formatBytes } from '@/lib/model-manager';
 
 export default function ModelCard({

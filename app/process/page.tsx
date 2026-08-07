@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import AppHeader from "@/components/app-header";
+import AppHeader from "@/components/common/app-header";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -33,7 +33,7 @@ import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
 import type { ProcessJob } from "@/lib/process-jobs";
 import type { RunRequest } from "@/app/api/process/run/route";
 import type { FolderInfo } from "@/app/api/process/dirs/route";
-import { MosaicConfig, DEFAULT_MOSAIC } from "@/components/mosaic-config";
+import { MosaicConfig, DEFAULT_MOSAIC } from "@/components/common/mosaic-config";
 
 type SysSnapshot = {
   t: number;

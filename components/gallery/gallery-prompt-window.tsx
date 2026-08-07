@@ -1,7 +1,7 @@
 "use client";
 import type { ReactNode } from "react";
 import { Eye } from "lucide-react";
-import FloatingWindow from "@/components/floating-window";
+import FloatingWindow from "@/components/gallery/floating-window";
 import type { FloatingWindowPos } from "@/lib/gallery";
 
 export default function GalleryPromptWindow({

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Pencil, Sparkles, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import TagAutocompleteTextarea from "@/components/tag-autocomplete-textarea";
+import TagAutocompleteTextarea from "@/components/common/tag-autocomplete-textarea";
 import type { GalleryImageEntry } from "@/lib/gallery";
 
 export default function GalleryPromptPanel({

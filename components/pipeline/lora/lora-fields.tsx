@@ -8,8 +8,8 @@ import { Slider } from "@/components/ui/slider";
 import {
   LoraPickerDialog,
   type LmLoraItem,
-} from "@/components/lora-picker-dialog";
-import TagAutocompleteTextarea from "@/components/tag-autocomplete-textarea";
+} from "@/components/pipeline/lora/lora-picker-dialog";
+import TagAutocompleteTextarea from "@/components/common/tag-autocomplete-textarea";
 import { Library } from "lucide-react";
 
 export const EMPTY_LORA: LoraEntry = {

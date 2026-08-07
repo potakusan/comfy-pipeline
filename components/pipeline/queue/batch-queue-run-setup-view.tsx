@@ -7,7 +7,7 @@ import {
   type GenerationSettings,
 } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
-import SamplerSettings from "@/components/sampler-settings";
+import SamplerSettings from "@/components/pipeline/sampler-settings";
 import { Play, ChevronUp, ChevronDown } from "lucide-react";
 
 interface RunSetupViewProps {

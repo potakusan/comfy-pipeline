@@ -18,15 +18,15 @@ import {
   Grid2x2,
 } from "lucide-react";
 import { useGallery } from "@/hooks/use-gallery";
-import AppHeader from "@/components/app-header";
-import GalleryFolderList from "@/components/gallery-folder-list";
-import GalleryThumbGrid from "@/components/gallery-thumb-grid";
-import GalleryPromptPanel from "@/components/gallery-prompt-panel";
-import GalleryPromptWindow from "@/components/gallery-prompt-window";
-import GalleryGeneratingWindow from "@/components/gallery-generating-window";
-import GalleryPoseSummary, { computePoseStats } from "@/components/gallery-pose-summary";
-import GalleryDeleteConfirmDialog from "@/components/gallery-delete-confirm-dialog";
-import GalleryMosaicModal from "@/components/gallery-mosaic-modal";
+import AppHeader from "@/components/common/app-header";
+import GalleryFolderList from "@/components/gallery/gallery-folder-list";
+import GalleryThumbGrid from "@/components/gallery/gallery-thumb-grid";
+import GalleryPromptPanel from "@/components/gallery/gallery-prompt-panel";
+import GalleryPromptWindow from "@/components/gallery/gallery-prompt-window";
+import GalleryGeneratingWindow from "@/components/gallery/gallery-generating-window";
+import GalleryPoseSummary, { computePoseStats } from "@/components/gallery/gallery-pose-summary";
+import GalleryDeleteConfirmDialog from "@/components/gallery/gallery-delete-confirm-dialog";
+import GalleryMosaicModal from "@/components/gallery/gallery-mosaic-modal";
 import { getPoseGroup, type GalleryImageEntry } from "@/lib/gallery";
 
 function imageUrl(path: string) {

@@ -1,6 +1,6 @@
 "use client";
 import { Loader2, X, Shuffle } from "lucide-react";
-import FloatingWindow from "@/components/floating-window";
+import FloatingWindow from "@/components/gallery/floating-window";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import type { FloatingWindowPos } from "@/lib/gallery";

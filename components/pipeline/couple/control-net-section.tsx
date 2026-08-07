@@ -8,7 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Brush, FileImage } from "lucide-react";
 import { type CoupleRegion, type CoupleControlNet } from "@/lib/couple";
-import CompositionDialog from "@/components/composition-dialog";
+import CompositionDialog from "@/components/pipeline/couple/composition-dialog";
 
 export default function ControlNetSection({
   controlNet,

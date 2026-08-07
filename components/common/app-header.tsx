@@ -3,8 +3,8 @@ import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { HardDrive, Wand2, Images, Settings } from "lucide-react";
-import ModelManagerDialog from "@/components/model-manager-dialog";
-import SettingsDialog from "@/components/settings-dialog";
+import ModelManagerDialog from "@/components/models/model-manager-dialog";
+import SettingsDialog from "@/components/settings/settings-dialog";
 import type { LoraEntry } from "@/lib/comfy";
 
 export type AppHeaderActive = "home" | "process" | "gallery" | "setup";

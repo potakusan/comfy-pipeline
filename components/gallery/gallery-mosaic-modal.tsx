@@ -20,7 +20,7 @@ import {
   MosaicConfig,
   DEFAULT_MOSAIC,
   type MosaicConfigValue,
-} from "@/components/mosaic-config";
+} from "@/components/common/mosaic-config";
 import type { ProcessJob, MosaicImageResult } from "@/lib/process-jobs";
 import { apiFetch } from "@/lib/api-client";
 

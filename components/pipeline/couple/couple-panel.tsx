@@ -8,9 +8,9 @@ import {
 } from "@/lib/couple";
 import { type Preset, type PresetCategory } from "@/lib/comfy";
 import { type CoupleHook } from "@/hooks/use-couple";
-import ConfigSelector from "@/components/couple/config-selector";
-import CharacterTab from "@/components/couple/character-tab";
-import BaseTab from "@/components/couple/base-tab";
+import ConfigSelector from "@/components/pipeline/couple/config-selector";
+import CharacterTab from "@/components/pipeline/couple/character-tab";
+import BaseTab from "@/components/pipeline/couple/base-tab";
 
 export interface CouplePanelProps {
   couple: CoupleHook;

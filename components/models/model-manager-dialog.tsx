@@ -8,8 +8,8 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { LoraEntry } from '@/lib/comfy';
-import DownloadSection from '@/components/model-download-section';
-import ModelList from '@/components/model-list';
+import DownloadSection from '@/components/models/model-download-section';
+import ModelList from '@/components/models/model-list';
 
 export interface ModelManagerDialogProps {
   open: boolean;

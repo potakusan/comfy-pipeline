@@ -12,8 +12,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Plus, Trash2, Pencil, Check } from "lucide-react";
-import DeleteConfirmDialog from "@/components/delete-confirm-dialog";
-import LoraFields, { EMPTY_LORA } from "@/components/lora-fields";
+import DeleteConfirmDialog from "@/components/common/delete-confirm-dialog";
+import LoraFields, { EMPTY_LORA } from "@/components/pipeline/lora/lora-fields";
 
 interface LoraPanelProps {
   // Fixed LoRAs (editable)

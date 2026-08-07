@@ -24,8 +24,8 @@ import type { CoupleRegion } from "@/lib/couple";
 import { apiFetch } from "@/lib/api-client";
 import DrawingCanvas, {
   CANVAS_SIZE,
-} from "@/components/composition-drawing-canvas";
-import SavedImageCard from "@/components/composition-saved-image-card";
+} from "@/components/pipeline/couple/composition-drawing-canvas";
+import SavedImageCard from "@/components/pipeline/couple/composition-saved-image-card";
 
 // ---------------------------------------------------------------------------
 // Types

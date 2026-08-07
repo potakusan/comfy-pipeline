@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import AppHeader from "@/components/app-header"
+import AppHeader from "@/components/common/app-header"
 import {
   CheckCircle2,
   XCircle,

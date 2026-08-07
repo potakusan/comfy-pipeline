@@ -3,7 +3,7 @@ import type { LoraEntry } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Plus, X } from "lucide-react";
-import LoraFields, { EMPTY_LORA } from "@/components/lora-fields";
+import LoraFields, { EMPTY_LORA } from "@/components/pipeline/lora/lora-fields";
 
 export function LoraSection({
   lora,

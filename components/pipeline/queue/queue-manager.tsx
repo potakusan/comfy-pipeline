@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import QueueItemEditDialog from "@/components/queue-item-edit-dialog";
+import QueueItemEditDialog from "@/components/pipeline/queue/queue-item-edit-dialog";
 import {
   Trash2,
   Loader2,

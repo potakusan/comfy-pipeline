@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import DeleteConfirmDialog from "@/components/delete-confirm-dialog";
+import DeleteConfirmDialog from "@/components/common/delete-confirm-dialog";
 import { Plus, Trash2, Pencil, ChevronDown, Check } from "lucide-react";
 import { type CoupleConfig } from "@/lib/couple";
 

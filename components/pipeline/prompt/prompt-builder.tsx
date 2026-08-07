@@ -9,14 +9,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ChevronDown } from "lucide-react";
-import TagAutocompleteTextarea from "@/components/tag-autocomplete-textarea";
+import TagAutocompleteTextarea from "@/components/common/tag-autocomplete-textarea";
 import { Label } from "@/components/ui/label";
 import {
   PresetModal,
   CategoryManagerModal,
   type PresetType,
-} from "@/components/preset-modal";
-import PresetSection from "@/components/preset-section";
+} from "@/components/pipeline/prompt/preset-modal";
+import PresetSection from "@/components/pipeline/prompt/preset-section";
 
 interface PromptBuilderProps {
   variableLora: LoraEntry | null;

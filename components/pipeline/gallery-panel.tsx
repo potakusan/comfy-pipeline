@@ -14,7 +14,7 @@ import { Trash2, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import { thumbUrl, loraShortName, getFolder } from "@/lib/gallery-display";
 import GalleryImageViewerDialog, {
   type ViewerState,
-} from "@/components/gallery-image-viewer-dialog";
+} from "@/components/pipeline/gallery-image-viewer-dialog";
 
 interface GalleryPanelProps {
   gallery: GalleryImage[];

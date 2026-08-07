@@ -26,21 +26,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Kbd } from "@/components/ui/kbd";
-import LoraPanel from "@/components/lora-panel";
-import PromptBuilder from "@/components/prompt-builder";
-import SamplerSettings from "@/components/sampler-settings";
-import TagSettings from "@/components/tag-settings";
-import CouplePanel from "@/components/couple-panel";
+import LoraPanel from "@/components/pipeline/lora/lora-panel";
+import PromptBuilder from "@/components/pipeline/prompt/prompt-builder";
+import SamplerSettings from "@/components/pipeline/sampler-settings";
+import TagSettings from "@/components/pipeline/prompt/tag-settings";
+import CouplePanel from "@/components/pipeline/couple/couple-panel";
 import { useCouple } from "@/hooks/use-couple";
 import { buildCouplePrompt, applySelectedPresets } from "@/lib/couple";
 import { assemblePositivePrompt } from "@/lib/comfy";
 import type { LoraEntry, Preset, QueueItem, GalleryImage } from "@/lib/comfy";
-import PreviewPanel from "@/components/preview-panel";
-import QueueManager from "@/components/queue-manager";
-import GalleryPanel from "@/components/gallery-panel";
-import BatchQueueDialog from "@/components/batch-queue-dialog";
-import QuickAddToBatch from "@/components/quick-add-to-batch";
-import AppHeader from "@/components/app-header";
+import PreviewPanel from "@/components/pipeline/preview-panel";
+import QueueManager from "@/components/pipeline/queue/queue-manager";
+import GalleryPanel from "@/components/pipeline/gallery-panel";
+import BatchQueueDialog from "@/components/pipeline/queue/batch-queue-dialog";
+import QuickAddToBatch from "@/components/pipeline/queue/quick-add-to-batch";
+import AppHeader from "@/components/common/app-header";
 import {
   ResizablePanelGroup,
   ResizablePanel,

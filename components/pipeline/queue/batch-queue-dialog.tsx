@@ -17,9 +17,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Layers, ArrowLeft } from "lucide-react";
-import ListView from "@/components/batch-queue-list-view";
-import EditView from "@/components/batch-queue-edit-view";
-import RunSetupView from "@/components/batch-queue-run-setup-view";
+import ListView from "@/components/pipeline/queue/batch-queue-list-view";
+import EditView from "@/components/pipeline/queue/batch-queue-edit-view";
+import RunSetupView from "@/components/pipeline/queue/batch-queue-run-setup-view";
 
 interface BatchQueueDialogProps {
   batchPresetSets: BatchPresetSet[];

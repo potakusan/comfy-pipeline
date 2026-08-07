@@ -7,9 +7,9 @@ import {
   type PresetCategory,
   groupPresetsByCategory,
 } from "@/lib/comfy";
-import { type PresetType, TYPE_LABELS } from "@/components/preset-modal";
-import CategoryDivider from "@/components/category-divider";
-import DraggableItem from "@/components/draggable-preset-item";
+import { type PresetType, TYPE_LABELS } from "@/components/pipeline/prompt/preset-modal";
+import CategoryDivider from "@/components/pipeline/category-divider";
+import DraggableItem from "@/components/pipeline/prompt/draggable-preset-item";
 
 function SectionHeader({ label, badge }: { label: string; badge: string }) {
   return (
