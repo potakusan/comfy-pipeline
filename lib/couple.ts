@@ -1,4 +1,5 @@
-import type { LoraEntry, GenerationSettings, Preset } from "./comfy";
+import type { LoraEntry, GenerationSettings, Preset, NodeRef } from "./comfy";
+import { buildBasePipeline, buildSamplingAndSaveTail } from "./comfy";
 
 export const DEFAULT_REGION_HEX_COLORS = [
   "#ff0000",
@@ -167,112 +168,25 @@ export function buildCoupleWorkflow({
 }): Record<string, unknown> {
   const wf: Record<string, unknown> = {};
 
-  wf["chk"] = {
-    inputs: { ckpt_name: settings.checkpoint },
-    class_type: "CheckpointLoaderSimple",
-  };
-  wf["upm"] = {
-    inputs: { model_name: settings.upscaleModel },
-    class_type: "UpscaleModelLoader",
-  };
-  wf["lat"] = {
-    inputs: { width: settings.width, height: settings.height, batch_size: 1 },
-    class_type: "EmptyLatentImage",
-  };
-
-  type NodeRef = [string, number];
-  let lastModel: NodeRef = ["chk", 0];
-  let lastClip: NodeRef = ["chk", 1];
-
-  loras.forEach((lora, i) => {
-    const id = `lora${i}`;
-    const loraName = lora.name.endsWith(".safetensors")
-      ? lora.name
-      : `${lora.name}.safetensors`;
-    wf[id] = {
-      inputs: {
-        lora_name: loraName,
-        strength_model: lora.strength,
-        strength_clip: lora.clipStrength,
-        model: lastModel,
-        clip: lastClip,
-      },
-      class_type: "LoraLoader",
-    };
-    lastModel = [id, 0];
-    lastClip = [id, 1];
-  });
+  const { model, clip } = buildBasePipeline(wf, settings, loras);
 
   // PCLazyTextEncode understands COUPLE() syntax
   wf["pos"] = {
-    inputs: { text: positivePrompt, clip: lastClip },
+    inputs: { text: positivePrompt, clip },
     class_type: "PCLazyTextEncode",
   };
   wf["neg"] = {
-    inputs: { text: negativePrompt, clip: lastClip },
+    inputs: { text: negativePrompt, clip },
     class_type: "PCLazyTextEncode",
   };
 
-  const seed = settings.randomizeSeed
-    ? Math.floor(Math.random() * 2 ** 32)
-    : settings.seed;
-
-  wf["ksamp"] = {
-    inputs: {
-      seed,
-      steps: settings.steps,
-      cfg: settings.cfg,
-      sampler_name: settings.sampler,
-      scheduler: settings.scheduler,
-      denoise: settings.denoise,
-      model: lastModel,
-      positive: ["pos", 0],
-      negative: ["neg", 0],
-      latent_image: ["lat", 0],
-    },
-    class_type: "KSampler",
-  };
-  wf["vae"] = {
-    inputs: { samples: ["ksamp", 0], vae: ["chk", 2] },
-    class_type: "VAEDecode",
-  };
-  wf["upi"] = {
-    inputs: { upscale_model: ["upm", 0], image: ["vae", 0] },
-    class_type: "ImageUpscaleWithModel",
-  };
-
-  let saveSource: NodeRef = ["upi", 0];
-  if (settings.upscaleSteps > 0) {
-    wf["vae2"] = {
-      inputs: { pixels: ["upi", 0], vae: ["chk", 2] },
-      class_type: "VAEEncode",
-    };
-    wf["ksamp2"] = {
-      inputs: {
-        seed: Math.floor(Math.random() * 2 ** 32),
-        steps: settings.upscaleSteps,
-        cfg: settings.cfg,
-        sampler_name: settings.sampler,
-        scheduler: settings.scheduler,
-        denoise: 0.5,
-        model: lastModel,
-        positive: ["pos", 0],
-        negative: ["neg", 0],
-        latent_image: ["vae2", 0],
-      },
-      class_type: "KSampler",
-    };
-    wf["vae3"] = {
-      inputs: { samples: ["ksamp2", 0], vae: ["chk", 2] },
-      class_type: "VAEDecode",
-    };
-    saveSource = ["vae3", 0];
-  }
-
-  wf["save"] = {
-    inputs: { filename_prefix: outputPrefix, images: saveSource },
-    class_type: "SaveImage",
-  };
+  buildSamplingAndSaveTail(wf, {
+    settings,
+    model,
+    positive: ["pos", 0],
+    negative: ["neg", 0],
+    outputPrefix,
+  });
 
   return wf;
 }
@@ -333,41 +247,7 @@ export function buildColorMaskWorkflow({
 
   const wf: Record<string, unknown> = {};
 
-  wf["chk"] = {
-    inputs: { ckpt_name: settings.checkpoint },
-    class_type: "CheckpointLoaderSimple",
-  };
-  wf["upm"] = {
-    inputs: { model_name: settings.upscaleModel },
-    class_type: "UpscaleModelLoader",
-  };
-  wf["lat"] = {
-    inputs: { width: settings.width, height: settings.height, batch_size: 1 },
-    class_type: "EmptyLatentImage",
-  };
-
-  type NodeRef = [string, number];
-  let lastModel: NodeRef = ["chk", 0];
-  let lastClip: NodeRef = ["chk", 1];
-
-  loras.forEach((lora, i) => {
-    const id = `lora${i}`;
-    const loraName = lora.name.endsWith(".safetensors")
-      ? lora.name
-      : `${lora.name}.safetensors`;
-    wf[id] = {
-      inputs: {
-        lora_name: loraName,
-        strength_model: lora.strength,
-        strength_clip: lora.clipStrength,
-        model: lastModel,
-        clip: lastClip,
-      },
-      class_type: "LoraLoader",
-    };
-    lastModel = [id, 0];
-    lastClip = [id, 1];
-  });
+  const { model, clip } = buildBasePipeline(wf, settings, loras);
 
   // Color map image (shared across all regions)
   const colorMapFile = controlNet.colorMapImageName ?? "color_map.png";
@@ -378,13 +258,13 @@ export function buildColorMaskWorkflow({
 
   // Negative prompt
   wf["neg"] = {
-    inputs: { text: negativePrompt, clip: lastClip },
+    inputs: { text: negativePrompt, clip },
     class_type: "CLIPTextEncode",
   };
 
   // Base positive prompt
   wf["basepos"] = {
-    inputs: { text: basePositivePrompt, clip: lastClip },
+    inputs: { text: basePositivePrompt, clip },
     class_type: "CLIPTextEncode",
   };
 
@@ -393,7 +273,7 @@ export function buildColorMaskWorkflow({
 
   regions.forEach((region, i) => {
     const rcmId = `rcm${i}`;
-    let clipRef: NodeRef = lastClip;
+    let clipRef: NodeRef = clip;
 
     if (region.lora) {
       const hookId = `hookLora${i}`;
@@ -411,7 +291,7 @@ export function buildColorMaskWorkflow({
       };
       wf[setClipId] = {
         inputs: {
-          clip: lastClip,
+          clip,
           hooks: [hookId, 0],
           schedule_clip: true,
           apply_to_conds: false,
@@ -485,66 +365,13 @@ export function buildColorMaskWorkflow({
     finalNeg = ["cnapply", 1];
   }
 
-  const seed = settings.randomizeSeed
-    ? Math.floor(Math.random() * 2 ** 32)
-    : settings.seed;
-
-  wf["ksamp"] = {
-    inputs: {
-      seed,
-      steps: settings.steps,
-      cfg: settings.cfg,
-      sampler_name: settings.sampler,
-      scheduler: settings.scheduler,
-      denoise: settings.denoise,
-      model: lastModel,
-      positive: finalPos,
-      negative: finalNeg,
-      latent_image: ["lat", 0],
-    },
-    class_type: "KSampler",
-  };
-  wf["vae"] = {
-    inputs: { samples: ["ksamp", 0], vae: ["chk", 2] },
-    class_type: "VAEDecode",
-  };
-  wf["upi"] = {
-    inputs: { upscale_model: ["upm", 0], image: ["vae", 0] },
-    class_type: "ImageUpscaleWithModel",
-  };
-
-  let saveSource: NodeRef = ["upi", 0];
-  if (settings.upscaleSteps > 0) {
-    wf["vae2"] = {
-      inputs: { pixels: ["upi", 0], vae: ["chk", 2] },
-      class_type: "VAEEncode",
-    };
-    wf["ksamp2"] = {
-      inputs: {
-        seed: Math.floor(Math.random() * 2 ** 32),
-        steps: settings.upscaleSteps,
-        cfg: settings.cfg,
-        sampler_name: settings.sampler,
-        scheduler: settings.scheduler,
-        denoise: 0.5,
-        model: lastModel,
-        positive: finalPos,
-        negative: finalNeg,
-        latent_image: ["vae2", 0],
-      },
-      class_type: "KSampler",
-    };
-    wf["vae3"] = {
-      inputs: { samples: ["ksamp2", 0], vae: ["chk", 2] },
-      class_type: "VAEDecode",
-    };
-    saveSource = ["vae3", 0];
-  }
-
-  wf["save"] = {
-    inputs: { filename_prefix: outputPrefix, images: saveSource },
-    class_type: "SaveImage",
-  };
+  buildSamplingAndSaveTail(wf, {
+    settings,
+    model,
+    positive: finalPos,
+    negative: finalNeg,
+    outputPrefix,
+  });
 
   return wf;
 }
