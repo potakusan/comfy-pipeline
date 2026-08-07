@@ -19,8 +19,8 @@ async function fetchPublicSettings(): Promise<PublicSettings> {
 /**
  * Client-side substitute for reading NEXT_PUBLIC_COMFYUI_URL / _API_KEY
  * directly from process.env. Those get baked into the bundle at build time
- * and can't change post-install (e.g. in the packaged Electron app), so we
- * fetch the effective values from /api/settings/public at runtime instead.
+ * and can't change without a rebuild, so we fetch the effective values from
+ * /api/settings/public at runtime instead.
  * Returns null until the first fetch resolves.
  */
 export function usePublicSettings(): PublicSettings | null {
