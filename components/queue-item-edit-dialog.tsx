@@ -35,8 +35,11 @@ export default function QueueItemEditDialog({
   useEffect(() => {
     if (!item) return;
     setLabel(item.label);
+    // ランダムモードの追加行はバッチごとに1行だけ抽選されるため、ここで
+    // 全行を平文へ混ぜ込むとpositivePromptBaseとの境界が失われ保存時に
+    // 復元できなくなる。"all"モード(常に全行を付加)の時のみ統合表示する
     setPositivePrompt(
-      item.additionalPromptLines.length > 0
+      item.additionalPromptMode !== "random" && item.additionalPromptLines.length > 0
         ? `${item.positivePromptBase}\n\n${item.additionalPromptLines.join("\n")}`
         : item.positivePromptBase,
     );
@@ -50,16 +53,22 @@ export default function QueueItemEditDialog({
   const editable = item.status === "pending";
 
   const handleSave = () => {
-    onSave(item.id, {
+    const updates: Partial<QueueItem> = {
       label,
       positivePrompt,
       positivePromptBase: positivePrompt,
-      additionalPromptLines: [],
-      additionalPromptMode: "all",
       negativePrompt,
       batchCount,
       settings,
-    });
+    };
+    // "all"モードは全行を常に付加するだけなので上の平文へ安全に統合できるが、
+    // "random"モードの追加行はこのダイアログに編集用UIが無いため、
+    // 触れずに既存のadditionalPromptLines/Modeを保持する
+    if (item.additionalPromptMode !== "random") {
+      updates.additionalPromptLines = [];
+      updates.additionalPromptMode = "all";
+    }
+    onSave(item.id, updates);
     onOpenChange(false);
   };
 
