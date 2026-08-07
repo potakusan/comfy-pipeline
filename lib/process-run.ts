@@ -96,7 +96,18 @@ function runProcess(
     for (const line of lines) appendLog(jobId, `[stderr] ${line}`);
   });
 
-  proc.on("close", (code) => onDone(code));
+  let done = false;
+  proc.on("close", (code) => {
+    if (done) return;
+    done = true;
+    onDone(code);
+  });
+  proc.on("error", (err) => {
+    if (done) return;
+    done = true;
+    appendLog(jobId, `[stderr] プロセス起動に失敗しました: ${err.message}`);
+    onDone(null);
+  });
 }
 
 /**
