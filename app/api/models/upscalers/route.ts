@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { getUpscalerDir, getRemoteProcessUrl } from "@/lib/setup/config";
 import { proxyJson } from "@/lib/server/remote-proxy";
+import { apiError } from "@/lib/server/api-error";
 
 const MODEL_EXTS = [".pth", ".pt", ".safetensors", ".ckpt"];
 // Only scan these subdirectories
@@ -40,6 +41,6 @@ export async function GET() {
     }
     return NextResponse.json({ items });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return apiError("models/upscalers GET", e);
   }
 }

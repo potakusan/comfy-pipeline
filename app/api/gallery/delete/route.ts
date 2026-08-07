@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { getOutputDir, safePath } from "@/lib/server/output-dir";
 import { releaseFolderName } from "@/lib/gallery";
+import { apiError } from "@/lib/server/api-error";
 
 const THUMB_DIR = ".thumbcache";
 
@@ -43,6 +44,6 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return apiError("gallery/delete DELETE", e);
   }
 }

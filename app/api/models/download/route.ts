@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { createJob, updateJob } from '@/lib/download-jobs';
 import { getLoraDir, getCheckpointDir, getCivitaiApiKey, getRemoteProcessUrl } from '@/lib/setup/config';
+import { apiError } from '@/lib/server/api-error';
 
 function parseCivitaiUrl(url: string): { modelId?: string; versionId?: string } {
   try {
@@ -182,6 +183,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ jobId: job.id, fileName, modelName });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return apiError('models/download POST', e);
   }
 }

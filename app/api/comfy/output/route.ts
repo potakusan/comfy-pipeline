@@ -35,7 +35,10 @@ export async function GET(req: NextRequest) {
       const entries = fs.readdirSync(target)
       const files = entries.filter((f) => IMAGE_EXT.test(f)).sort()
       return NextResponse.json({ files, subfolder })
-    } catch {
+    } catch (e) {
+      // フォルダ未作成は正常系(スキャン前・生成前の空ギャラリー)のため、
+      // クライアントには空配列を返しつつサーバーログにだけ原因を残す
+      console.error("[comfy/output GET subfolder]", e)
       return NextResponse.json({ files: [], subfolder })
     }
   } else {
@@ -48,7 +51,8 @@ export async function GET(req: NextRequest) {
         .sort()
         .reverse()
       return NextResponse.json({ dirs })
-    } catch {
+    } catch (e) {
+      console.error("[comfy/output GET dirs]", e)
       return NextResponse.json({ dirs: [] })
     }
   }

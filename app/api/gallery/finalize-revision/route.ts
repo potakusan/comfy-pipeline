@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { getOutputDir, safePath } from "@/lib/server/output-dir";
 import type { ImageMetadata } from "@/lib/gallery";
+import { apiError } from "@/lib/server/api-error";
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -63,6 +64,6 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json({ filename: newFilename, path: `${folder}/${newFilename}` });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return apiError("gallery/finalize-revision POST", e);
   }
 }

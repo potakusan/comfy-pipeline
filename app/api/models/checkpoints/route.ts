@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { getCheckpointDir, getRemoteProcessUrl } from '@/lib/setup/config';
 import { proxyJson } from '@/lib/server/remote-proxy';
+import { apiError } from '@/lib/server/api-error';
 
 const MODEL_EXTS = ['.safetensors', '.ckpt', '.pt'];
 const THUMB_EXTS = ['.jpg', '.jpeg', '.png', '.webp'];
@@ -57,7 +58,7 @@ export async function GET() {
       .sort((a, b) => b.mtime.localeCompare(a.mtime));
     return NextResponse.json({ items });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return apiError('models/checkpoints GET', e);
   }
 }
 
@@ -90,6 +91,6 @@ export async function DELETE(req: NextRequest) {
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return apiError('models/checkpoints DELETE', e);
   }
 }
