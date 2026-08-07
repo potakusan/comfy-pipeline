@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,20 +11,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Pencil,
   Eraser,
-  Trash2,
   Save,
   Upload,
-  CheckCircle,
   Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { CoupleRegion } from "@/lib/couple";
 import { apiFetch } from "@/lib/api-client";
+import DrawingCanvas, {
+  CANVAS_SIZE,
+} from "@/components/composition-drawing-canvas";
+import SavedImageCard from "@/components/composition-saved-image-card";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,310 +56,6 @@ function lsGetImages(): SavedImage[] {
 
 function lsSetImages(images: SavedImage[]) {
   localStorage.setItem(LS_KEY, JSON.stringify(images));
-}
-
-// ---------------------------------------------------------------------------
-// Flood fill
-// ---------------------------------------------------------------------------
-
-function floodFill(
-  ctx: CanvasRenderingContext2D,
-  startX: number,
-  startY: number,
-  fillColor: [number, number, number, number],
-) {
-  const { width, height } = ctx.canvas;
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const data = imageData.data;
-
-  const idx = (x: number, y: number) => (y * width + x) * 4;
-  const start = idx(startX, startY);
-  const targetColor: [number, number, number, number] = [
-    data[start],
-    data[start + 1],
-    data[start + 2],
-    data[start + 3],
-  ];
-
-  if (
-    targetColor[0] === fillColor[0] &&
-    targetColor[1] === fillColor[1] &&
-    targetColor[2] === fillColor[2] &&
-    targetColor[3] === fillColor[3]
-  )
-    return;
-
-  const stack: [number, number][] = [[startX, startY]];
-  const matches = (x: number, y: number) => {
-    const i = idx(x, y);
-    return (
-      data[i] === targetColor[0] &&
-      data[i + 1] === targetColor[1] &&
-      data[i + 2] === targetColor[2] &&
-      data[i + 3] === targetColor[3]
-    );
-  };
-  const paint = (x: number, y: number) => {
-    const i = idx(x, y);
-    data[i] = fillColor[0];
-    data[i + 1] = fillColor[1];
-    data[i + 2] = fillColor[2];
-    data[i + 3] = fillColor[3];
-  };
-
-  while (stack.length > 0) {
-    const [cx, cy] = stack.pop()!;
-    if (cx < 0 || cx >= width || cy < 0 || cy >= height) continue;
-    if (!matches(cx, cy)) continue;
-    paint(cx, cy);
-    stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
-  }
-
-  ctx.putImageData(imageData, 0, 0);
-}
-
-function hexToRgba(hex: string): [number, number, number, number] {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return [r, g, b, 255];
-}
-
-// ---------------------------------------------------------------------------
-// Drawing canvas
-// ---------------------------------------------------------------------------
-
-const CANVAS_SIZE = 512;
-
-function DrawingCanvas({
-  mode,
-  regions,
-  tool,
-  brushSize,
-  selectedColor,
-  onClear,
-  canvasRef,
-  colormapThumbnail,
-}: {
-  mode: "pose" | "colormap";
-  regions: CoupleRegion[];
-  tool: "pencil" | "fill" | "eraser";
-  brushSize: number;
-  selectedColor: string;
-  onClear: () => void;
-  canvasRef: React.RefObject<HTMLCanvasElement | null>;
-  /** Thumbnail data URL of the colormap shown as underlay in pose mode */
-  colormapThumbnail?: string;
-}) {
-  const isDrawing = useRef(false);
-  const lastPos = useRef<{ x: number; y: number } | null>(null);
-
-  const getPos = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const scaleX = CANVAS_SIZE / rect.width;
-    const scaleY = CANVAS_SIZE / rect.height;
-    return {
-      x: Math.round((e.clientX - rect.left) * scaleX),
-      y: Math.round((e.clientY - rect.top) * scaleY),
-    };
-  };
-
-  const initCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.fillStyle = mode === "pose" ? "#ffffff" : "#000000";
-    ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-  }, [mode, canvasRef]);
-
-  useEffect(() => {
-    initCanvas();
-  }, [initCanvas]);
-
-  const drawAt = useCallback(
-    (ctx: CanvasRenderingContext2D, x: number, y: number) => {
-      if (tool === "fill") return;
-      const color =
-        tool === "eraser"
-          ? mode === "pose"
-            ? "#ffffff"
-            : "#000000"
-          : selectedColor;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = brushSize;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-
-      if (lastPos.current) {
-        ctx.beginPath();
-        ctx.moveTo(lastPos.current.x, lastPos.current.y);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-      } else {
-        ctx.beginPath();
-        ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.fill();
-      }
-      lastPos.current = { x, y };
-    },
-    [tool, selectedColor, brushSize, mode],
-  );
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const pos = getPos(e);
-
-    if (tool === "fill") {
-      floodFill(ctx, pos.x, pos.y, hexToRgba(selectedColor));
-      return;
-    }
-
-    isDrawing.current = true;
-    lastPos.current = null;
-    drawAt(ctx, pos.x, pos.y);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing.current) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    drawAt(ctx, ...(Object.values(getPos(e)) as [number, number]));
-  };
-
-  const handleMouseUp = () => {
-    isDrawing.current = false;
-    lastPos.current = null;
-  };
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="relative w-full rounded border border-border overflow-hidden">
-        <canvas
-          ref={canvasRef}
-          width={CANVAS_SIZE}
-          height={CANVAS_SIZE}
-          className="w-full cursor-crosshair"
-          style={{ imageRendering: "pixelated", display: "block" }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        />
-        {mode === "pose" && colormapThumbnail && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={colormapThumbnail}
-            alt="colormap guide"
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-            style={{ opacity: 0.3, mixBlendMode: "multiply" }}
-          />
-        )}
-      </div>
-      {mode === "colormap" && (
-        <div className="flex flex-wrap gap-1">
-          {regions.map((r) => (
-            <span
-              key={r.id}
-              className="rounded px-2 py-0.5 text-[10px] font-mono text-white"
-              style={{ backgroundColor: r.colorHex }}
-            >
-              {r.name}: {r.colorHex}
-            </span>
-          ))}
-          <span className="rounded bg-black px-2 py-0.5 text-[10px] font-mono text-white">
-            背景: #000000
-          </span>
-        </div>
-      )}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 text-xs text-destructive"
-        onClick={onClear}
-      >
-        <Trash2 className="mr-1 h-3 w-3" />
-        クリア
-      </Button>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Saved image card
-// ---------------------------------------------------------------------------
-
-function SavedImageCard({
-  img,
-  onApply,
-  onDelete,
-  onEdit,
-  isApplied,
-  isEditing,
-}: {
-  img: SavedImage;
-  onApply: (img: SavedImage) => void;
-  onDelete: (id: string) => void;
-  onEdit: (img: SavedImage) => void;
-  isApplied: boolean;
-  isEditing: boolean;
-}) {
-  return (
-    <div
-      className={`relative flex flex-col gap-1 rounded-md border p-1.5 transition-colors ${
-        isEditing
-          ? "border-amber-400 bg-amber-500/10 ring-1 ring-amber-400"
-          : isApplied
-            ? "border-primary bg-primary/5"
-            : "border-border hover:border-muted-foreground/50"
-      }`}
-    >
-      {isApplied && !isEditing && (
-        <CheckCircle className="absolute right-1 top-1 h-3.5 w-3.5 text-primary" />
-      )}
-      {isEditing && (
-        <span className="absolute right-1 top-1 text-[9px] font-bold text-amber-400">
-          編集中
-        </span>
-      )}
-
-      <img
-        src={img.thumbnail}
-        alt={img.name}
-        className="h-20 w-full cursor-pointer rounded object-cover"
-        title="ダブルクリックで編集"
-        onDoubleClick={() => onEdit(img)}
-      />
-      <span className="truncate text-[10px] font-medium">{img.name}</span>
-      <Badge variant="outline" className="w-fit text-[9px]">
-        {img.mode === "pose" ? "ポーズ" : "カラーマップ"}
-      </Badge>
-      <div className="flex gap-1">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-6 flex-1 text-[10px]"
-          onClick={() => onApply(img)}
-        >
-          適用
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-          onClick={() => onDelete(img.id)}
-        >
-          <Trash2 className="h-3 w-3" />
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
