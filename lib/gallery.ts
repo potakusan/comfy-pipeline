@@ -1,5 +1,5 @@
 import type { GenerationSettings, LoraEntry } from "./comfy";
-import type { CoupleControlNet, CoupleRegion } from "./couple";
+import type { CoupleControlNet, CoupleRegion } from "./comfy/couple";
 
 /** Which workflow builder produced this image — needed to regenerate it correctly. */
 export type GenerationMode = "normal" | "couple" | "colorMask";

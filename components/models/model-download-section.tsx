@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Download, Loader2 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
-import { type DownloadJobStatus, formatBytes } from '@/lib/model-manager';
+import { type DownloadJobStatus, formatBytes } from '@/lib/models/model-manager';
 
 export default function DownloadSection({
   type,

@@ -13,13 +13,13 @@ import {
   buildOutputPrefix,
   migrateBatchPresetSets,
 } from "@/lib/comfy";
-import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/couple";
-import type { CoupleControlNet, CoupleRegion } from "@/lib/couple";
+import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/comfy/couple";
+import type { CoupleControlNet, CoupleRegion } from "@/lib/comfy/couple";
 import { useComfyWS } from "../use-comfy-ws";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 import { lsGet, lsSet } from "@/hooks/ls";
 import { useNormalMode } from "@/hooks/pipeline/use-normal-mode";
-import { submitAndAwaitNewFiles } from "@/lib/comfy-client";
+import { submitAndAwaitNewFiles } from "@/lib/comfy/comfy-client";
 import { LS_GROUP_BY_POSE, type GenerationMode, type GalleryImageEntry } from "@/lib/gallery";
 
 const LS = {

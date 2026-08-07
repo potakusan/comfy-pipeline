@@ -21,7 +21,7 @@ import {
   DEFAULT_MOSAIC,
   type MosaicConfigValue,
 } from "@/components/common/mosaic-config";
-import type { ProcessJob, MosaicImageResult } from "@/lib/process-jobs";
+import type { ProcessJob, MosaicImageResult } from "@/lib/process/process-jobs";
 import { apiFetch } from "@/lib/api-client";
 
 const DEFAULT_GALLERY_RESIZE = { scalePercent: 40, quality: 100 };

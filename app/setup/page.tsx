@@ -17,7 +17,7 @@ import {
   FolderOpen,
   Pencil,
 } from "lucide-react"
-import type { SetupJob, SetupStepStatus } from "@/lib/setup-jobs"
+import type { SetupJob, SetupStepStatus } from "@/lib/setup/setup-jobs"
 import type { GpuInfo } from "@/lib/setup/gpu"
 
 interface ComponentStatus {

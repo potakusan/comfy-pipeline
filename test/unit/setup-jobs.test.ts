@@ -5,7 +5,7 @@ import {
   getSetupJob,
   updateSetupJob,
   updateSetupStep,
-} from "@/lib/setup-jobs";
+} from "@/lib/setup/setup-jobs";
 
 function uniqueId() {
   return `job-${Math.random().toString(36).slice(2)}`;

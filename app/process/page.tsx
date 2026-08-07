@@ -30,7 +30,7 @@ import {
   Download,
 } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
-import type { ProcessJob } from "@/lib/process-jobs";
+import type { ProcessJob } from "@/lib/process/process-jobs";
 import type { RunRequest } from "@/app/api/process/run/route";
 import type { FolderInfo } from "@/app/api/process/dirs/route";
 import { MosaicConfig, DEFAULT_MOSAIC } from "@/components/common/mosaic-config";

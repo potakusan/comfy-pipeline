@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { createJob, updateJob } from '@/lib/download-jobs';
+import { createJob, updateJob } from '@/lib/models/download-jobs';
 import { getLoraDir, getCheckpointDir, getCivitaiApiKey, getRemoteProcessUrl } from '@/lib/setup/config';
 import { apiError } from '@/lib/server/api-error';
 

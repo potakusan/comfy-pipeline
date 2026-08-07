@@ -1,5 +1,6 @@
-import type { LoraEntry, GenerationSettings, Preset, NodeRef } from "./comfy";
-import { buildBasePipeline, buildSamplingAndSaveTail } from "./comfy";
+import type { LoraEntry, GenerationSettings, Preset } from "./comfy-types";
+import type { NodeRef } from "./workflow-builder";
+import { buildBasePipeline, buildSamplingAndSaveTail } from "./workflow-builder";
 
 /** カップルモードで同時に配置できるリージョンの上限数。
  * DEFAULT_REGION_HEX_COLORS/REGION_COLORSは共にこの数だけ要素を持つ

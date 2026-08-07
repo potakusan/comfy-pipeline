@@ -2,7 +2,7 @@
 import { useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
-import type { CoupleRegion } from "@/lib/couple";
+import type { CoupleRegion } from "@/lib/comfy/couple";
 import { floodFill, hexToRgba } from "@/lib/composition-canvas";
 
 export const CANVAS_SIZE = 512;

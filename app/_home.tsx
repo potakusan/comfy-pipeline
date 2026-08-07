@@ -32,7 +32,7 @@ import SamplerSettings from "@/components/pipeline/sampler-settings";
 import TagSettings from "@/components/pipeline/prompt/tag-settings";
 import CouplePanel from "@/components/pipeline/couple/couple-panel";
 import { useCouple } from "@/hooks/pipeline/use-couple";
-import { buildCouplePrompt, applySelectedPresets } from "@/lib/couple";
+import { buildCouplePrompt, applySelectedPresets } from "@/lib/comfy/couple";
 import { assemblePositivePrompt } from "@/lib/comfy";
 import type { LoraEntry, Preset, QueueItem, GalleryImage } from "@/lib/comfy";
 import PreviewPanel from "@/components/pipeline/preview-panel";

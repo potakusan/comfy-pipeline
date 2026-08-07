@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import crypto from "crypto"
-import { createSetupJob, updateSetupJob } from "@/lib/setup-jobs"
+import { createSetupJob, updateSetupJob } from "@/lib/setup/setup-jobs"
 import { runInstallFlow } from "@/lib/setup/installer"
 
 const STEPS = [

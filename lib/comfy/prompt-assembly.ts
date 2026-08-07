@@ -1,4 +1,4 @@
-import { FIXED_POSITIVE_PREFIX } from "./config";
+import { FIXED_POSITIVE_PREFIX } from "../config";
 import type { LoraEntry, Preset, PresetCategory, BatchPreset, BatchPresetSet } from "./comfy-types";
 
 /** 旧形式(countPreset: Preset | null等のオブジェクト参照)→新形式(countPresetId: string | null等のID参照)へ変換 */

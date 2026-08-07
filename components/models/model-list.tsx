@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Loader2, RefreshCw } from 'lucide-react';
 import type { LoraEntry } from '@/lib/comfy';
 import { apiFetch } from '@/lib/api-client';
-import { type ModelItem, type SortKey, sortItems } from '@/lib/model-manager';
+import { type ModelItem, type SortKey, sortItems } from '@/lib/models/model-manager';
 import ModelCard from '@/components/models/model-card';
 import AddLoraDialog from '@/components/models/add-lora-dialog';
 

@@ -1,6 +1,6 @@
 import { spawn } from "child_process"
 import path from "path"
-import { appendSetupLog, updateSetupStep } from "@/lib/setup-jobs"
+import { appendSetupLog, updateSetupStep } from "@/lib/setup/setup-jobs"
 import { detectGpu } from "@/lib/setup/gpu"
 import { getComfyUIPath } from "@/lib/setup/config"
 import {

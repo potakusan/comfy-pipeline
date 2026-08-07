@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJob } from "@/lib/process-jobs";
+import { getJob } from "@/lib/process/process-jobs";
 import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 /** GET /api/process/status/:jobId */

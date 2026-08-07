@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Brush, FileImage } from "lucide-react";
-import { type CoupleRegion, type CoupleControlNet } from "@/lib/couple";
+import { type CoupleRegion, type CoupleControlNet } from "@/lib/comfy/couple";
 import CompositionDialog from "@/components/pipeline/couple/composition-dialog";
 
 export default function ControlNetSection({

@@ -5,7 +5,7 @@ import {
   REGION_COLORS,
   buildCouplePrompt,
   applySelectedPresets,
-} from "@/lib/couple";
+} from "@/lib/comfy/couple";
 import { type Preset, type PresetCategory } from "@/lib/comfy";
 import { type CoupleHook } from "@/hooks/pipeline/use-couple";
 import ConfigSelector from "@/components/pipeline/couple/config-selector";

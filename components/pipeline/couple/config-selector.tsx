@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import DeleteConfirmDialog from "@/components/common/delete-confirm-dialog";
 import { Plus, Trash2, Pencil, ChevronDown, Check } from "lucide-react";
-import { type CoupleConfig } from "@/lib/couple";
+import { type CoupleConfig } from "@/lib/comfy/couple";
 
 export default function ConfigSelector({
   configs,

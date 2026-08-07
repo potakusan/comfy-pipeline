@@ -9,7 +9,7 @@ import {
   incrementProgress,
   addProcessedImage,
   addMosaicResult,
-} from "@/lib/process-jobs";
+} from "@/lib/process/process-jobs";
 import { getOutputDir, safePath } from "@/lib/server/output-dir";
 import { getRemoteProcessUrl } from "@/lib/setup/config";
 

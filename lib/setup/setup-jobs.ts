@@ -1,4 +1,4 @@
-import { createJobStore } from "./server/job-store"
+import { createJobStore } from "../server/job-store"
 
 export type SetupStepStatus = "pending" | "running" | "ok" | "failed" | "skipped"
 

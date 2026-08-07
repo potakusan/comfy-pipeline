@@ -1,8 +1,8 @@
 "use client";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { buildWorkflow } from "@/lib/comfy";
-import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/couple";
-import { submitAndAwaitNewFiles } from "@/lib/comfy-client";
+import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/comfy/couple";
+import { submitAndAwaitNewFiles } from "@/lib/comfy/comfy-client";
 import { useComfyWS } from "@/hooks/use-comfy-ws";
 import { lsGet, lsSet } from "@/hooks/ls";
 import {

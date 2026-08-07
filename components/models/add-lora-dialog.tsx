@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import type { LoraEntry } from '@/lib/comfy';
-import type { ModelItem } from '@/lib/model-manager';
+import type { ModelItem } from '@/lib/models/model-manager';
 
 export default function AddLoraDialog({
   item,

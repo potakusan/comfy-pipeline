@@ -3,8 +3,8 @@ import {
   buildBasePipeline,
   buildSamplingAndSaveTail,
   buildWorkflow,
-} from "@/lib/workflow-builder";
-import type { GenerationSettings, LoraEntry } from "@/lib/comfy-types";
+} from "@/lib/comfy/workflow-builder";
+import type { GenerationSettings, LoraEntry } from "@/lib/comfy/comfy-types";
 
 function makeSettings(overrides: Partial<GenerationSettings> = {}): GenerationSettings {
   return {

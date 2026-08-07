@@ -8,8 +8,8 @@ import {
   DEFAULT_CONTROL_NET,
   MAX_COUPLE_REGIONS,
   type CoupleRegion,
-} from "@/lib/couple";
-import type { GenerationSettings, LoraEntry, Preset } from "@/lib/comfy-types";
+} from "@/lib/comfy/couple";
+import type { GenerationSettings, LoraEntry, Preset } from "@/lib/comfy/comfy-types";
 
 function makeSettings(overrides: Partial<GenerationSettings> = {}): GenerationSettings {
   return {

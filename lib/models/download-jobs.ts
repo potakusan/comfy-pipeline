@@ -1,4 +1,4 @@
-import { createJobStore } from "./server/job-store";
+import { createJobStore } from "../server/job-store";
 
 export type DownloadStatus = 'pending' | 'downloading' | 'done' | 'error';
 

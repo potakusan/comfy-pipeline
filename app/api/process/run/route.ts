@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { startProcessRun, type RunRequest } from "@/lib/process-run";
+import { startProcessRun, type RunRequest } from "@/lib/process/process-run";
 
 export type { RunRequest };
 

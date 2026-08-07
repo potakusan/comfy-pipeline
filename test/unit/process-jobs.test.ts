@@ -7,7 +7,7 @@ import {
   getJob,
   incrementProgress,
   updateJob,
-} from "@/lib/process-jobs";
+} from "@/lib/process/process-jobs";
 
 function uniqueId() {
   return `job-${Math.random().toString(36).slice(2)}`;

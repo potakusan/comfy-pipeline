@@ -11,7 +11,7 @@ import {
   type CoupleRegion,
   type CoupleControlNet,
   buildRegionPrompt,
-} from "@/lib/couple";
+} from "@/lib/comfy/couple";
 import { type Preset } from "@/lib/comfy";
 import ControlNetSection from "@/components/pipeline/couple/control-net-section";
 

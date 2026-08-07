@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import CategoryDivider from "@/components/pipeline/category-divider";
 import { useDragReorder } from "@/hooks/pipeline/use-drag-reorder";
 import { GripVertical, Pencil, Settings2, Plus } from "lucide-react";
-import { type CoupleRegion, REGION_COLORS } from "@/lib/couple";
+import { type CoupleRegion, REGION_COLORS } from "@/lib/comfy/couple";
 import {
   type Preset,
   type LoraEntry,

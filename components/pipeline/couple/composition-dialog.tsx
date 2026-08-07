@@ -20,7 +20,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { CoupleRegion } from "@/lib/couple";
+import type { CoupleRegion } from "@/lib/comfy/couple";
 import { apiFetch } from "@/lib/api-client";
 import DrawingCanvas, {
   CANVAS_SIZE,

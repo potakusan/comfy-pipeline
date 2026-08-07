@@ -8,7 +8,7 @@ import {
   DEFAULT_CONTROL_NET,
   DEFAULT_REGION_HEX_COLORS,
   MAX_COUPLE_REGIONS,
-} from "@/lib/couple";
+} from "@/lib/comfy/couple";
 import type { LoraEntry } from "@/lib/comfy";
 
 const LS = {

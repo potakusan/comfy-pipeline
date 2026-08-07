@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createJob, getJob, updateJob } from "@/lib/download-jobs";
+import { createJob, getJob, updateJob } from "@/lib/models/download-jobs";
 
 describe("download-jobs", () => {
   it("creates a pending job with a generated id and zeroed byte counters", () => {

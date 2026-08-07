@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getJob } from '@/lib/download-jobs';
+import { getJob } from '@/lib/models/download-jobs';
 import { getRemoteProcessUrl } from '@/lib/setup/config';
 
 export async function GET(
