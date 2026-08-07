@@ -306,7 +306,9 @@ export function usePipeline() {
         batchAllLoras = [
           ...fixedLoras,
           ...batchPresetLoras,
-          ...(pendingItem.variableLora ? [pendingItem.variableLora] : []),
+          ...(pendingItem.variableLora && !pendingItem.variableLora.isPromptOnly
+            ? [pendingItem.variableLora]
+            : []),
         ];
 
         let promptWithAdditional: string;

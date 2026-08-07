@@ -50,12 +50,22 @@ interface LoraModalProps {
   open: boolean;
   lora: LoraEntry | null; // null = add new
   title?: string;
+  /** true の場合、「プロンプトのみ（LoRA無し）」トグルを表示する（可変LoRA用） */
+  allowPromptOnly?: boolean;
   onClose: () => void;
   onSave: (lora: LoraEntry) => void;
   onDelete?: () => void;
 }
 
-function LoraModal({ open, lora, title, onClose, onSave, onDelete }: LoraModalProps) {
+function LoraModal({
+  open,
+  lora,
+  title,
+  allowPromptOnly,
+  onClose,
+  onSave,
+  onDelete,
+}: LoraModalProps) {
   const [draft, setDraft] = useState<LoraEntry>(lora ?? { ...EMPTY_LORA });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -90,62 +100,83 @@ function LoraModal({ open, lora, title, onClose, onSave, onDelete }: LoraModalPr
           </DialogHeader>
 
           <div className="space-y-4">
+            {allowPromptOnly && (
+              <label className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs">
+                <input
+                  type="checkbox"
+                  checked={!!draft.isPromptOnly}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, isPromptOnly: e.target.checked }))
+                  }
+                />
+                プロンプトのみ（LoRA無し・フォルダ分け用）
+              </label>
+            )}
+
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <Label className="text-xs">LoRA名（.safetensors不要）</Label>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 gap-1 text-xs"
-                  onClick={() => setPickerOpen(true)}
-                >
-                  <Library className="h-3 w-3" />
-                  一覧から選択
-                </Button>
+                <Label className="text-xs">
+                  {draft.isPromptOnly ? "タイトル（任意の文字列）" : "LoRA名（.safetensors不要）"}
+                </Label>
+                {!draft.isPromptOnly && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 gap-1 text-xs"
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    <Library className="h-3 w-3" />
+                    一覧から選択
+                  </Button>
+                )}
               </div>
               <Input
                 value={draft.name}
                 onChange={(e) => set("name", e.target.value)}
-                placeholder="例: my_character_lora_v1"
+                placeholder={draft.isPromptOnly ? "例: 屋外・私服" : "例: my_character_lora_v1"}
                 className="font-mono text-sm"
               />
               <p className="mt-1 text-[10px] text-muted-foreground">
-                ComfyUIのmodels/lorasフォルダ内のファイル名を入力
+                {draft.isPromptOnly
+                  ? "実際のLoRAは適用されません。画像の保存フォルダ名として使われます"
+                  : "ComfyUIのmodels/lorasフォルダ内のファイル名を入力"}
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <div className="mb-1 flex items-center justify-between">
-                  <Label className="text-xs">強度</Label>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {draft.strength.toFixed(2)}
-                  </span>
+            {!draft.isPromptOnly && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="mb-1 flex items-center justify-between">
+                    <Label className="text-xs">強度</Label>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {draft.strength.toFixed(2)}
+                    </span>
+                  </div>
+                  <Slider
+                    min={0}
+                    max={2}
+                    step={0.05}
+                    value={[draft.strength]}
+                    onValueChange={([v]) => set("strength", v)}
+                  />
                 </div>
-                <Slider
-                  min={0}
-                  max={2}
-                  step={0.05}
-                  value={[draft.strength]}
-                  onValueChange={([v]) => set("strength", v)}
-                />
-              </div>
-              <div>
-                <div className="mb-1 flex items-center justify-between">
-                  <Label className="text-xs">CLIP強度</Label>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {draft.clipStrength.toFixed(2)}
-                  </span>
+                <div>
+                  <div className="mb-1 flex items-center justify-between">
+                    <Label className="text-xs">CLIP強度</Label>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {draft.clipStrength.toFixed(2)}
+                    </span>
+                  </div>
+                  <Slider
+                    min={0}
+                    max={2}
+                    step={0.05}
+                    value={[draft.clipStrength]}
+                    onValueChange={([v]) => set("clipStrength", v)}
+                  />
                 </div>
-                <Slider
-                  min={0}
-                  max={2}
-                  step={0.05}
-                  value={[draft.clipStrength]}
-                  onValueChange={([v]) => set("clipStrength", v)}
-                />
               </div>
-            </div>
+            )}
 
             <div>
               <Label className="mb-1 text-xs">
@@ -441,13 +472,20 @@ export default function LoraPanel({
                   </span>
                   <div className="min-w-0 flex-1 text-left">
                     <p
-                      className="truncate font-mono text-xs font-medium"
+                      className="flex items-center gap-1 truncate font-mono text-xs font-medium"
                       title={lora.name}
                     >
-                      {lora.name || "(名前未設定)"}
+                      {lora.isPromptOnly && (
+                        <Badge variant="outline" className="shrink-0 text-[9px]">
+                          プロンプトのみ
+                        </Badge>
+                      )}
+                      <span className="truncate">{lora.name || "(名前未設定)"}</span>
                     </p>
                     <p className="text-[10px] text-muted-foreground">
-                      str: {lora.strength} / clip: {lora.clipStrength}
+                      {lora.isPromptOnly
+                        ? "LoRA未適用"
+                        : `str: ${lora.strength} / clip: ${lora.clipStrength}`}
                       {lora.triggerWords && (
                         <span className="ml-1 italic">
                           · {lora.triggerWords.substring(0, 20)}
@@ -494,6 +532,7 @@ export default function LoraPanel({
           open={variableModalState.open}
           lora={variableModalState.lora}
           title={variableModalState.lora ? "可変LoRA編集" : "可変LoRA追加"}
+          allowPromptOnly
           onClose={closeVariableModal}
           onSave={handleVariableSave}
           onDelete={

@@ -10,6 +10,8 @@ export interface LoraEntry {
   strength: number;
   clipStrength: number;
   triggerWords: string;
+  /** true = 実LoRAファイルを適用せず、プロンプト/フォルダ分け用のタイトルとしてのみ使う */
+  isPromptOnly?: boolean;
 }
 
 export interface GenerationSettings {
@@ -238,10 +240,11 @@ export function buildOutputPrefix(loraName: string, filePrefix?: string): string
   const d = new Date();
   const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
   const safeName = (loraName || "no-lora")
-    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .replace(/[/\\:*?"<>|\x00-\x1f]/g, "_")
+    .trim()
     .substring(0, 40);
   const safePrefix = filePrefix
-    ? filePrefix.replace(/[/\\:*?"<>|]/g, "_").substring(0, 40)
+    ? filePrefix.replace(/[/\\:*?"<>|\x00-\x1f]/g, "_").trim().substring(0, 40)
     : "out";
   return `${dateStr}-${safeName}/${safePrefix}`;
 }
