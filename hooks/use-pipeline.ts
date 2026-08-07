@@ -371,7 +371,7 @@ export function usePipeline() {
 
       try {
         const filesBefore = await listOutputFiles(outputSubfolder);
-        const promptId = await submitPromptHttp(workflow, clientId);
+        const promptId = await submitPromptHttp(workflow, clientId, abortController.signal);
         await pollForCompletion(promptId, abortController.signal);
 
         const filesAfter = await listOutputFiles(outputSubfolder);
@@ -999,7 +999,8 @@ export function usePipeline() {
 
     const newImages: GalleryImage[] = [];
     for (const dir of dirs.slice(0, 30)) {
-      const files = await listOutputFiles(dir);
+      // 1フォルダの一覧取得が失敗しても他フォルダの表示を止めない(best-effort)
+      const files = await listOutputFiles(dir).catch(() => []);
       for (const file of files) {
         newImages.push({
           path: `${dir}/${file}`,

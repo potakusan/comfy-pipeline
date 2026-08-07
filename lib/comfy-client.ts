@@ -5,12 +5,22 @@
 export async function submitPromptHttp(
   workflow: Record<string, unknown>,
   clientId: string,
+  signal?: AbortSignal,
 ): Promise<string> {
-  const res = await fetch("/api/comfy/prompt", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt: workflow, client_id: clientId }),
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/comfy/prompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: workflow, client_id: clientId }),
+      signal,
+    });
+  } catch (e) {
+    // Normalize to match pollForCompletion's cancellation signal so callers
+    // can branch on a single "Cancelled" message regardless of which step aborted.
+    if ((e as Error).name === "AbortError") throw new Error("Cancelled");
+    throw e;
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || `HTTP ${res.status}`);
@@ -19,25 +29,30 @@ export async function submitPromptHttp(
   return data.prompt_id as string;
 }
 
+/** Throws on failure — callers that can tolerate a partial/best-effort listing
+ * (e.g. scanning many folders) should catch per-call; callers that use the
+ * result to detect newly-generated files must not treat a failed listing as
+ * "no files", or a successful generation could go unrecorded. */
 export async function listOutputFiles(subfolder: string): Promise<string[]> {
-  try {
-    const res = await fetch(
-      `/api/comfy/output?subfolder=${encodeURIComponent(subfolder)}`,
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data.files || []) as string[];
-  } catch {
-    return [];
-  }
+  const res = await fetch(
+    `/api/comfy/output?subfolder=${encodeURIComponent(subfolder)}`,
+  );
+  if (!res.ok) throw new Error(`Failed to list output files (HTTP ${res.status})`);
+  const data = await res.json();
+  return (data.files || []) as string[];
 }
+
+const POLL_INTERVAL_MS = 1500;
+const POLL_TIMEOUT_MS = 20 * 60 * 1000; // 20分: 重い workflow でも打ち切れるよう上限を設ける
 
 export async function pollForCompletion(
   promptId: string,
   signal: AbortSignal,
 ): Promise<void> {
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
   while (!signal.aborted) {
-    await new Promise((r) => setTimeout(r, 1500));
+    if (Date.now() >= deadline) throw new Error("Generation timed out");
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
     if (signal.aborted) throw new Error("Cancelled");
     try {
       const res = await fetch(`/api/comfy/history?promptId=${promptId}`, {

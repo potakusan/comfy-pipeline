@@ -229,7 +229,7 @@ export function useGallery() {
 
         try {
           const filesBefore = await listOutputFiles(folder);
-          const promptId = await submitPromptHttp(workflow, clientId);
+          const promptId = await submitPromptHttp(workflow, clientId, abortController.signal);
           await pollForCompletion(promptId, abortController.signal);
           const filesAfter = await listOutputFiles(folder);
           const newFiles = filesAfter.filter((f) => !filesBefore.includes(f));
