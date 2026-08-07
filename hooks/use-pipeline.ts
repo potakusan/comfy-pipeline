@@ -19,11 +19,7 @@ import { useComfyWS } from "./use-comfy-ws";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 import { lsGet, lsSet } from "@/hooks/ls";
 import { useNormalMode } from "@/hooks/use-normal-mode";
-import {
-  submitPromptHttp,
-  listOutputFiles,
-  pollForCompletion,
-} from "@/lib/comfy-client";
+import { submitAndAwaitNewFiles } from "@/lib/comfy-client";
 import { LS_GROUP_BY_POSE, type GenerationMode, type GalleryImageEntry } from "@/lib/gallery";
 
 const LS = {
@@ -348,12 +344,12 @@ export function usePipeline() {
             ? buildCoupleWorkflow(workflowArgs)
             : buildWorkflow(workflowArgs);
 
-        const filesBefore = await listOutputFiles(outputSubfolder);
-        const promptId = await submitPromptHttp(workflow, clientId, abortController.signal);
-        await pollForCompletion(promptId, abortController.signal);
-
-        const filesAfter = await listOutputFiles(outputSubfolder);
-        const newFiles = filesAfter.filter((f) => !filesBefore.includes(f));
+        const newFiles = await submitAndAwaitNewFiles(
+          workflow,
+          outputSubfolder,
+          clientId,
+          abortController.signal,
+        );
 
         // Fire-and-forget: save generated files to local COMFYUI_OUTPUT_DIR
         if (newFiles.length > 0) {

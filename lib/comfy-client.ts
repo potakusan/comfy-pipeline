@@ -77,3 +77,23 @@ export async function pollForCompletion(
   }
   throw new Error("Cancelled");
 }
+
+/**
+ * ワークフローを送信し完了をポーリングして、送信前後でoutputフォルダに
+ * 新規追加されたファイル名の一覧を返す。use-pipeline.ts(バッチキュー)と
+ * use-gallery.ts(単体再生成)で共通の「送信→ポーリング→新規ファイル差分」
+ * コアロジック(前後のリトライループ/redo制御・成功後の後処理は
+ * 呼び出し元ごとに異なるためここには含めない)。
+ */
+export async function submitAndAwaitNewFiles(
+  workflow: Record<string, unknown>,
+  folder: string,
+  clientId: string,
+  signal: AbortSignal,
+): Promise<string[]> {
+  const filesBefore = await listOutputFiles(folder);
+  const promptId = await submitPromptHttp(workflow, clientId, signal);
+  await pollForCompletion(promptId, signal);
+  const filesAfter = await listOutputFiles(folder);
+  return filesAfter.filter((f) => !filesBefore.includes(f));
+}

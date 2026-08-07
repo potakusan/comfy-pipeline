@@ -2,11 +2,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { buildWorkflow } from "@/lib/comfy";
 import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/couple";
-import {
-  submitPromptHttp,
-  listOutputFiles,
-  pollForCompletion,
-} from "@/lib/comfy-client";
+import { submitAndAwaitNewFiles } from "@/lib/comfy-client";
 import { useComfyWS } from "@/hooks/use-comfy-ws";
 import { lsGet, lsSet } from "@/hooks/ls";
 import {
@@ -238,11 +234,12 @@ export function useGallery() {
                 ? buildCoupleWorkflow(workflowArgs)
                 : buildWorkflow(workflowArgs);
 
-          const filesBefore = await listOutputFiles(folder);
-          const promptId = await submitPromptHttp(workflow, clientId, abortController.signal);
-          await pollForCompletion(promptId, abortController.signal);
-          const filesAfter = await listOutputFiles(folder);
-          const newFiles = filesAfter.filter((f) => !filesBefore.includes(f));
+          const newFiles = await submitAndAwaitNewFiles(
+            workflow,
+            folder,
+            clientId,
+            abortController.signal,
+          );
           if (newFiles.length === 0) throw new Error("生成された画像が見つかりませんでした");
 
           // In remote mode the file was just written on the remote machine's
