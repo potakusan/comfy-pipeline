@@ -3,7 +3,6 @@ import { useState, useCallback, useEffect } from "react";
 import {
   type CoupleConfig,
   type CoupleRegion,
-  type CouplePositionPreset,
   type CoupleControlNet,
   DEFAULT_COUPLE_CONFIG,
   DEFAULT_CONTROL_NET,
@@ -16,7 +15,6 @@ const LS = {
   activeId: "cp_couple_active_id",
   countId: "cp_couple_count_id",
   sceneId: "cp_couple_scene_id",
-  positionId: "cp_couple_position_id",
 };
 
 function lsGet<T>(key: string, fallback: T): T {
@@ -70,17 +68,6 @@ function migrateConfig(raw: unknown): CoupleConfig {
     name: (c.name as string) ?? "設定",
     basePrompt: (c.basePrompt as string) ?? "",
     regions,
-    // Migrate: old `posePresets` (with regionPrompts) → positionPresets
-    positionPresets: (
-      ((c.positionPresets ?? c.posePresets) as unknown[]) ?? []
-    ).map((p: unknown) => {
-      const pp = p as Record<string, unknown>;
-      return {
-        id: (pp.id as string) ?? crypto.randomUUID(),
-        name: (pp.name as string) ?? "",
-        regionPrompts: (pp.regionPrompts as string[]) ?? [],
-      };
-    }),
     controlNet,
   };
 }
@@ -91,7 +78,6 @@ export function useCouple() {
   // Selected IDs from normal-mode presets (count/scene shared state)
   const [selectedNormalCountId, setSelectedNormalCountIdRaw] = useState<string | null>(null);
   const [selectedNormalSceneId, setSelectedNormalSceneIdRaw] = useState<string | null>(null);
-  const [selectedPositionPresetId, setSelectedPositionPresetIdRaw] = useState<string | null>(null);
 
   // Load from localStorage after mount (avoids SSR/client hydration mismatch)
   useEffect(() => {
@@ -100,8 +86,6 @@ export function useCouple() {
     setActiveConfigIdRaw(lsGet(LS.activeId, DEFAULT_COUPLE_CONFIG.id));
     setSelectedNormalCountIdRaw(lsGet(LS.countId, null));
     setSelectedNormalSceneIdRaw(lsGet(LS.sceneId, null));
-    setSelectedPositionPresetIdRaw(lsGet(LS.positionId, null));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- Persist helpers ---
@@ -113,8 +97,6 @@ export function useCouple() {
   const setActiveConfigId = useCallback((id: string) => {
     setActiveConfigIdRaw(id);
     lsSet(LS.activeId, id);
-    setSelectedPositionPresetIdRaw(null);
-    lsSet(LS.positionId, null);
   }, []);
 
   const setSelectedNormalCountId = useCallback((id: string | null) => {
@@ -125,11 +107,6 @@ export function useCouple() {
   const setSelectedNormalSceneId = useCallback((id: string | null) => {
     setSelectedNormalSceneIdRaw(id);
     lsSet(LS.sceneId, id);
-  }, []);
-
-  const setSelectedPositionPresetId = useCallback((id: string | null) => {
-    setSelectedPositionPresetIdRaw(id);
-    lsSet(LS.positionId, id);
   }, []);
 
   const activeConfig =
@@ -161,10 +138,6 @@ export function useCouple() {
         basePrompt: initialBasePrompt ?? DEFAULT_COUPLE_CONFIG.basePrompt,
         regions: DEFAULT_COUPLE_CONFIG.regions.map((r) => ({
           ...r,
-          id: crypto.randomUUID(),
-        })),
-        positionPresets: DEFAULT_COUPLE_CONFIG.positionPresets.map((p) => ({
-          ...p,
           id: crypto.randomUUID(),
         })),
         controlNet: { ...DEFAULT_CONTROL_NET },
@@ -252,11 +225,7 @@ export function useCouple() {
           : DEFAULT_REGION_HEX_COLORS[i % DEFAULT_REGION_HEX_COLORS.length],
         selectedPresetIds: i < c.regions.length ? c.regions[i].selectedPresetIds : [],
       }));
-      const positionPresets = c.positionPresets.map((p) => ({
-        ...p,
-        regionPrompts: Array.from({ length: count }, (_, i) => p.regionPrompts[i] ?? ""),
-      }));
-      return { ...c, regions, positionPresets };
+      return { ...c, regions };
     });
   }, [patchActiveConfig]);
 
@@ -273,52 +242,10 @@ export function useCouple() {
           xStart: parseFloat((i * (segSize + gap)).toFixed(2)),
           xEnd: parseFloat((i * (segSize + gap) + segSize).toFixed(2)),
         }));
-        const positionPresets = c.positionPresets.map((p) => ({
-          ...p,
-          regionPrompts: redistributed.map((_, i) => p.regionPrompts[i] ?? ""),
-        }));
-        return { ...c, regions: redistributed, positionPresets };
+        return { ...c, regions: redistributed };
       });
     },
     [patchActiveConfig],
-  );
-
-  // --- Position preset CRUD ---
-
-  const addPositionPreset = useCallback(
-    (name: string, regionPrompts: string[]) => {
-      patchActiveConfig((c) => ({
-        ...c,
-        positionPresets: [
-          ...c.positionPresets,
-          { id: crypto.randomUUID(), name, regionPrompts },
-        ],
-      }));
-    },
-    [patchActiveConfig],
-  );
-
-  const updatePositionPreset = useCallback(
-    (id: string, updates: Partial<CouplePositionPreset>) => {
-      patchActiveConfig((c) => ({
-        ...c,
-        positionPresets: c.positionPresets.map((p) =>
-          p.id === id ? { ...p, ...updates } : p,
-        ),
-      }));
-    },
-    [patchActiveConfig],
-  );
-
-  const removePositionPreset = useCallback(
-    (id: string) => {
-      patchActiveConfig((c) => ({
-        ...c,
-        positionPresets: c.positionPresets.filter((p) => p.id !== id),
-      }));
-      if (selectedPositionPresetId === id) setSelectedPositionPresetId(null);
-    },
-    [patchActiveConfig, selectedPositionPresetId, setSelectedPositionPresetId],
   );
 
   return {

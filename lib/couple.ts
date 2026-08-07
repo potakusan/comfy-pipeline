@@ -36,13 +36,6 @@ export interface CoupleControlNet {
   endPercent: number;
 }
 
-/** Per-region position/layout preset (unique to COUPLE mode) */
-export interface CouplePositionPreset {
-  id: string;
-  name: string;
-  regionPrompts: string[]; // one entry per region (by index)
-}
-
 export const DEFAULT_CONTROL_NET: CoupleControlNet = {
   enabled: false,
   controlNetModel: "illustriousXL_v10.safetensors",
@@ -59,7 +52,6 @@ export interface CoupleConfig {
   /** Includes fixedTags + user base content (2girls, etc.) */
   basePrompt: string;
   regions: CoupleRegion[];
-  positionPresets: CouplePositionPreset[];
   controlNet: CoupleControlNet;
 }
 
@@ -123,18 +115,6 @@ export const DEFAULT_COUPLE_CONFIG: CoupleConfig = {
       lora: null,
       colorHex: DEFAULT_REGION_HEX_COLORS[1],
       selectedPresetIds: [],
-    },
-  ],
-  positionPresets: [
-    {
-      id: "pos-default-1",
-      name: "立ち",
-      regionPrompts: ["standing,", "standing,"],
-    },
-    {
-      id: "pos-default-2",
-      name: "座り",
-      regionPrompts: ["sitting,", "sitting,"],
     },
   ],
   controlNet: { ...DEFAULT_CONTROL_NET },
