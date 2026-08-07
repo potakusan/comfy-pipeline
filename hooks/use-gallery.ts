@@ -155,6 +155,11 @@ export function useGallery() {
 
   const deleteImage = useCallback(
     async (entry: GalleryImageEntry) => {
+      // 削除位置が現在の選択より前(または選択そのもの)の時だけデクリメントし、
+      // 削除後も同じ画像(または一つ前)を指し続けるようにする。無条件に
+      // デクリメントするとリストが既に1つ縮んでいることと二重に効いてしまい、
+      // 選択位置が意図よりさらに1つ前にずれる
+      const deletedIndex = visibleImages.findIndex((i) => i.path === entry.path);
       await fetch("/api/gallery/delete", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
@@ -162,9 +167,11 @@ export function useGallery() {
       }).catch(() => {});
       if (selectedFolder) await refreshImages(selectedFolder);
       await refreshFolders();
-      setSelectedIndex((i) => Math.max(0, i - 1));
+      if (deletedIndex !== -1 && deletedIndex <= selectedIndex) {
+        setSelectedIndex((i) => Math.max(0, i - 1));
+      }
     },
-    [selectedFolder, refreshImages, refreshFolders],
+    [selectedFolder, refreshImages, refreshFolders, visibleImages, selectedIndex],
   );
 
   // Runs one generation attempt for `entry` with a fresh random seed. On
