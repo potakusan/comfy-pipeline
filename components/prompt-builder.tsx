@@ -5,6 +5,7 @@ import {
   type LoraEntry,
   type PresetCategory,
   assemblePositivePrompt,
+  groupPresetsByCategory,
 } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -231,14 +232,10 @@ export default function PromptBuilder({
     onSelect: (id: string) => void,
     sectionId?: string,
   ) => {
-    const uncategorized = presets.filter((p) => !p.category);
-    const categorized = presetCategories
-      .map((cat) => ({
-        cat,
-        items: presets.filter((p) => p.category === cat.id),
-      }))
-      .filter(({ items }) => items.length > 0);
-    const hasCategories = categorized.length > 0;
+    const { uncategorized, categorized, hasCategories } = groupPresetsByCategory(
+      presets,
+      presetCategories,
+    );
 
     return (
       <div id={sectionId}>

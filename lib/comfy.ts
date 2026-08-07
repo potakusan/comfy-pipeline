@@ -303,6 +303,25 @@ export function collectPresetLoras(presets: Preset[]): LoraEntry[] {
   return presets.flatMap((p) => (p.lora ? [p.lora] : []));
 }
 
+/** 未分類を先頭に出してからカテゴリ別にグルーピングする(空カテゴリは除外)。 */
+export function groupPresetsByCategory(
+  presets: Preset[],
+  categories: PresetCategory[],
+): {
+  uncategorized: Preset[];
+  categorized: { cat: PresetCategory; items: Preset[] }[];
+  hasCategories: boolean;
+} {
+  const uncategorized = presets.filter((p) => !p.category);
+  const categorized = categories
+    .map((cat) => ({
+      cat,
+      items: presets.filter((p) => p.category === cat.id),
+    }))
+    .filter(({ items }) => items.length > 0);
+  return { uncategorized, categorized, hasCategories: categorized.length > 0 };
+}
+
 type NodeRef = [string, number];
 
 export function buildWorkflow({

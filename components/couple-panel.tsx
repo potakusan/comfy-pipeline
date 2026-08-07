@@ -48,7 +48,12 @@ import {
   buildRegionPrompt,
   applySelectedPresets,
 } from "@/lib/couple";
-import { type Preset, type LoraEntry, type PresetCategory } from "@/lib/comfy";
+import {
+  type Preset,
+  type LoraEntry,
+  type PresetCategory,
+  groupPresetsByCategory,
+} from "@/lib/comfy";
 import { type CoupleHook } from "@/hooks/use-couple";
 import { LoraSection } from "@/components/lora-section";
 import {
@@ -319,14 +324,10 @@ function PresetListSection({
   onReorder: (type: PresetType, from: number, to: number) => void;
   onOpenCategoryManager: () => void;
 }) {
-  const uncategorized = presets.filter((p) => !p.category);
-  const categorized = presetCategories
-    .map((cat) => ({
-      cat,
-      items: presets.filter((p) => p.category === cat.id),
-    }))
-    .filter(({ items }) => items.length > 0);
-  const hasCategories = categorized.length > 0;
+  const { uncategorized, categorized, hasCategories } = groupPresetsByCategory(
+    presets,
+    presetCategories,
+  );
 
   return (
     <div className="space-y-1">
