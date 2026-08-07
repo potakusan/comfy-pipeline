@@ -613,6 +613,7 @@ export function usePipeline() {
     variationEnabled,
     variationTags,
     fixedTags,
+    fixedLoras,
   ]);
 
   const captureCurrentSettings = useCallback(
@@ -746,7 +747,7 @@ export function usePipeline() {
       });
       setQueue((prev) => [...prev, ...items]);
     },
-    [countPresets, posePresets, otherPresets, fixedTags],
+    [countPresets, posePresets, otherPresets, fixedTags, fixedLoras],
   );
 
   const addCoupleToQueue = useCallback(
