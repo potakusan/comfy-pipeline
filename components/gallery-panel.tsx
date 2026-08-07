@@ -283,6 +283,7 @@ export default function GalleryPanel({
             onClick={handleRefresh}
             disabled={refreshing}
             title="outputフォルダを再スキャン"
+            aria-label="outputフォルダを再スキャン"
           >
             <RefreshCw
               className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`}
@@ -296,6 +297,7 @@ export default function GalleryPanel({
             onClick={onClear}
             disabled={gallery.length === 0}
             title="ギャラリーをクリア"
+            aria-label="ギャラリーをクリア"
           >
             <Trash2 className="h-3 w-3" />
           </Button>
@@ -342,7 +344,21 @@ export default function GalleryPanel({
         open={viewer !== null}
         onOpenChange={(open) => !open && setViewer(null)}
       >
-        <DialogContent className="flex h-[92vh] max-h-[92vh] w-full min-w-full flex-col gap-0 p-0">
+        <DialogContent
+          className="flex h-[92vh] max-h-[92vh] w-full min-w-full flex-col gap-0 p-0"
+          onKeyDown={(e) => {
+            if (!viewer || viewer.images.length <= 1) return;
+            if (e.key === "ArrowLeft") {
+              e.preventDefault();
+              setViewer((v) => (v ? { ...v, index: Math.max(0, v.index - 1) } : null));
+            } else if (e.key === "ArrowRight") {
+              e.preventDefault();
+              setViewer((v) =>
+                v ? { ...v, index: Math.min(v.images.length - 1, v.index + 1) } : null,
+              );
+            }
+          }}
+        >
           <DialogHeader className="shrink-0 border-b border-border px-4 py-2.5">
             <DialogTitle className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
               <span className="flex-1 truncate font-mono">
@@ -382,6 +398,7 @@ export default function GalleryPanel({
                         )
                       }
                       disabled={viewer.index === 0}
+                      aria-label="前の画像"
                       className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white disabled:opacity-20 hover:bg-black/70"
                     >
                       <ChevronLeft className="h-5 w-5" />
@@ -401,6 +418,7 @@ export default function GalleryPanel({
                         )
                       }
                       disabled={viewer.index === viewer.images.length - 1}
+                      aria-label="次の画像"
                       className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white disabled:opacity-20 hover:bg-black/70"
                     >
                       <ChevronRight className="h-5 w-5" />

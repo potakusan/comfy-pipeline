@@ -120,6 +120,7 @@ function QueueItemRow({
             className="h-6 w-6 shrink-0"
             onClick={onRunNext}
             title="このジョブを先に実行する"
+            aria-label="このジョブを先に実行する"
           >
             <PlayCircle className="h-3 w-3" />
           </Button>
@@ -131,6 +132,7 @@ function QueueItemRow({
             className="h-6 w-6 shrink-0"
             onClick={onRequeue}
             title="同じ内容で待機列に再度追加する（ランダム要素は再抽選される）"
+            aria-label="同じ内容で待機列に再度追加する"
           >
             <RotateCcw className="h-3 w-3" />
           </Button>
@@ -141,6 +143,7 @@ function QueueItemRow({
           className="h-6 w-6 shrink-0"
           onClick={onOpenDetail}
           title={item.status === "pending" ? "内容を編集" : "内容を確認"}
+          aria-label={item.status === "pending" ? "内容を編集" : "内容を確認"}
         >
           <Pencil className="h-3 w-3" />
         </Button>
@@ -150,6 +153,7 @@ function QueueItemRow({
             size="icon"
             className="h-6 w-6 shrink-0"
             onClick={onRemove}
+            aria-label="削除"
           >
             <Trash2 className="h-3 w-3" />
           </Button>

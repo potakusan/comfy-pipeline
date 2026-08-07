@@ -669,6 +669,7 @@ export default function CompositionDialog({
                   }`}
                   style={{ backgroundColor: color }}
                   title={color}
+                  aria-label={color}
                 />
               ))}
               <input
@@ -677,6 +678,7 @@ export default function CompositionDialog({
                 onChange={(e) => setSelectedColor(e.target.value)}
                 className="h-6 w-6 cursor-pointer rounded border"
                 title="カスタム色"
+                aria-label="カスタム色"
               />
             </div>
 

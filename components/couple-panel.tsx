@@ -146,6 +146,7 @@ function ConfigSelector({
         className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
         disabled={configs.length <= 1}
         title="この設定を削除"
+        aria-label="この設定を削除"
         onClick={() => setDeleteConfirmOpen(true)}
       >
         <Trash2 className="h-3.5 w-3.5" />
@@ -340,6 +341,7 @@ function PresetListSection({
             onClick={onOpenCategoryManager}
             className="flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
             title="カテゴリ管理"
+            aria-label="カテゴリ管理"
           >
             <Settings2 className="h-2.5 w-2.5" />
           </button>
@@ -758,6 +760,7 @@ export default function CouplePanel({
                   onClick={addRegion}
                   disabled={activeConfig.regions.length >= 5}
                   title="キャラを追加"
+                  aria-label="キャラを追加"
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
@@ -774,6 +777,7 @@ export default function CouplePanel({
                   }}
                   disabled={activeConfig.regions.length <= 1}
                   title="最後のキャラを削除"
+                  aria-label="最後のキャラを削除"
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>

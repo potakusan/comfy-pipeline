@@ -196,6 +196,7 @@ export default function SamplerSettings({
               className="h-7 w-7 shrink-0"
               onClick={onOpenModelManager}
               title="モデル管理から選択"
+              aria-label="モデル管理から選択"
             >
               <Wand2 className="h-3.5 w-3.5" />
             </Button>
@@ -246,6 +247,7 @@ export default function SamplerSettings({
             onClick={refreshUpscalers}
             disabled={upscaleLoading}
             title="一覧を更新"
+            aria-label="一覧を更新"
           >
             <RefreshCw
               className={`h-3.5 w-3.5 ${upscaleLoading ? "animate-spin" : ""}`}

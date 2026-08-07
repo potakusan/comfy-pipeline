@@ -66,6 +66,7 @@ export default function QuickAddToBatch({
           size="sm"
           className="gap-1 px-2 text-xs"
           title="現在の設定を一括キューに素早く追加"
+          aria-label="現在の設定を一括キューに素早く追加"
         >
           <ChevronDown className="h-3.5 w-3.5" />
         </Button>

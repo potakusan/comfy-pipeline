@@ -42,11 +42,20 @@ function Thumb({
       <div
         role="checkbox"
         aria-checked={!!entry.releasePath}
+        aria-label="販売用に選択"
+        tabIndex={0}
         onClick={(e) => {
           e.stopPropagation();
           onToggleRelease(entry);
         }}
-        className="absolute top-1 left-1 flex h-5 w-5 items-center justify-center rounded bg-black/50 backdrop-blur-sm"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleRelease(entry);
+          }
+        }}
+        className="absolute top-1 left-1 flex h-5 w-5 items-center justify-center rounded bg-black/50 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         title="販売用に選択"
       >
         <Checkbox checked={!!entry.releasePath} className="pointer-events-none bg-white/80" />

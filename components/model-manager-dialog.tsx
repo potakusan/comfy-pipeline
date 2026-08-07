@@ -301,6 +301,7 @@ function ModelCard({
               className="h-6 w-6 shrink-0 p-0 text-muted-foreground hover:text-primary"
               asChild
               title="Civitaiで開く"
+              aria-label="Civitaiで開く"
             >
               <a
                 href={`https://civitai.com/models/${item.civitaiModelId}`}
@@ -317,6 +318,7 @@ function ModelCard({
             variant="ghost"
             className="h-6 w-6 shrink-0 p-0 text-muted-foreground hover:text-destructive"
             onClick={() => setConfirmDelete(true)}
+            aria-label="削除"
           >
             <Trash2 className="h-3 w-3" />
           </Button>
@@ -575,7 +577,7 @@ function ModelList({
             </button>
           ))}
         </div>
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={load} title="更新">
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={load} title="更新" aria-label="更新">
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
       </div>
