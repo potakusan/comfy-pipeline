@@ -400,7 +400,7 @@ export default function CompositionDialog({
   }, [open]);
 
   // Load a saved image onto the canvas for editing
-  const handleEdit = useCallback(async (img: SavedImage) => {
+  const handleEdit = async (img: SavedImage) => {
     setEditingImage(img);
     setSaveName(img.name);
     // Switch to the image's mode first (canvas will re-init)
@@ -439,8 +439,7 @@ export default function CompositionDialog({
         "ComfyUIから画像を取得できませんでした。サムネイルで代用します。",
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  };
 
   const handleModeChange = (newMode: "pose" | "colormap") => {
     setMode(newMode);
