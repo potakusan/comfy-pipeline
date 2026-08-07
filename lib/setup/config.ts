@@ -42,6 +42,23 @@ export function validateSetupConfig(config: Partial<SetupConfig>): string | null
   return null
 }
 
+/**
+ * 検証→既存設定とのマージ→書き込みまでをまとめて行う。app/api/settingsと
+ * app/api/setup/configの両routeが同じ.comfy-pipeline.json読み書き処理を
+ * 個別実装していたため、ここへ集約し両routeはこの関数を呼ぶ薄い
+ * ラッパーにする(バリデーション追加時に片方だけ更新し忘れることを防ぐ)。
+ */
+export function applySetupConfigUpdate(
+  body: Partial<SetupConfig>,
+): { error: string } | { config: SetupConfig } {
+  const error = validateSetupConfig(body)
+  if (error) return { error }
+  const current = readSetupConfig()
+  const updated = { ...current, ...body }
+  writeSetupConfig(updated)
+  return { config: updated }
+}
+
 // Field -> env var name. Env vars always win over the JSON config, matching
 // the existing getComfyUIPath() precedence (env > config.json > default).
 const FIELD_ENV_MAP: Record<keyof SetupConfig, string> = {
