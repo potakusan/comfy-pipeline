@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { type GalleryImage } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -232,9 +232,10 @@ export default function GalleryPanel({
       .sort((a, b) => b.latestCreatedAt - a.latestCreatedAt);
   }, [filtered]);
 
-  useEffect(() => {
+  const handleFilterLoraChange = (value: string) => {
+    setFilterLora(value);
     setVisibleFolderCount(PAGE_SIZE);
-  }, [filterLora]);
+  };
 
   const handleGalleryScroll = useCallback(() => {
     const el = galleryScrollRef.current;
@@ -256,7 +257,7 @@ export default function GalleryPanel({
     <div className="flex h-full flex-col">
       <div className="mb-2 shrink-0 space-y-1.5">
         <div className="flex items-center gap-1.5">
-          <Select value={filterLora} onValueChange={setFilterLora}>
+          <Select value={filterLora} onValueChange={handleFilterLoraChange}>
             <SelectTrigger className="h-7 flex-1 text-xs">
               <SelectValue placeholder="すべて" />
             </SelectTrigger>
