@@ -31,7 +31,7 @@ export function LoraSection({
   const set = <K extends keyof LoraEntry>(key: K, val: LoraEntry[K]) =>
     onChange({ ...draft, [key]: val });
   const handlePick = (item: LmLoraItem) => {
-    const triggerWords = item.civitai?.trainedWords?.join("\n") ?? "";
+    const triggerWords = item.civitai?.trainedWords?.join(", ") ?? "";
     onChange({ ...draft, name: item.file_name, triggerWords });
   };
 
