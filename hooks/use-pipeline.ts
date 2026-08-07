@@ -355,21 +355,24 @@ export function usePipeline() {
         negativePrompt: pendingItem.negativePrompt,
         outputPrefix,
       };
-      const workflow = pendingItem.colorMaskWorkflow
-        ? buildColorMaskWorkflow({
-            ...workflowArgs,
-            basePositivePrompt: batchPrompt,
-            regions: pendingItem.colorMaskRegions ?? [],
-            controlNet: pendingItem.colorMaskControlNet!,
-          })
-        : pendingItem.coupleWorkflow
-          ? buildCoupleWorkflow(workflowArgs)
-          : buildWorkflow(workflowArgs);
 
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
       try {
+        // buildColorMaskWorkflowはregionsが空だと例外を投げるため、
+        // このtry内で構築して下のcatchでバッチ失敗として扱う
+        const workflow = pendingItem.colorMaskWorkflow
+          ? buildColorMaskWorkflow({
+              ...workflowArgs,
+              basePositivePrompt: batchPrompt,
+              regions: pendingItem.colorMaskRegions ?? [],
+              controlNet: pendingItem.colorMaskControlNet!,
+            })
+          : pendingItem.coupleWorkflow
+            ? buildCoupleWorkflow(workflowArgs)
+            : buildWorkflow(workflowArgs);
+
         const filesBefore = await listOutputFiles(outputSubfolder);
         const promptId = await submitPromptHttp(workflow, clientId, abortController.signal);
         await pollForCompletion(promptId, abortController.signal);

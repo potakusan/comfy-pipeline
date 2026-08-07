@@ -212,22 +212,25 @@ export function useGallery() {
           negativePrompt,
           outputPrefix,
         };
-        const workflow =
-          meta.mode === "colorMask"
-            ? buildColorMaskWorkflow({
-                ...workflowArgs,
-                basePositivePrompt: positivePrompt,
-                regions: meta.colorMaskRegions ?? [],
-                controlNet: meta.colorMaskControlNet!,
-              })
-            : meta.mode === "couple"
-              ? buildCoupleWorkflow(workflowArgs)
-              : buildWorkflow(workflowArgs);
 
         const abortController = new AbortController();
         abortRef.current = abortController;
 
         try {
+          // buildColorMaskWorkflowはregionsが空だと例外を投げるため、
+          // このtry内で構築してcatch側のエラー表示に載せる
+          const workflow =
+            meta.mode === "colorMask"
+              ? buildColorMaskWorkflow({
+                  ...workflowArgs,
+                  basePositivePrompt: positivePrompt,
+                  regions: meta.colorMaskRegions ?? [],
+                  controlNet: meta.colorMaskControlNet!,
+                })
+              : meta.mode === "couple"
+                ? buildCoupleWorkflow(workflowArgs)
+                : buildWorkflow(workflowArgs);
+
           const filesBefore = await listOutputFiles(folder);
           const promptId = await submitPromptHttp(workflow, clientId, abortController.signal);
           await pollForCompletion(promptId, abortController.signal);

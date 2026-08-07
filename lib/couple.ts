@@ -347,6 +347,10 @@ export function buildColorMaskWorkflow({
   controlNet: CoupleControlNet;
   outputPrefix: string;
 }): Record<string, unknown> {
+  if (regions.length === 0) {
+    throw new Error("カラーマップのリージョンが1つも設定されていません");
+  }
+
   const wf: Record<string, unknown> = {};
 
   wf["chk"] = {
