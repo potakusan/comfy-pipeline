@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import CategoryDivider from "@/components/pipeline/category-divider";
-import { useDragReorder } from "@/hooks/use-drag-reorder";
+import { useDragReorder } from "@/hooks/pipeline/use-drag-reorder";
 import { GripVertical, Pencil, Settings2, Plus } from "lucide-react";
 import { type CoupleRegion, REGION_COLORS } from "@/lib/couple";
 import {

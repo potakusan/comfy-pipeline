@@ -7,7 +7,7 @@ import {
   applySelectedPresets,
 } from "@/lib/couple";
 import { type Preset, type PresetCategory } from "@/lib/comfy";
-import { type CoupleHook } from "@/hooks/use-couple";
+import { type CoupleHook } from "@/hooks/pipeline/use-couple";
 import ConfigSelector from "@/components/pipeline/couple/config-selector";
 import CharacterTab from "@/components/pipeline/couple/character-tab";
 import BaseTab from "@/components/pipeline/couple/base-tab";

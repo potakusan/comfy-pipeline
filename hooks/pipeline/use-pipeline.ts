@@ -15,10 +15,10 @@ import {
 } from "@/lib/comfy";
 import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/couple";
 import type { CoupleControlNet, CoupleRegion } from "@/lib/couple";
-import { useComfyWS } from "./use-comfy-ws";
+import { useComfyWS } from "../use-comfy-ws";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 import { lsGet, lsSet } from "@/hooks/ls";
-import { useNormalMode } from "@/hooks/use-normal-mode";
+import { useNormalMode } from "@/hooks/pipeline/use-normal-mode";
 import { submitAndAwaitNewFiles } from "@/lib/comfy-client";
 import { LS_GROUP_BY_POSE, type GenerationMode, type GalleryImageEntry } from "@/lib/gallery";
 

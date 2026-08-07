@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { GripVertical, Check, Pencil } from "lucide-react";
 import { type Preset } from "@/lib/comfy";
-import { useDragReorder } from "@/hooks/use-drag-reorder";
+import { useDragReorder } from "@/hooks/pipeline/use-drag-reorder";
 
 export default function DraggableItem({
   preset,

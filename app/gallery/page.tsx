@@ -17,7 +17,7 @@ import {
   BookmarkCheck,
   Grid2x2,
 } from "lucide-react";
-import { useGallery } from "@/hooks/use-gallery";
+import { useGallery } from "@/hooks/gallery/use-gallery";
 import AppHeader from "@/components/common/app-header";
 import GalleryFolderList from "@/components/gallery/gallery-folder-list";
 import GalleryThumbGrid from "@/components/gallery/gallery-thumb-grid";

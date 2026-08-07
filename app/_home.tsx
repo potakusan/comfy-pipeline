@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState, useEffect, useMemo, useCallback } from "react";
-import { usePipeline, type PromptPreviewPos } from "@/hooks/use-pipeline";
+import { usePipeline, type PromptPreviewPos } from "@/hooks/pipeline/use-pipeline";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -31,7 +31,7 @@ import PromptBuilder from "@/components/pipeline/prompt/prompt-builder";
 import SamplerSettings from "@/components/pipeline/sampler-settings";
 import TagSettings from "@/components/pipeline/prompt/tag-settings";
 import CouplePanel from "@/components/pipeline/couple/couple-panel";
-import { useCouple } from "@/hooks/use-couple";
+import { useCouple } from "@/hooks/pipeline/use-couple";
 import { buildCouplePrompt, applySelectedPresets } from "@/lib/couple";
 import { assemblePositivePrompt } from "@/lib/comfy";
 import type { LoraEntry, Preset, QueueItem, GalleryImage } from "@/lib/comfy";
