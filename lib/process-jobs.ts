@@ -1,3 +1,5 @@
+import { createJobStore } from "./server/job-store";
+
 export type JobStatus = "pending" | "running" | "completed" | "failed";
 
 export interface MosaicImageResult {
@@ -24,26 +26,10 @@ export interface ProcessJob {
   finishedAt?: number;
 }
 
-// Use globalThis so hot-reload doesn't wipe the map (and orphan already-spawned
-// subprocesses from tracking) in dev, matching lib/download-jobs.ts.
-const g = globalThis as typeof globalThis & { __processJobs?: Map<string, ProcessJob> };
-if (!g.__processJobs) g.__processJobs = new Map();
-const jobs = g.__processJobs;
-
-// Long-running server process: evict jobs that have lingered past their
-// useful life so `log`/`processedImages`/`results` don't accumulate forever.
-const JOB_TTL_MS = 6 * 60 * 60 * 1000; // 6時間
-
-function evictStaleJobs(): void {
-  const cutoff = Date.now() - JOB_TTL_MS;
-  for (const [id, job] of jobs) {
-    if (job.startedAt < cutoff) jobs.delete(id);
-  }
-}
+const store = createJobStore<ProcessJob>("__processJobs");
 
 export function createJob(id: string, total: number): ProcessJob {
-  evictStaleJobs();
-  const job: ProcessJob = {
+  return store.create({
     id,
     status: "pending",
     total,
@@ -52,40 +38,35 @@ export function createJob(id: string, total: number): ProcessJob {
     processedImages: [],
     results: [],
     startedAt: Date.now(),
-  };
-  jobs.set(id, job);
-  return job;
+  });
 }
 
 export function getJob(id: string): ProcessJob | undefined {
-  return jobs.get(id);
+  return store.get(id);
 }
 
 export function updateJob(id: string, updates: Partial<ProcessJob>): void {
-  const job = jobs.get(id);
-  if (job) jobs.set(id, { ...job, ...updates });
+  store.update(id, updates);
 }
 
 export function appendLog(id: string, line: string): void {
-  const job = jobs.get(id);
-  if (!job) return;
-  jobs.set(id, { ...job, log: [...job.log.slice(-200), line] }); // keep last 200 lines
+  store.appendToLog(id, "log", line, 200); // keep last 200 lines
 }
 
 export function incrementProgress(id: string): void {
-  const job = jobs.get(id);
+  const job = store.get(id);
   if (!job) return;
-  jobs.set(id, { ...job, current: job.current + 1 });
+  store.update(id, { current: job.current + 1 });
 }
 
 export function addProcessedImage(id: string, filename: string): void {
-  const job = jobs.get(id);
+  const job = store.get(id);
   if (!job) return;
-  jobs.set(id, { ...job, processedImages: [...job.processedImages, filename] });
+  store.update(id, { processedImages: [...job.processedImages, filename] });
 }
 
 export function addMosaicResult(id: string, result: MosaicImageResult): void {
-  const job = jobs.get(id);
+  const job = store.get(id);
   if (!job) return;
-  jobs.set(id, { ...job, results: [...job.results, result] });
+  store.update(id, { results: [...job.results, result] });
 }
