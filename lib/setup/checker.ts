@@ -1,4 +1,4 @@
-import { execSync } from "child_process"
+import { execSync, execFileSync } from "child_process"
 import fs from "fs"
 import path from "path"
 import { getComfyUIPath, getComfyUIUrl } from "@/lib/setup/config"
@@ -13,6 +13,14 @@ export interface ComponentStatus {
 function tryExec(cmd: string, timeout = 5000): string | null {
   try {
     return execSync(cmd, { timeout, encoding: "utf8", stdio: "pipe" }).trim()
+  } catch {
+    return null
+  }
+}
+
+function tryExecFile(file: string, args: string[], timeout = 5000): string | null {
+  try {
+    return execFileSync(file, args, { timeout, encoding: "utf8", stdio: "pipe" }).trim()
   } catch {
     return null
   }
@@ -60,8 +68,9 @@ export async function checkComfyUIRunning(): Promise<boolean> {
 }
 
 export function checkPyTorch(pythonExe: string): ComponentStatus {
-  const out = tryExec(
-    `"${pythonExe}" -c "import torch; print(torch.__version__); print(torch.cuda.is_available())"`,
+  const out = tryExecFile(
+    pythonExe,
+    ["-c", "import torch; print(torch.__version__); print(torch.cuda.is_available())"],
     15000,
   )
   if (!out) return { installed: false }

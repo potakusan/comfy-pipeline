@@ -23,7 +23,6 @@ function runCommand(
   return new Promise((resolve) => {
     const proc = spawn(cmd, args, {
       cwd: cwd ?? process.cwd(),
-      shell: true,
       env: { ...process.env },
     })
 

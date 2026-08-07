@@ -28,6 +28,20 @@ export function writeSetupConfig(config: SetupConfig): void {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf8")
 }
 
+/**
+ * comfyuiPathはexecFileSync/spawnの引数としてシェルを介さず渡されるため
+ * コマンドインジェクションの余地は無いが、実在しないパスをそのまま使うと
+ * 不可解なENOENT等で失敗するため、保存前に存在確認だけ行う。
+ */
+export function validateSetupConfig(config: Partial<SetupConfig>): string | null {
+  if (config.comfyuiPath !== undefined && config.comfyuiPath !== "") {
+    if (!fs.existsSync(config.comfyuiPath) || !fs.statSync(config.comfyuiPath).isDirectory()) {
+      return `comfyuiPathが存在するディレクトリではありません: ${config.comfyuiPath}`
+    }
+  }
+  return null
+}
+
 // Field -> env var name. Env vars always win over the JSON config, matching
 // the existing getComfyUIPath() precedence (env > config.json > default).
 const FIELD_ENV_MAP: Record<keyof SetupConfig, string> = {
