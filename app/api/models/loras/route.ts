@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { getLoraDir, getRemoteProcessUrl } from '@/lib/setup/config';
+import { proxyJson } from '@/lib/server/remote-proxy';
 
 const MODEL_EXTS = ['.safetensors', '.ckpt', '.pt'];
 const THUMB_EXTS = ['.jpg', '.jpeg', '.png', '.webp'];
@@ -33,8 +34,7 @@ function readCivitaiMeta(
 export async function GET() {
   const remoteUrl = getRemoteProcessUrl();
   if (remoteUrl) {
-    const res = await fetch(`${remoteUrl}/api/models/loras`);
-    return NextResponse.json(await res.json(), { status: res.status });
+    return proxyJson(remoteUrl, '/api/models/loras');
   }
   const LORA_DIR = getLoraDir();
   if (!LORA_DIR) {
@@ -72,12 +72,11 @@ export async function DELETE(req: NextRequest) {
   const remoteUrl = getRemoteProcessUrl();
   if (remoteUrl) {
     const body = await req.json();
-    const res = await fetch(`${remoteUrl}/api/models/loras`, {
+    return proxyJson(remoteUrl, '/api/models/loras', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    return NextResponse.json(await res.json(), { status: res.status });
   }
   const LORA_DIR = getLoraDir();
   if (!LORA_DIR) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { getUpscalerDir, getRemoteProcessUrl } from "@/lib/setup/config";
+import { proxyJson } from "@/lib/server/remote-proxy";
 
 const MODEL_EXTS = [".pth", ".pt", ".safetensors", ".ckpt"];
 // Only scan these subdirectories
@@ -10,8 +11,7 @@ const ALLOWED_SUBDIRS = ["ESRGAN", "RealESRGAN"];
 export async function GET() {
   const remoteUrl = getRemoteProcessUrl();
   if (remoteUrl) {
-    const res = await fetch(`${remoteUrl}/api/models/upscalers`);
-    return NextResponse.json(await res.json(), { status: res.status });
+    return proxyJson(remoteUrl, "/api/models/upscalers");
   }
   const UPSCALER_DIR = getUpscalerDir();
   if (!UPSCALER_DIR) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { getCheckpointDir, getRemoteProcessUrl } from '@/lib/setup/config';
+import { proxyJson } from '@/lib/server/remote-proxy';
 
 const MODEL_EXTS = ['.safetensors', '.ckpt', '.pt'];
 const THUMB_EXTS = ['.jpg', '.jpeg', '.png', '.webp'];
@@ -27,8 +28,7 @@ function readCivitaiMeta(dir: string, baseName: string): { modelId?: number } {
 export async function GET() {
   const remoteUrl = getRemoteProcessUrl();
   if (remoteUrl) {
-    const res = await fetch(`${remoteUrl}/api/models/checkpoints`);
-    return NextResponse.json(await res.json(), { status: res.status });
+    return proxyJson(remoteUrl, '/api/models/checkpoints');
   }
   const CHECKPOINT_DIR = getCheckpointDir();
   if (!CHECKPOINT_DIR) {
@@ -65,12 +65,11 @@ export async function DELETE(req: NextRequest) {
   const remoteUrl = getRemoteProcessUrl();
   if (remoteUrl) {
     const body = await req.json();
-    const res = await fetch(`${remoteUrl}/api/models/checkpoints`, {
+    return proxyJson(remoteUrl, '/api/models/checkpoints', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    return NextResponse.json(await res.json(), { status: res.status });
   }
   const CHECKPOINT_DIR = getCheckpointDir();
   if (!CHECKPOINT_DIR) {
