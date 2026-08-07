@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import os
 import struct
+import sys
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -15,6 +16,11 @@ from pathlib import Path
 
 from PIL import Image, PngImagePlugin
 import pillow_avif  # noqa: F401  (registers AVIF support)
+
+# Console codepage (e.g. cp932 on Japanese Windows) can't encode arbitrary
+# filename characters; force UTF-8 output so non-ASCII filenames never crash printing.
+sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
 
 # Serialize file-existence checks + directory creation to avoid races
 _fs_lock = threading.Lock()

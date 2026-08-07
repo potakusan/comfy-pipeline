@@ -40,4 +40,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 lib/config.ts
-automosaic/
+
+.claude/settings.json
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+
+*.pt
+*.pyc
+*/venv/

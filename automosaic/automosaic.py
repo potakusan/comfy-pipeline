@@ -392,6 +392,7 @@ def process_single_image(image_file: str, model_paths: list[str], args) -> None:
             for mask in result.masks:
                 mask.save(get_output_filename(output_dir, image_file, "mask"))
 
+    print(f"  - [検出結果] {len(combined_bboxes)}件")
     if not combined_bboxes:
         print("  - 検出対象なし：そのまま保存します")
 
