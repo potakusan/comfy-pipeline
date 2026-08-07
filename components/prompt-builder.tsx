@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import {
   type Preset,
   type LoraEntry,
@@ -26,6 +26,7 @@ import {
   TYPE_LABELS,
 } from "@/components/preset-modal";
 import CategoryDivider from "@/components/category-divider";
+import { useDragReorder } from "@/hooks/use-drag-reorder";
 
 interface PromptBuilderProps {
   variableLora: LoraEntry | null;
@@ -525,34 +526,11 @@ function DraggableItem({
   onEdit: () => void;
   onReorder: (from: number, to: number) => void;
 }) {
-  const [isOver, setIsOver] = useState(false);
-  const dragIndex = useRef<number | null>(null);
+  const { isOver, ...dragHandlers } = useDragReorder(index, onReorder);
 
   return (
     <div
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", String(index));
-        dragIndex.current = index;
-      }}
-      onDragOver={(e) => {
-        const from = Number(e.dataTransfer.getData("text/plain"));
-        if (isNaN(from)) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        setIsOver(true);
-      }}
-      onDragLeave={() => setIsOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        const from = Number(e.dataTransfer.getData("text/plain"));
-        if (!isNaN(from) && from !== index) {
-          onReorder(from, index);
-        }
-        setIsOver(false);
-      }}
-      onDragEnd={() => setIsOver(false)}
+      {...dragHandlers}
       className={`flex items-center gap-1.5 rounded-md border px-2 py-1.5 transition-colors ${
         isSelected
           ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
