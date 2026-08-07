@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import CategoryDivider from "@/components/category-divider";
 import {
   Plus,
   Trash2,
@@ -209,21 +210,6 @@ function ConfigSelector({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Category divider
-// ---------------------------------------------------------------------------
-
-function CategoryDivider({ name }: { name: string }) {
-  return (
-    <div className="flex items-center gap-1.5 py-0.5">
-      <span className="text-[10px] font-medium text-muted-foreground">
-        {name}
-      </span>
-      <div className="flex-1 border-t border-dashed border-border/60" />
     </div>
   );
 }

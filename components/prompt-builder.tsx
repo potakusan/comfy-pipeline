@@ -25,6 +25,7 @@ import {
   type PresetType,
   TYPE_LABELS,
 } from "@/components/preset-modal";
+import CategoryDivider from "@/components/category-divider";
 
 interface PromptBuilderProps {
   variableLora: LoraEntry | null;
@@ -74,17 +75,6 @@ function SectionHeader({ label, badge }: { label: string; badge: string }) {
         {badge}
       </Badge>
     </p>
-  );
-}
-
-function CategoryDivider({ name }: { name: string }) {
-  return (
-    <div className="flex items-center gap-1.5 py-0.5">
-      <span className="text-[10px] font-medium text-muted-foreground">
-        {name}
-      </span>
-      <div className="flex-1 border-t border-dashed border-border/60" />
-    </div>
   );
 }
 
