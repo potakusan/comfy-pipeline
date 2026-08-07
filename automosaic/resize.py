@@ -100,7 +100,7 @@ def main(args: argparse.Namespace) -> None:
     workers = max(1, args.workers)
 
     files = [
-        f for f in sorted(input_dir.glob("*"))
+        f for f in sorted(input_dir.glob("**/*"))
         if f.is_file() and f.suffix.lower() in IMAGE_EXTS
     ]
 
