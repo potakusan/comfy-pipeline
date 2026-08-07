@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { getOutputDir } from "@/lib/server/output-dir";
+import { getOutputDir, safePath } from "@/lib/server/output-dir";
 import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 const IMAGE_EXTS = /\.(png|jpe?g|webp|avif|bmp)$/i;
@@ -48,8 +48,8 @@ export async function POST(req: NextRequest) {
   if (!folder) return NextResponse.json({ error: "folder required" }, { status: 400 });
 
   const outputDir = getOutputDir();
-  const folderPath = path.resolve(outputDir, folder);
-  if (!folderPath.startsWith(path.resolve(outputDir))) {
+  const folderPath = safePath(outputDir, folder);
+  if (!folderPath) {
     return NextResponse.json({ error: "Invalid path" }, { status: 400 });
   }
 

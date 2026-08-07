@@ -7,8 +7,9 @@ export function getOutputDir(): string {
 
 /** Resolves `relPath` inside `baseDir`, rejecting directory traversal. Returns null if unsafe. */
 export function safePath(baseDir: string, relPath: string): string | null {
-  const resolved = path.resolve(baseDir, relPath);
-  if (!resolved.startsWith(path.resolve(baseDir))) return null;
+  const base = path.resolve(baseDir);
+  const resolved = path.resolve(base, relPath);
+  if (resolved !== base && !resolved.startsWith(base + path.sep)) return null;
   return resolved;
 }
 

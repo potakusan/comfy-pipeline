@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { getOutputDir } from "@/lib/server/output-dir";
+import { getOutputDir, safePath } from "@/lib/server/output-dir";
 import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 /**
@@ -49,7 +49,11 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. Prepare local destination directory
-  const localDir = path.join(getOutputDir(), folder, sub);
+  const outputDir = getOutputDir();
+  const localDir = safePath(outputDir, path.join(folder, sub));
+  if (!localDir) {
+    return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+  }
   fs.mkdirSync(localDir, { recursive: true });
 
   // 3. Download each file and save locally
@@ -58,7 +62,7 @@ export async function POST(req: NextRequest) {
   const errors: string[] = [];
 
   for (const filename of files) {
-    const localPath = path.join(localDir, filename);
+    const localPath = path.join(localDir, path.basename(filename));
     // Skip if already exists (idempotent)
     if (fs.existsSync(localPath)) {
       skipped++;

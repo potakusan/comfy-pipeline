@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { getOutputDir } from "@/lib/server/output-dir";
+import { getOutputDir, safePath } from "@/lib/server/output-dir";
 
 /** POST /api/process/receive-folder
  *  Accepts multipart FormData with fields:
@@ -18,8 +18,8 @@ export async function POST(req: NextRequest) {
   }
 
   const outputDir = getOutputDir();
-  const targetDir = path.resolve(outputDir, folderName);
-  if (!targetDir.startsWith(path.resolve(outputDir))) {
+  const targetDir = safePath(outputDir, folderName);
+  if (!targetDir) {
     return NextResponse.json({ error: "Invalid path" }, { status: 400 });
   }
 

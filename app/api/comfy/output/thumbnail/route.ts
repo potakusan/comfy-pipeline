@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
-import { getOutputDir } from "@/lib/server/output-dir";
+import { getOutputDir, safePath } from "@/lib/server/output-dir";
 import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 const THUMB_WIDTH = 400;
@@ -16,8 +16,8 @@ export async function GET(req: NextRequest) {
   if (!filePath)
     return NextResponse.json({ error: "Missing path" }, { status: 400 });
 
-  const fullPath = path.resolve(outputDir, filePath);
-  if (!fullPath.startsWith(path.resolve(outputDir))) {
+  const fullPath = safePath(outputDir, filePath);
+  if (!fullPath) {
     return NextResponse.json({ error: "Invalid path" }, { status: 400 });
   }
 

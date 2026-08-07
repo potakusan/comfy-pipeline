@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { getOutputDir } from "@/lib/server/output-dir";
+import { getOutputDir, safePath } from "@/lib/server/output-dir";
 import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 const IMAGE_EXTS = /\.(png|jpe?g|webp|avif|bmp)$/i;
@@ -136,8 +136,8 @@ export async function GET(req: NextRequest) {
 
   // Local: read images from COMFYUI_OUTPUT_DIR/folder/sub/
   const outputDir = getOutputDir();
-  const targetDir = path.resolve(outputDir, folder, sub);
-  if (!targetDir.startsWith(path.resolve(outputDir)))
+  const targetDir = safePath(outputDir, path.join(folder, sub));
+  if (!targetDir)
     return NextResponse.json({ error: "Invalid path" }, { status: 400 });
 
   let names: string[];

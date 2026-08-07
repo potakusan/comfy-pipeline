@@ -10,7 +10,7 @@ import {
   addProcessedImage,
   addMosaicResult,
 } from "@/lib/process-jobs";
-import { getOutputDir } from "@/lib/server/output-dir";
+import { getOutputDir, safePath } from "@/lib/server/output-dir";
 import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 function getAutomosaicDir(): string {
@@ -178,9 +178,8 @@ export async function startProcessRun(
     return { error: "no operation selected", status: 400 };
 
   const outputDir = getOutputDir();
-  const inputPath = path.resolve(outputDir, folder);
-  if (!inputPath.startsWith(path.resolve(outputDir)))
-    return { error: "Invalid path", status: 400 };
+  const inputPath = safePath(outputDir, folder);
+  if (!inputPath) return { error: "Invalid path", status: 400 };
 
   const mosaicOutputDir = path.join(inputPath, "mosaic");
   // Temp dir used only when both resize + mosaic are enabled

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { getOutputDir } from "@/lib/server/output-dir";
+import { getOutputDir, safePath } from "@/lib/server/output-dir";
 import { getRemoteProcessUrl } from "@/lib/setup/config";
 
 /**
@@ -25,9 +25,8 @@ export async function POST(req: NextRequest) {
   let saved = 0;
 
   for (const relPath of paths) {
-    const localFull = path.resolve(outputDir, relPath);
-    // Security: reject traversal
-    if (!localFull.startsWith(path.resolve(outputDir))) continue;
+    const localFull = safePath(outputDir, relPath);
+    if (!localFull) continue;
     // Skip if already on disk
     if (fs.existsSync(localFull)) { saved++; continue; }
 
