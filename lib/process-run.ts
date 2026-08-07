@@ -22,6 +22,11 @@ function getPythonPath(): string {
   return fs.existsSync(venv) ? venv : "python";
 }
 
+/** モデル名はautomosaic/models直下のファイル名でなければならない(パス区切り・絶対パス・上位参照を拒否)。 */
+function isValidModelName(name: string): boolean {
+  return path.basename(name) === name && name.toLowerCase().endsWith(".pt");
+}
+
 function countImages(dir: string): number {
   const IMAGE_EXTS = /\.(png|jpe?g|webp|avif|bmp)$/i;
   let count = 0;
@@ -176,6 +181,11 @@ export async function startProcessRun(
   if (!folder) return { error: "folder required", status: 400 };
   if (!mosaic.enabled && !resize.enabled)
     return { error: "no operation selected", status: 400 };
+  if (mosaic.enabled) {
+    const invalidModel = mosaic.models.find((m) => !isValidModelName(m));
+    if (invalidModel)
+      return { error: `Invalid model name: ${invalidModel}`, status: 400 };
+  }
 
   const outputDir = getOutputDir();
   const inputPath = safePath(outputDir, folder);

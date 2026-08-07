@@ -253,13 +253,20 @@ def check_models(model_name_list: list[str]) -> list[str]:
         print("検出用モデルが指定されていません")
         return valid_models
 
-    model_dir = Path(".\\models")
+    model_dir = Path(".\\models").resolve()
     for name in model_name_list:
-        model = model_dir / name.strip()
-        if model.is_file():
-            valid_models.append(str(model))
+        # 絶対パスや".."を含む名前が渡されてもmodel_dir配下に収まっているかを
+        # resolve()後に検証する(pathlibは絶対パスを渡されると左辺を無視して
+        # 結合するため、境界チェックを後段で行わないとmodels/外の任意.ptを
+        # 読み込めてしまう)
+        candidate = (model_dir / name.strip()).resolve()
+        if candidate != model_dir and model_dir not in candidate.parents:
+            print(f"[WARN]モデル {name} はmodelsディレクトリ外を指しているため拒否しました")
+            continue
+        if candidate.is_file():
+            valid_models.append(str(candidate))
         else:
-            print(f"[WARN]モデル {model} は見つかりませんでした")
+            print(f"[WARN]モデル {candidate} は見つかりませんでした")
 
     return valid_models
 
