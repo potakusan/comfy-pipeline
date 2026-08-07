@@ -69,8 +69,7 @@ export function updateJob(id: string, updates: Partial<ProcessJob>): void {
 export function appendLog(id: string, line: string): void {
   const job = jobs.get(id);
   if (!job) return;
-  job.log = [...job.log.slice(-200), line]; // keep last 200 lines
-  jobs.set(id, job);
+  jobs.set(id, { ...job, log: [...job.log.slice(-200), line] }); // keep last 200 lines
 }
 
 export function incrementProgress(id: string): void {
