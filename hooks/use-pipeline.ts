@@ -24,7 +24,7 @@ import {
   listOutputFiles,
   pollForCompletion,
 } from "@/lib/comfy-client";
-import { LS_GROUP_BY_POSE, type GenerationMode } from "@/lib/gallery";
+import { LS_GROUP_BY_POSE, type GenerationMode, type GalleryImageEntry } from "@/lib/gallery";
 
 function migrateBatchPresetSets(raw: BatchPresetSet[]): BatchPresetSet[] {
   return raw.map((set) => ({
@@ -999,15 +999,28 @@ export function usePipeline() {
 
     const newImages: GalleryImage[] = [];
     for (const dir of dirs.slice(0, 30)) {
-      // 1フォルダの一覧取得が失敗しても他フォルダの表示を止めない(best-effort)
-      const files = await listOutputFiles(dir).catch(() => []);
-      for (const file of files) {
+      // /api/gallery/images はファイル名だけでなく<file>.jsonサイドカーの
+      // プロンプト/設定メタデータも一緒に返す(use-gallery.tsの読み込みと共通)。
+      // 1フォルダの取得が失敗しても他フォルダの表示を止めない(best-effort)
+      const entries: GalleryImageEntry[] = await fetch(
+        `/api/gallery/images?folder=${encodeURIComponent(dir)}`,
+      )
+        .then((r) => (r.ok ? r.json() : { images: [] }))
+        .then((d) => d.images || [])
+        .catch(() => []);
+
+      for (const entry of entries) {
+        const meta = entry.meta;
         newImages.push({
-          path: `${dir}/${file}`,
-          loraName: dir.replace(/^\d{8}-/, ""),
-          positivePrompt: "",
-          queueLabel: dir,
-          createdAt: Date.now(),
+          path: entry.path,
+          loraName: meta?.loraName ?? dir.replace(/^\d{8}-/, ""),
+          positivePrompt: meta?.positivePrompt ?? "",
+          negativePrompt: meta?.negativePrompt,
+          settings: meta?.settings,
+          loras: meta?.loras,
+          queueLabel: meta?.queueLabel ?? dir,
+          createdAt: meta?.createdAt ?? Date.now(),
+          appliedAdditional: meta?.appliedAdditional,
         });
       }
     }
