@@ -24,10 +24,25 @@ export interface ProcessJob {
   finishedAt?: number;
 }
 
-// Module-level store (shared across API route handlers in the same process)
-const jobs = new Map<string, ProcessJob>();
+// Use globalThis so hot-reload doesn't wipe the map (and orphan already-spawned
+// subprocesses from tracking) in dev, matching lib/download-jobs.ts.
+const g = globalThis as typeof globalThis & { __processJobs?: Map<string, ProcessJob> };
+if (!g.__processJobs) g.__processJobs = new Map();
+const jobs = g.__processJobs;
+
+// Long-running server process: evict jobs that have lingered past their
+// useful life so `log`/`processedImages`/`results` don't accumulate forever.
+const JOB_TTL_MS = 6 * 60 * 60 * 1000; // 6時間
+
+function evictStaleJobs(): void {
+  const cutoff = Date.now() - JOB_TTL_MS;
+  for (const [id, job] of jobs) {
+    if (job.startedAt < cutoff) jobs.delete(id);
+  }
+}
 
 export function createJob(id: string, total: number): ProcessJob {
+  evictStaleJobs();
   const job: ProcessJob = {
     id,
     status: "pending",

@@ -18,9 +18,21 @@ const g = globalThis as typeof globalThis & { __dlJobs?: Map<string, DownloadJob
 if (!g.__dlJobs) g.__dlJobs = new Map();
 const jobs = g.__dlJobs;
 
+// Long-running server process: evict jobs that have lingered past their
+// useful life so the map doesn't accumulate forever.
+const JOB_TTL_MS = 6 * 60 * 60 * 1000; // 6時間
+
+function evictStaleJobs(): void {
+  const cutoff = Date.now() - JOB_TTL_MS;
+  for (const [id, job] of jobs) {
+    if (job.startedAt < cutoff) jobs.delete(id);
+  }
+}
+
 export function createJob(
   data: Pick<DownloadJob, 'type' | 'fileName' | 'modelName'>,
 ): DownloadJob {
+  evictStaleJobs();
   const id = crypto.randomUUID();
   const job: DownloadJob = {
     ...data,

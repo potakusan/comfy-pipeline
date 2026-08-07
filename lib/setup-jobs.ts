@@ -16,9 +16,25 @@ export interface SetupJob {
   finishedAt?: number
 }
 
-const jobs = new Map<string, SetupJob>()
+// Use globalThis so hot-reload doesn't wipe the map (and orphan already-spawned
+// subprocesses from tracking) in dev, matching lib/download-jobs.ts.
+const g = globalThis as typeof globalThis & { __setupJobs?: Map<string, SetupJob> }
+if (!g.__setupJobs) g.__setupJobs = new Map()
+const jobs = g.__setupJobs
+
+// Long-running server process: evict jobs that have lingered past their
+// useful life so per-step `log` arrays don't accumulate forever.
+const JOB_TTL_MS = 6 * 60 * 60 * 1000 // 6時間
+
+function evictStaleJobs(): void {
+  const cutoff = Date.now() - JOB_TTL_MS
+  for (const [id, job] of jobs) {
+    if (job.startedAt < cutoff) jobs.delete(id)
+  }
+}
 
 export function createSetupJob(id: string, steps: Omit<SetupStep, "log">[]): SetupJob {
+  evictStaleJobs()
   const job: SetupJob = {
     id,
     status: "pending",
