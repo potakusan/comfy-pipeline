@@ -10,7 +10,7 @@ import {
   type LmLoraItem,
 } from "@/components/pipeline/lora/lora-picker-dialog";
 import TagAutocompleteTextarea from "@/components/common/tag-autocomplete-textarea";
-import { Library } from "lucide-react";
+import { Library, Download } from "lucide-react";
 
 export const EMPTY_LORA: LoraEntry = {
   name: "",
@@ -30,14 +30,19 @@ export default function LoraFields({
   draft,
   onChange,
   allowPromptOnly,
+  allowDanbooruImport,
   compact,
 }: {
   draft: LoraEntry;
   onChange: (lora: LoraEntry) => void;
   allowPromptOnly?: boolean;
+  allowDanbooruImport?: boolean;
   compact?: boolean;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [danbooruUrl, setDanbooruUrl] = useState("");
+  const [danbooruImporting, setDanbooruImporting] = useState(false);
+  const [danbooruError, setDanbooruError] = useState<string | null>(null);
 
   const set = <K extends keyof LoraEntry>(key: K, val: LoraEntry[K]) =>
     onChange({ ...draft, [key]: val });
@@ -45,6 +50,43 @@ export default function LoraFields({
   const handlePickerSelect = (item: LmLoraItem) => {
     const triggerWords = item.civitai?.trainedWords?.join(", ") ?? "";
     onChange({ ...draft, name: item.file_name, triggerWords });
+  };
+
+  const handleDanbooruImport = async () => {
+    const match = danbooruUrl.match(/danbooru\.donmai\.us\/posts\/(\d+)/);
+    if (!match) {
+      setDanbooruError("Danbooruのポストページ（.../posts/数字）のURLを入力してください");
+      return;
+    }
+    setDanbooruImporting(true);
+    setDanbooruError(null);
+    try {
+      const res = await fetch(`https://danbooru.donmai.us/posts/${match[1]}.json`);
+      if (!res.ok) throw new Error(`取得に失敗しました（HTTP ${res.status}）`);
+      const data = await res.json();
+      const importedTags = [
+        ...String(data.tag_string_character ?? "").split(" "),
+        ...String(data.tag_string_general ?? "").split(" "),
+      ].filter(Boolean);
+      if (importedTags.length === 0) {
+        setDanbooruError("Character/Generalタグが見つかりませんでした");
+        return;
+      }
+      const existing = draft.triggerWords
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const existingSet = new Set(existing);
+      const merged = [
+        ...existing,
+        ...importedTags.filter((t) => !existingSet.has(t)),
+      ];
+      set("triggerWords", merged.join(", "));
+    } catch (e) {
+      setDanbooruError(e instanceof Error ? e.message : "取り込みに失敗しました");
+    } finally {
+      setDanbooruImporting(false);
+    }
   };
 
   const labelClass = compact ? "text-[10px]" : "text-xs";
@@ -132,6 +174,39 @@ export default function LoraFields({
               onValueChange={([v]) => set("clipStrength", v)}
             />
           </div>
+        </div>
+      )}
+
+      {allowDanbooruImport && (
+        <div>
+          <Label className={`mb-1 ${labelClass}`}>Danbooruからインポート</Label>
+          <div className="flex gap-1.5">
+            <Input
+              value={danbooruUrl}
+              onChange={(e) => setDanbooruUrl(e.target.value)}
+              placeholder="https://danbooru.donmai.us/posts/12345"
+              className={compact ? "h-7 font-mono text-xs" : "font-mono text-sm"}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 shrink-0 gap-1 text-xs"
+              disabled={danbooruImporting || !danbooruUrl.trim()}
+              onClick={handleDanbooruImport}
+            >
+              <Download className="h-3 w-3" />
+              {danbooruImporting ? "取込中…" : "取り込み"}
+            </Button>
+          </div>
+          {danbooruError ? (
+            <p className="mt-1 text-[10px] text-destructive">{danbooruError}</p>
+          ) : (
+            !compact && (
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                Character・Generalタグをトリガーワードへ追加します
+              </p>
+            )
+          )}
         </div>
       )}
 

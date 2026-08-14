@@ -838,6 +838,7 @@ export default function Home() {
     addVariableLora,
     updateVariableLora,
     removeVariableLora,
+    setVariableLoraArchived,
     physicalPresets,
     scenePresets,
     countPresets,
@@ -1108,6 +1109,12 @@ export default function Home() {
     [variableLoras],
   );
 
+  // アーカイブ済みの可変LoRAはプリセット実行時（一括キュー実行前設定）の選択肢から除外する
+  const nonArchivedVariableLoras = useMemo(
+    () => variableLoras.filter((l) => !l.isArchived),
+    [variableLoras],
+  );
+
   // Stable ref so keyboard handler always calls the latest handleAddToQueue
   const addToQueueRef = useRef(handleAddToQueue);
   addToQueueRef.current = handleAddToQueue;
@@ -1314,6 +1321,7 @@ export default function Home() {
                         onAddVariableLora={addVariableLora}
                         onUpdateVariableLora={updateVariableLora}
                         onRemoveVariableLora={removeVariableLora}
+                        onArchiveVariableLora={setVariableLoraArchived}
                       />
                     </Section>
                   </div>
@@ -1496,7 +1504,7 @@ export default function Home() {
                   onRemoveSet={removeBatchPresetSet}
                   onRunPresets={runBatchPresets}
                   onCaptureCurrentSettings={captureCurrentSettings}
-                  variableLoras={variableLoras}
+                  variableLoras={nonArchivedVariableLoras}
                   physicalPresets={physicalPresets}
                   scenePresets={scenePresets}
                   countPresets={countPresets}

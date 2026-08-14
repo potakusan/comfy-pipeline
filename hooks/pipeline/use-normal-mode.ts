@@ -243,6 +243,20 @@ export function useNormalMode() {
     [variableLoras],
   );
 
+  const setVariableLoraArchived = useCallback(
+    (index: number, archived: boolean) => {
+      setVariableLoras((prev) =>
+        prev.map((l, i) => (i === index ? { ...l, isArchived: archived } : l)),
+      );
+      if (archived) {
+        setSelectedVariableLora((prev) =>
+          prev?.name === variableLoras[index]?.name ? null : prev,
+        );
+      }
+    },
+    [variableLoras],
+  );
+
   // --- Preset CRUD ---
   const addPreset = useCallback((preset: Omit<Preset, "id">) => {
     const newPreset: Preset = { ...preset, id: crypto.randomUUID() };
@@ -368,6 +382,7 @@ export function useNormalMode() {
     addVariableLora,
     updateVariableLora,
     removeVariableLora,
+    setVariableLoraArchived,
     // Preset lists
     physicalPresets,
     setPhysicalPresets,

@@ -10,6 +10,8 @@ export interface LoraEntry {
   triggerWords: string;
   /** true = 実LoRAファイルを適用せず、プロンプト/フォルダ分け用のタイトルとしてのみ使う */
   isPromptOnly?: boolean;
+  /** true = 可変LoRAの下部アーカイブ欄に格納されている（通常リストやプリセット実行時の選択肢からは除外される） */
+  isArchived?: boolean;
 }
 
 export interface GenerationSettings {
