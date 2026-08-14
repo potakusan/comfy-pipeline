@@ -363,6 +363,31 @@ export function useNormalMode() {
     });
   }, []);
 
+  const reorderBatchPresetSets = useCallback((from: number, to: number) => {
+    setBatchPresetSets((prev) => {
+      const next = [...prev];
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      return next;
+    });
+  }, []);
+
+  const duplicateBatchPresetSet = useCallback((id: string) => {
+    setBatchPresetSets((prev) => {
+      const idx = prev.findIndex((s) => s.id === id);
+      if (idx === -1) return prev;
+      const copy: BatchPresetSet = {
+        ...prev[idx],
+        id: crypto.randomUUID(),
+        name: `${prev[idx].name} のコピー`,
+        presets: prev[idx].presets.map((p) => ({ ...p, id: crypto.randomUUID() })),
+      };
+      const next = [...prev];
+      next.splice(idx + 1, 0, copy);
+      return next;
+    });
+  }, []);
+
   const removeBatchPresetSet = useCallback((id: string) => {
     setBatchPresetSets((prev) => prev.filter((s) => s.id !== id));
   }, []);
@@ -430,6 +455,8 @@ export function useNormalMode() {
     setBatchPresetSets,
     saveBatchPresetSet,
     removeBatchPresetSet,
+    reorderBatchPresetSets,
+    duplicateBatchPresetSet,
     // Categories
     presetCategories,
     setPresetCategories,

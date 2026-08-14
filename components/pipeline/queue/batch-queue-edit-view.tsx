@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Play } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy, GripVertical, Play } from "lucide-react";
+import { useDragReorder } from "@/hooks/pipeline/use-drag-reorder";
 
 // ---------------------------------------------------------------------------
 // Preset editor (inline within set-edit view)
@@ -173,6 +174,71 @@ function PresetEditor({ preset, countPresets, posePresets, otherPresets, onSave,
 }
 
 // ---------------------------------------------------------------------------
+// Preset row (draggable for reorder)
+// ---------------------------------------------------------------------------
+
+interface PresetRowProps {
+  preset: BatchPreset;
+  index: number;
+  isEditing: boolean;
+  poseName: string;
+  countName: string;
+  onToggleEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onReorder: (from: number, to: number) => void;
+}
+
+function PresetRow({
+  preset,
+  index,
+  isEditing,
+  poseName,
+  countName,
+  onToggleEdit,
+  onDuplicate,
+  onDelete,
+  onReorder,
+}: PresetRowProps) {
+  const { isOver, ...dragHandlers } = useDragReorder(index, onReorder);
+
+  return (
+    <div
+      {...dragHandlers}
+      className={`grid grid-cols-[16px_1fr_80px_80px_50px_60px] items-center gap-2 rounded-md border px-2 py-1.5 text-xs transition-colors ${
+        isEditing ? "border-primary bg-primary/5" : ""
+      } ${isOver ? "border-blue-400 opacity-60" : ""}`}
+    >
+      <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-muted-foreground/40 active:cursor-grabbing" />
+      <span className="truncate font-medium">{preset.name}</span>
+      <span className="truncate text-muted-foreground">{poseName}</span>
+      <span className="truncate text-muted-foreground">{countName}</span>
+      <span className="text-right text-muted-foreground">
+        {preset.batchCount}
+      </span>
+      <div className="flex items-center justify-end gap-0.5">
+        <button
+          onClick={onDuplicate}
+          title="複製"
+          className="rounded p-0.5 hover:bg-muted"
+        >
+          <Copy className="h-3 w-3" />
+        </button>
+        <button onClick={onToggleEdit} className="rounded p-0.5 hover:bg-muted">
+          <Pencil className="h-3 w-3" />
+        </button>
+        <button
+          onClick={onDelete}
+          className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Set editor view
 // ---------------------------------------------------------------------------
 
@@ -227,11 +293,23 @@ export default function EditView({
     if (editingPresetId === id) setEditingPresetId(null);
   }
 
-  function movePreset(idx: number, dir: -1 | 1) {
+  function reorderPresetsInSet(from: number, to: number) {
     const presets = [...editingSet.presets];
-    const target = idx + dir;
-    if (target < 0 || target >= presets.length) return;
-    [presets[idx], presets[target]] = [presets[target], presets[idx]];
+    const [item] = presets.splice(from, 1);
+    presets.splice(to, 0, item);
+    setEditingSet({ ...editingSet, presets });
+  }
+
+  function duplicatePreset(id: string) {
+    const idx = editingSet.presets.findIndex((p) => p.id === id);
+    if (idx === -1) return;
+    const copy: BatchPreset = {
+      ...editingSet.presets[idx],
+      id: crypto.randomUUID(),
+      name: `${editingSet.presets[idx].name} のコピー`,
+    };
+    const presets = [...editingSet.presets];
+    presets.splice(idx + 1, 0, copy);
     setEditingSet({ ...editingSet, presets });
   }
 
@@ -258,7 +336,8 @@ export default function EditView({
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="grid grid-cols-[1fr_80px_80px_50px_60px] gap-2 px-2 text-[10px] font-semibold uppercase text-muted-foreground">
+            <div className="grid grid-cols-[16px_1fr_80px_80px_50px_60px] gap-2 px-2 text-[10px] font-semibold uppercase text-muted-foreground">
+              <span />
               <span>名前</span>
               <span>ポーズ</span>
               <span>人数</span>
@@ -267,56 +346,25 @@ export default function EditView({
             </div>
             {editingSet.presets.map((preset, idx) => (
               <div key={preset.id} className="space-y-1.5">
-                <div
-                  className={`grid grid-cols-[1fr_80px_80px_50px_60px] items-center gap-2 rounded-md border px-2 py-1.5 text-xs ${editingPresetId === preset.id ? "border-primary bg-primary/5" : ""}`}
-                >
-                  <span className="truncate font-medium">
-                    {preset.name}
-                  </span>
-                  <span className="truncate text-muted-foreground">
-                    {posePresets.find((p) => p.id === preset.posePresetId)?.name ?? "—"}
-                  </span>
-                  <span className="truncate text-muted-foreground">
-                    {countPresets.find((p) => p.id === preset.countPresetId)?.name ?? "—"}
-                  </span>
-                  <span className="text-right text-muted-foreground">
-                    {preset.batchCount}
-                  </span>
-                  <div className="flex items-center justify-end gap-0.5">
-                    <button
-                      onClick={() => movePreset(idx, -1)}
-                      disabled={idx === 0}
-                      className="rounded p-0.5 hover:bg-muted disabled:opacity-30"
-                    >
-                      <ChevronUp className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => movePreset(idx, 1)}
-                      disabled={idx === editingSet.presets.length - 1}
-                      className="rounded p-0.5 hover:bg-muted disabled:opacity-30"
-                    >
-                      <ChevronDown className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        setEditingPresetId(
-                          editingPresetId === preset.id
-                            ? null
-                            : preset.id,
-                        )
-                      }
-                      className="rounded p-0.5 hover:bg-muted"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => deletePresetFromSet(preset.id)}
-                      className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                </div>
+                <PresetRow
+                  preset={preset}
+                  index={idx}
+                  isEditing={editingPresetId === preset.id}
+                  poseName={
+                    posePresets.find((p) => p.id === preset.posePresetId)?.name ?? "—"
+                  }
+                  countName={
+                    countPresets.find((p) => p.id === preset.countPresetId)?.name ?? "—"
+                  }
+                  onToggleEdit={() =>
+                    setEditingPresetId(
+                      editingPresetId === preset.id ? null : preset.id,
+                    )
+                  }
+                  onDuplicate={() => duplicatePreset(preset.id)}
+                  onDelete={() => deletePresetFromSet(preset.id)}
+                  onReorder={reorderPresetsInSet}
+                />
                 {editingPresetId === preset.id && (
                   <PresetEditor
                     preset={preset}

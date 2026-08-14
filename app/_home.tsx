@@ -883,6 +883,8 @@ export default function Home() {
     captureCurrentSettings,
     saveBatchPresetSet,
     removeBatchPresetSet,
+    reorderBatchPresetSets,
+    duplicateBatchPresetSet,
     runBatchPresets,
     queue,
     queueRunning,
@@ -1502,6 +1504,8 @@ export default function Home() {
                   batchPresetSets={batchPresetSets}
                   onSaveSet={saveBatchPresetSet}
                   onRemoveSet={removeBatchPresetSet}
+                  onReorderSets={reorderBatchPresetSets}
+                  onDuplicateSet={duplicateBatchPresetSet}
                   onRunPresets={runBatchPresets}
                   onCaptureCurrentSettings={captureCurrentSettings}
                   variableLoras={nonArchivedVariableLoras}
