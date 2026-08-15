@@ -32,7 +32,11 @@ function Thumb({
       tabIndex={0}
       onClick={() => onSelect(index)}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
+        // SpaceはこのdivではなくGalleryPageのグローバルショートカット(選択中画像の
+        // 販売用トグル)専用にする。ここでも拾うと、直前にクリックして残っている
+        // DOMフォーカスと矢印キーで進めたselectedIndexがずれて別の画像を選択して
+        // しまう
+        if (e.key === "Enter") {
           e.preventDefault();
           onSelect(index);
         }
