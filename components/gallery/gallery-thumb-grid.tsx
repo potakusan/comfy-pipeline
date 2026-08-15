@@ -21,12 +21,22 @@ function Thumb({
   isSelected: boolean;
   onSelect: (index: number) => void;
   onToggleRelease: (entry: GalleryImageEntry) => void;
-  registerRef: (index: number, el: HTMLButtonElement | null) => void;
+  registerRef: (index: number, el: HTMLDivElement | null) => void;
 }) {
   return (
-    <button
+    // shadcn Checkboxが内部でネイティブ<button>を描画するため、この選択枠は
+    // <button>ではなくrole="button"のdivにして<button>のネストを避ける
+    <div
       ref={(el) => registerRef(index, el)}
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(index)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(index);
+        }
+      }}
       className={`group relative overflow-hidden rounded border bg-muted/20 transition-all ${
         isSelected
           ? "border-primary ring-1 ring-primary"
@@ -65,7 +75,7 @@ function Thumb({
           REV
         </div>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -82,8 +92,8 @@ export default function GalleryThumbGrid({
   onToggleRelease: (entry: GalleryImageEntry) => void;
   groupByPose?: boolean;
 }) {
-  const itemRefs = useRef(new Map<number, HTMLButtonElement>());
-  const registerRef = (index: number, el: HTMLButtonElement | null) => {
+  const itemRefs = useRef(new Map<number, HTMLDivElement>());
+  const registerRef = (index: number, el: HTMLDivElement | null) => {
     if (el) itemRefs.current.set(index, el);
     else itemRefs.current.delete(index);
   };
