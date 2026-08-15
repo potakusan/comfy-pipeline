@@ -46,7 +46,15 @@ export async function GET() {
           .filter((f) => IMAGE_EXT.test(f)).length;
       } catch {}
 
-      return { name, count, firstImage, releaseCount };
+      let mosaicCount = 0;
+      try {
+        const mosaicPath = path.join(folderPath, "mosaic");
+        mosaicCount = fs
+          .readdirSync(mosaicPath)
+          .filter((f) => IMAGE_EXT.test(f)).length;
+      } catch {}
+
+      return { name, count, firstImage, releaseCount, mosaicCount };
     });
 
     return NextResponse.json({ dirs });

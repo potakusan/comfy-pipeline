@@ -14,3 +14,11 @@ export function safePath(baseDir: string, relPath: string): string | null {
 }
 
 export const IMAGE_EXT = /\.(png|jpe?g|webp|avif|gif)$/i;
+
+export const IMAGE_MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+};

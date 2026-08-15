@@ -1,5 +1,6 @@
 "use client";
 import { Badge } from "@/components/ui/badge";
+import { Grid2x2 } from "lucide-react";
 import type { GalleryFolderInfo } from "@/lib/gallery";
 
 function thumbUrl(path: string) {
@@ -54,6 +55,12 @@ export default function GalleryFolderList({
               {f.releaseCount > 0 && (
                 <Badge className="text-[9px]" variant="secondary">
                   販売用 {f.releaseCount}
+                </Badge>
+              )}
+              {f.mosaicCount > 0 && (
+                <Badge className="gap-0.5 text-[9px]" variant="secondary">
+                  <Grid2x2 className="h-2.5 w-2.5" />
+                  {f.mosaicCount}
                 </Badge>
               )}
             </div>

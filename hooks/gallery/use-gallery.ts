@@ -11,6 +11,7 @@ import {
   type FloatingWindowPos,
   type GalleryFolderInfo,
   type GalleryImageEntry,
+  type GalleryMosaicImageEntry,
   type ImageMetadata,
 } from "@/lib/gallery";
 
@@ -28,6 +29,10 @@ export function useGallery() {
   const [imagesLoading, setImagesLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showReleasedOnly, setShowReleasedOnly] = useState(false);
+
+  const [mosaicImages, setMosaicImages] = useState<GalleryMosaicImageEntry[]>([]);
+  const [mosaicImagesLoading, setMosaicImagesLoading] = useState(false);
+  const [showMosaicOnly, setShowMosaicOnly] = useState(false);
 
   const [groupByPose, setGroupByPoseState] = useState(false);
   useEffect(() => {
@@ -108,6 +113,22 @@ export function useGallery() {
     }
   }, []);
 
+  const refreshMosaicImages = useCallback(
+    async (folder: string): Promise<GalleryMosaicImageEntry[]> => {
+      setMosaicImagesLoading(true);
+      try {
+        const res = await fetch(`/api/gallery/mosaic/images?folder=${encodeURIComponent(folder)}`);
+        const data = await res.json();
+        const list = (data.images || []) as GalleryMosaicImageEntry[];
+        setMosaicImages(list);
+        return list;
+      } finally {
+        setMosaicImagesLoading(false);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     refreshFolders();
   }, [refreshFolders]);
@@ -117,8 +138,9 @@ export function useGallery() {
       setSelectedFolder(folder);
       setSelectedIndex(0);
       refreshImages(folder);
+      refreshMosaicImages(folder);
     },
-    [refreshImages],
+    [refreshImages, refreshMosaicImages],
   );
 
   const toggleRelease = useCallback(
@@ -320,6 +342,11 @@ export function useGallery() {
     setSelectedIndex,
     showReleasedOnly,
     setShowReleasedOnly,
+    mosaicImages,
+    mosaicImagesLoading,
+    refreshMosaicImages,
+    showMosaicOnly,
+    setShowMosaicOnly,
     groupByPose,
     setGroupByPose,
     promptWindowPos,

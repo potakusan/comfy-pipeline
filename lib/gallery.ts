@@ -32,6 +32,8 @@ export interface GalleryFolderInfo {
   /** path relative to outputDir, usable with /api/comfy/output/thumbnail?path= */
   firstImage: string | null;
   releaseCount: number;
+  /** number of images in "<folder>/mosaic/" (automosaic.py output), 0 if none */
+  mosaicCount: number;
 }
 
 export interface GalleryImageEntry {
@@ -41,6 +43,13 @@ export interface GalleryImageEntry {
   /** path relative to outputDir of the copy in "<folder>_release/", if selected for release */
   releasePath: string | null;
   meta: ImageMetadata | null;
+}
+
+/** An image inside "<folder>/mosaic/" — automosaic.py output, no sidecar metadata/release. */
+export interface GalleryMosaicImageEntry {
+  filename: string;
+  /** path relative to outputDir, e.g. "20240101-x/mosaic/out_00001__mosaic.png" */
+  path: string;
 }
 
 export function releaseFolderName(folder: string): string {

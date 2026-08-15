@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { getOutputDir, safePath } from "@/lib/server/output-dir";
-
-const MIME: Record<string, string> = {
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  webp: "image/webp",
-  gif: "image/gif",
-};
+import { getOutputDir, safePath, IMAGE_MIME } from "@/lib/server/output-dir";
 
 /** GET /api/comfy/output/image?path=20240101-loraname/out_00001_.png */
 export async function GET(req: NextRequest) {
@@ -27,7 +19,7 @@ export async function GET(req: NextRequest) {
   try {
     const buffer = fs.readFileSync(fullPath);
     const ext = path.extname(fullPath).replace(".", "").toLowerCase();
-    const contentType = MIME[ext] || "application/octet-stream";
+    const contentType = IMAGE_MIME[ext] || "application/octet-stream";
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": contentType,

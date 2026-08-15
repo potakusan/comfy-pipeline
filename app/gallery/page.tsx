@@ -21,6 +21,8 @@ import { useGallery } from "@/hooks/gallery/use-gallery";
 import AppHeader from "@/components/common/app-header";
 import GalleryFolderList from "@/components/gallery/gallery-folder-list";
 import GalleryThumbGrid from "@/components/gallery/gallery-thumb-grid";
+import GalleryMosaicThumbGrid from "@/components/gallery/gallery-mosaic-thumb-grid";
+import GalleryMosaicEditor from "@/components/gallery/gallery-mosaic-editor";
 import GalleryPromptPanel from "@/components/gallery/gallery-prompt-panel";
 import GalleryPromptWindow from "@/components/gallery/gallery-prompt-window";
 import GalleryGeneratingWindow from "@/components/gallery/gallery-generating-window";
@@ -37,6 +39,14 @@ export default function GalleryPage() {
   const gallery = useGallery();
   const [deleteTarget, setDeleteTarget] = useState<GalleryImageEntry | null>(null);
   const [mosaicModalOpen, setMosaicModalOpen] = useState(false);
+  const [selectedMosaicPath, setSelectedMosaicPath] = useState<string | null>(null);
+  const [justSavedMosaicPath, setJustSavedMosaicPath] = useState<string | null>(null);
+
+  // フォルダを切り替えたら、そのフォルダに存在しないモザイク編集対象の選択は解除する
+  const handleSelectFolder = (folder: string) => {
+    setSelectedMosaicPath(null);
+    gallery.selectFolder(folder);
+  };
 
   const selected: GalleryImageEntry | null = gallery.visibleImages[gallery.selectedIndex] ?? null;
 
@@ -57,18 +67,22 @@ export default function GalleryPage() {
     visibleCount: gallery.visibleImages.length,
     setSelectedIndex: gallery.setSelectedIndex,
     toggleRelease: gallery.toggleRelease,
+    selectedMosaicPath,
   });
   keyStateRef.current = {
     selected,
     visibleCount: gallery.visibleImages.length,
     setSelectedIndex: gallery.setSelectedIndex,
     toggleRelease: gallery.toggleRelease,
+    selectedMosaicPath,
   };
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      // モザイク編集中はエディタ側のCtrl+Z/Y/Sやドラッグ操作と衝突させない
+      if (keyStateRef.current.selectedMosaicPath) return;
 
       const { selected, visibleCount, setSelectedIndex, toggleRelease } = keyStateRef.current;
       if (e.key === "ArrowLeft") {
@@ -133,7 +147,7 @@ export default function GalleryPage() {
             <GalleryFolderList
               folders={gallery.folders}
               selectedFolder={gallery.selectedFolder}
-              onSelect={gallery.selectFolder}
+              onSelect={handleSelectFolder}
             />
           </div>
         </ResizablePanel>
@@ -146,72 +160,81 @@ export default function GalleryPage() {
           minSize="30%"
           className="flex min-w-0 flex-col"
         >
-          <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
-            <span className="flex-1 truncate font-mono text-[11px] text-muted-foreground">
-              {selected?.path ?? "—"}
-            </span>
-            {selected && (
-              <>
-                <a
-                  href={imageUrl(selected.path)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-muted-foreground hover:text-foreground"
-                  title="別タブで開く"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-                <Button
-                  variant={selected.releasePath ? "default" : "outline"}
-                  size="sm"
-                  className="h-7 gap-1 text-xs"
-                  onClick={() => gallery.toggleRelease(selected)}
-                  title="販売用に選択"
-                >
-                  {selected.releasePath ? (
-                    <BookmarkCheck className="h-3 w-3" />
-                  ) : (
-                    <Bookmark className="h-3 w-3" />
-                  )}
-                  販売用に選択
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 gap-1 text-xs"
-                  disabled={gallery.regenerating || !selected.meta}
-                  onClick={() => gallery.regenerateImage(selected)}
-                  title="同じプロンプト・別シードで再生成"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  別シードで再生成
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => setDeleteTarget(selected)}
-                  title="削除"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </>
-            )}
-          </div>
+          {selectedMosaicPath ? (
+            <GalleryMosaicEditor
+              path={selectedMosaicPath}
+              onSaved={(p) => setJustSavedMosaicPath(p)}
+            />
+          ) : (
+            <>
+              <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+                <span className="flex-1 truncate font-mono text-[11px] text-muted-foreground">
+                  {selected?.path ?? "—"}
+                </span>
+                {selected && (
+                  <>
+                    <a
+                      href={imageUrl(selected.path)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-muted-foreground hover:text-foreground"
+                      title="別タブで開く"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                    <Button
+                      variant={selected.releasePath ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 gap-1 text-xs"
+                      onClick={() => gallery.toggleRelease(selected)}
+                      title="販売用に選択"
+                    >
+                      {selected.releasePath ? (
+                        <BookmarkCheck className="h-3 w-3" />
+                      ) : (
+                        <Bookmark className="h-3 w-3" />
+                      )}
+                      販売用に選択
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1 text-xs"
+                      disabled={gallery.regenerating || !selected.meta}
+                      onClick={() => gallery.regenerateImage(selected)}
+                      title="同じプロンプト・別シードで再生成"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      別シードで再生成
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeleteTarget(selected)}
+                      title="削除"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </>
+                )}
+              </div>
 
-          <div className="flex min-h-0 flex-1 items-center justify-center bg-black/20 p-4">
-            {selected ? (
-              <img
-                src={imageUrl(selected.path)}
-                alt={selected.filename}
-                className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
-              />
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                左のフォルダから画像を選択してください
-              </p>
-            )}
-          </div>
+              <div className="flex min-h-0 flex-1 items-center justify-center bg-black/20 p-4">
+                {selected ? (
+                  <img
+                    src={imageUrl(selected.path)}
+                    alt={selected.filename}
+                    className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    左のフォルダから画像を選択してください
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </ResizablePanel>
         <ResizableHandle withHandle />
 
@@ -229,29 +252,53 @@ export default function GalleryPage() {
                 <span className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
                   サムネイル
                 </span>
-                <label className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                {!gallery.showMosaicOnly && (
+                  <>
+                    <label className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <Checkbox
+                        checked={gallery.showReleasedOnly}
+                        onCheckedChange={(v) => gallery.setShowReleasedOnly(v === true)}
+                      />
+                      販売用のみ表示
+                    </label>
+                    <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <Checkbox
+                        checked={gallery.groupByPose}
+                        onCheckedChange={(v) => gallery.setGroupByPose(v === true)}
+                      />
+                      ポーズごとにグループ化
+                    </label>
+                  </>
+                )}
+                <label
+                  className={`flex items-center gap-1.5 text-[10px] text-muted-foreground ${
+                    gallery.showMosaicOnly ? "ml-auto" : ""
+                  }`}
+                >
                   <Checkbox
-                    checked={gallery.showReleasedOnly}
-                    onCheckedChange={(v) => gallery.setShowReleasedOnly(v === true)}
+                    checked={gallery.showMosaicOnly}
+                    onCheckedChange={(v) => gallery.setShowMosaicOnly(v === true)}
                   />
-                  販売用のみ表示
-                </label>
-                <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <Checkbox
-                    checked={gallery.groupByPose}
-                    onCheckedChange={(v) => gallery.setGroupByPose(v === true)}
-                  />
-                  ポーズごとにグループ化
+                  モザイク処理済みを表示
                 </label>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
-                <GalleryThumbGrid
-                  images={gallery.visibleImages}
-                  selectedIndex={gallery.selectedIndex}
-                  onSelect={gallery.setSelectedIndex}
-                  onToggleRelease={gallery.toggleRelease}
-                  groupByPose={gallery.groupByPose}
-                />
+                {gallery.showMosaicOnly ? (
+                  <GalleryMosaicThumbGrid
+                    images={gallery.mosaicImages}
+                    selectedPath={selectedMosaicPath}
+                    onSelect={setSelectedMosaicPath}
+                    justSavedPath={justSavedMosaicPath}
+                  />
+                ) : (
+                  <GalleryThumbGrid
+                    images={gallery.visibleImages}
+                    selectedIndex={gallery.selectedIndex}
+                    onSelect={gallery.setSelectedIndex}
+                    onToggleRelease={gallery.toggleRelease}
+                    groupByPose={gallery.groupByPose}
+                  />
+                )}
               </div>
             </ResizablePanel>
             <ResizableHandle withHandle />
