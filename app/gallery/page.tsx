@@ -48,6 +48,13 @@ export default function GalleryPage() {
     gallery.selectFolder(folder);
   };
 
+  // トグルをOFFにしたときは中央カラムも通常プレビューへ戻す(モザイク一覧が
+  // 非表示になった後も選択が残っていると編集画面が表示され続けてしまう)
+  const handleToggleMosaicOnly = (checked: boolean) => {
+    if (!checked) setSelectedMosaicPath(null);
+    gallery.setShowMosaicOnly(checked);
+  };
+
   const selected: GalleryImageEntry | null = gallery.visibleImages[gallery.selectedIndex] ?? null;
 
   // Pose stats always reflect the full (unfiltered) image list so the
@@ -277,7 +284,7 @@ export default function GalleryPage() {
                 >
                   <Checkbox
                     checked={gallery.showMosaicOnly}
-                    onCheckedChange={(v) => gallery.setShowMosaicOnly(v === true)}
+                    onCheckedChange={(v) => handleToggleMosaicOnly(v === true)}
                   />
                   モザイク処理済みを表示
                 </label>

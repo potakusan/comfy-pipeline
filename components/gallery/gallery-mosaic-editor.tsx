@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -168,8 +169,11 @@ export default function GalleryMosaicEditor({
       if (!res.ok) throw new Error("保存に失敗しました");
       // undo/redo履歴には触れない — 保存後も取り消し/やり直しを継続できるようにする
       onSaved(path);
+      toast.success("保存しました", { description: filename, duration: 2000 });
     } catch (e) {
-      setSaveError((e as Error).message);
+      const message = (e as Error).message;
+      setSaveError(message);
+      toast.error("保存に失敗しました", { description: message });
     } finally {
       setSaving(false);
     }
