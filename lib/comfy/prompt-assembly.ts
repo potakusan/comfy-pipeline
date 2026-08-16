@@ -43,8 +43,22 @@ export function buildOutputPrefix(loraName: string, filePrefix?: string): string
   return `${dateStr}-${safeName}/${safePrefix}`;
 }
 
+/** `#`で始まる行(前後空白は無視)はコメントアウトとして扱う */
+export function isCommentLine(line: string): boolean {
+  return line.trimStart().startsWith("#");
+}
+
+/** テキストからコメントアウト行(`#`始まり)を除いた残りを返す */
+export function stripCommentLines(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => !isCommentLine(line))
+    .join("\n");
+}
+
 function pushPreset(parts: string[], preset: Preset) {
-  if (preset.prompt.trim()) parts.push(preset.prompt);
+  const prompt = stripCommentLines(preset.prompt);
+  if (prompt.trim()) parts.push(prompt);
   if (preset.lora?.triggerWords?.trim())
     parts.push(preset.lora.triggerWords.trim());
 }
@@ -70,7 +84,7 @@ export function assemblePositivePrompt({
   additionalPrompt: string;
   fixedPrefix?: string;
 }): string {
-  const parts: string[] = [fixedPrefix];
+  const parts: string[] = [stripCommentLines(fixedPrefix)];
 
   for (const lora of fixedLoras) {
     if (lora.triggerWords?.trim()) parts.push(lora.triggerWords.trim());
@@ -86,8 +100,9 @@ export function assemblePositivePrompt({
   if (selectedScenePreset) pushPreset(parts, selectedScenePreset);
   for (const p of selectedOtherPresets) pushPreset(parts, p);
 
-  if (additionalPrompt.trim()) {
-    parts.push(additionalPrompt.trim());
+  const strippedAdditional = stripCommentLines(additionalPrompt).trim();
+  if (strippedAdditional) {
+    parts.push(strippedAdditional);
   }
 
   return parts.join("\n\n");

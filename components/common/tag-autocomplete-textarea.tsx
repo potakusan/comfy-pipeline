@@ -1,7 +1,8 @@
 'use client'
 import { useState, useRef, useCallback } from 'react'
 import { useTagDatabase, type TagEntry } from '@/hooks/use-tag-database'
-import { Textarea } from '@/components/ui/textarea'
+import { Textarea, textareaBaseClassName } from '@/components/ui/textarea'
+import { isCommentLine } from '@/lib/comfy'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -31,7 +32,14 @@ export default function TagAutocompleteTextarea({
   const [suggestions, setSuggestions] = useState<TagEntry[]>([])
   const [activeIndex, setActiveIndex] = useState(-1)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const backdropRef = useRef<HTMLDivElement>(null)
   const tokenStartRef = useRef(0)
+
+  const syncScroll = useCallback(() => {
+    if (!textareaRef.current || !backdropRef.current) return
+    backdropRef.current.scrollTop = textareaRef.current.scrollTop
+    backdropRef.current.scrollLeft = textareaRef.current.scrollLeft
+  }, [])
 
   const updateSuggestions = useCallback(
     (text: string, cursor: number) => {
@@ -69,14 +77,43 @@ export default function TagAutocompleteTextarea({
     [onChange]
   )
 
+  const lines = value.split('\n')
+
   return (
     <div className="relative">
+      {/* 実テキストは透明にしたTextarea側に描画させ、この裏地はコメント行
+          (#始まり)だけ色付けして見せる。box(border/padding/font)を
+          textareaBaseClassNameで完全に揃えることで行位置がずれないようにする */}
+      <div
+        ref={backdropRef}
+        aria-hidden
+        className={cn(
+          textareaBaseClassName,
+          'text-xs',
+          className,
+          'pointer-events-none absolute inset-0 flex-col overflow-y-auto overflow-x-hidden whitespace-pre-wrap wrap-break-word border-transparent bg-transparent [&::-webkit-scrollbar]:hidden dark:bg-transparent'
+        )}
+        style={{ ...style, scrollbarWidth: 'none' }}
+      >
+        {lines.map((line, i) => (
+          <span
+            key={i}
+            className={cn(
+              'block',
+              isCommentLine(line) ? 'text-muted-foreground/70 italic' : 'text-foreground'
+            )}
+          >
+            {line.length > 0 ? line : ' '}
+          </span>
+        ))}
+      </div>
       <Textarea
         ref={textareaRef}
         value={value}
         placeholder={placeholder}
-        className={cn('text-xs', className)}
+        className={cn('relative text-xs caret-foreground text-transparent', className)}
         style={style}
+        onScroll={syncScroll}
         onChange={(e) => {
           onChange(e.target.value)
           updateSuggestions(e.target.value, e.target.selectionStart ?? e.target.value.length)

@@ -5,6 +5,7 @@ import {
   type LoraEntry,
   type PresetCategory,
   assemblePositivePrompt,
+  isCommentLine,
 } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -292,7 +293,12 @@ export default function PromptBuilder({
         />
         {additionalPromptMode === "random" && additionalPrompt.trim() && (
           <p className="mt-0.5 text-[10px] text-muted-foreground">
-            {additionalPrompt.split("\n").filter((s) => s.trim()).length}行 —
+            {
+              additionalPrompt
+                .split("\n")
+                .filter((s) => s.trim() && !isCommentLine(s)).length
+            }
+            行 —
             生成ごとに1行がランダム選択されます
           </p>
         )}

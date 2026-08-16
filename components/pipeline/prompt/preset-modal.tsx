@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import type { Preset, LoraEntry, PresetCategory } from "@/lib/comfy";
+import { isCommentLine, type Preset, type LoraEntry, type PresetCategory } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -303,7 +303,12 @@ export function PresetModal({
             />
             {promptMode === "random" && prompt.trim() && (
               <p className="mt-0.5 text-[10px] text-muted-foreground">
-                {prompt.split("\n").filter((s) => s.trim()).length}行 —
+                {
+                  prompt
+                    .split("\n")
+                    .filter((s) => s.trim() && !isCommentLine(s)).length
+                }
+                行 —
                 生成ごとに1行がランダム選択されます
               </p>
             )}

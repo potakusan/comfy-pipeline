@@ -12,6 +12,8 @@ import {
   buildWorkflow,
   buildOutputPrefix,
   migrateBatchPresetSets,
+  isCommentLine,
+  stripCommentLines,
 } from "@/lib/comfy";
 import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/comfy/couple";
 import type { CoupleControlNet, CoupleRegion } from "@/lib/comfy/couple";
@@ -200,7 +202,9 @@ export function usePipeline() {
 
     const resolvePreset = (p: import("@/lib/comfy").Preset): import("@/lib/comfy").Preset => {
       if (p.promptMode !== "random") return p;
-      const lines = p.prompt.split("\n").filter((s) => s.trim());
+      const lines = p.prompt
+        .split("\n")
+        .filter((s) => s.trim() && !isCommentLine(s));
       if (!lines.length) return p;
       return { ...p, prompt: lines[Math.floor(Math.random() * lines.length)] };
     };
@@ -520,11 +524,11 @@ export function usePipeline() {
     const additionalPromptLines = additionalPrompt
       .split("\n")
       .map((s) => s.trim())
-      .filter(Boolean);
+      .filter((s) => s && !isCommentLine(s));
 
     const positivePrompt =
       additionalPromptLines.length > 0
-        ? `${positivePromptBase}\n\n${additionalPrompt.trim()}`
+        ? `${positivePromptBase}\n\n${stripCommentLines(additionalPrompt).trim()}`
         : positivePromptBase;
 
     const presetLoras = collectPresetLoras(allSelectedPresets);
@@ -675,11 +679,11 @@ export function usePipeline() {
         const additionalPromptLines = preset.additionalPrompt
           .split("\n")
           .map((s) => s.trim())
-          .filter(Boolean);
+          .filter((s) => s && !isCommentLine(s));
 
         const positivePrompt =
           additionalPromptLines.length > 0
-            ? `${positivePromptBase}\n\n${preset.additionalPrompt.trim()}`
+            ? `${positivePromptBase}\n\n${stripCommentLines(preset.additionalPrompt).trim()}`
             : positivePromptBase;
 
         const presetLoras = collectPresetLoras(allSelectedPresets);
