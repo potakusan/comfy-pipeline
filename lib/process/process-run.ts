@@ -70,6 +70,10 @@ export interface RunRequest {
     enabled: boolean;
     scalePercent: number;
     quality: number;
+    /** "keep"(既定、元の形式のまま) / 強制的にPNGかJPEGへ変換する */
+    convertFormat: "keep" | "png" | "jpg";
+    /** convertFormat==="jpg"のときのJPEG品質(1-100)。既定100 */
+    convertQuality: number;
   };
 }
 
@@ -238,9 +242,13 @@ export async function startProcessRun(
           ? tempResizeDir
           : path.join(inputPath, "resized");
 
+        // convertFormat==="jpg"のときはconvertQuality(既定100)を使う。
+        // "keep"/"png"では従来通りresize.quality(元がJPEG/WebP/AVIFの場合のみ有効)を使う
+        const effectiveQuality = resize.convertFormat === "jpg" ? resize.convertQuality : resize.quality;
+
         appendLog(
           jobId,
-          `[resize] 開始: scale=${resize.scalePercent}%, quality=${resize.quality}`,
+          `[resize] 開始: scale=${resize.scalePercent}%, quality=${effectiveQuality}, format=${resize.convertFormat ?? "keep"}`,
         );
 
         const resizeArgs = [
@@ -251,9 +259,12 @@ export async function startProcessRun(
           "-s",
           String(resize.scalePercent),
           "-q",
-          String(resize.quality),
+          String(effectiveQuality),
           // workers: default (CPU count) is fine; no UI knob needed
         ];
+        if (resize.convertFormat && resize.convertFormat !== "keep") {
+          resizeArgs.push("--format", resize.convertFormat);
+        }
 
         // Track progress only when resize is the sole operation
         const progressFn = mosaic.enabled ? null : resizeProgress(jobId);

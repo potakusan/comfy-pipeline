@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import AppHeader from "@/components/common/app-header";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -28,12 +29,16 @@ import {
   Check,
   ArrowRight,
   Download,
+  Info,
 } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
 import type { ProcessJob } from "@/lib/process/process-jobs";
 import type { RunRequest } from "@/app/api/process/run/route";
 import type { FolderInfo } from "@/app/api/process/dirs/route";
-import { MosaicConfig, DEFAULT_MOSAIC } from "@/components/common/mosaic-config";
+import {
+  MosaicConfig,
+  DEFAULT_MOSAIC,
+} from "@/components/common/mosaic-config";
 
 type SysSnapshot = {
   t: number;
@@ -76,10 +81,12 @@ function toMosaicFilename(filename: string): string {
 
 const DEFAULT_RESIZE = {
   enabled: true,
-  scalePercent: 50,
+  scalePercent: 40,
   autoTarget: true,
-  targetMB: 190,
+  targetMB: 100,
   quality: 100,
+  convertFormat: "jpg" as "keep" | "png" | "jpg",
+  convertQuality: 100,
 };
 
 // ---- StatPill ----
@@ -382,6 +389,19 @@ function calcAutoScale(currentBytes: number, targetMB: number): number {
   return Math.min(100, Math.max(10, Math.round(Math.sqrt(ratio) * 100)));
 }
 
+/**
+ * JPEG変換時の追加圧縮率(PNG相当を1とした倍率)のおおまかな目安。
+ * 実際のファイルサイズは画像内容（線画/写真調、色数など）に強く依存するため、
+ * あくまで大まかな傾向を示す経験則。PNG変換/元形式のままの場合は倍率を掛けない。
+ */
+function estimateFormatMultiplier(
+  format: "keep" | "png" | "jpg",
+  quality: number,
+): number {
+  if (format === "jpg") return 0.15 + (quality / 100) * 0.35;
+  return 1;
+}
+
 // ---- ResizeConfig ----
 function ResizeConfig({
   config,
@@ -405,10 +425,6 @@ function ResizeConfig({
     config.autoTarget && estimate
       ? calcAutoScale(estimate.currentBytes, config.targetMB)
       : null;
-  const effectiveScale = autoScale ?? config.scalePercent;
-  const effectiveEstimatedBytes = estimate
-    ? estimate.currentBytes * (effectiveScale / 100) ** 2
-    : null;
 
   return (
     <>
@@ -450,20 +466,6 @@ function ResizeConfig({
                 </span>
               )}
             </div>
-            {estimate && autoScale !== null && (
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
-                <span className="text-muted-foreground">
-                  現在 {fmtBytes(estimate.currentBytes)} ({estimate.count}枚)
-                </span>
-                <span className="text-muted-foreground">→</span>
-                <span className="font-medium text-foreground">
-                  約 {fmtBytes(effectiveEstimatedBytes!)}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  (目安)
-                </span>
-              </div>
-            )}
             {!estimate && (
               <p className="text-[11px] text-muted-foreground">
                 フォルダを選択するとスケールを自動計算します
@@ -485,20 +487,6 @@ function ResizeConfig({
                 {config.scalePercent}%
               </span>
             </div>
-            {estimate && (
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
-                <span className="text-muted-foreground">
-                  現在 {fmtBytes(estimate.currentBytes)} ({estimate.count}枚)
-                </span>
-                <span className="text-muted-foreground">→</span>
-                <span className="font-medium text-foreground">
-                  約 {fmtBytes(effectiveEstimatedBytes!)}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  (目安)
-                </span>
-              </div>
-            )}
           </>
         )}
       </div>
@@ -517,6 +505,42 @@ function ResizeConfig({
           value={[config.quality]}
           onValueChange={([v]) => set("quality", v)}
         />
+      </div>
+
+      <div>
+        <Label className="mb-1 block text-xs text-muted-foreground">
+          画像形式の変換
+        </Label>
+        <div className="flex gap-1">
+          {(["keep", "png", "jpg"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => set("convertFormat", f)}
+              className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+                config.convertFormat === f
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border text-muted-foreground hover:border-muted-foreground"
+              }`}
+            >
+              {f === "keep" ? "元の形式のまま" : f.toUpperCase()}
+            </button>
+          ))}
+        </div>
+        {config.convertFormat === "jpg" && (
+          <div className="mt-2">
+            <div className="mb-1 flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">JPEG品質</Label>
+              <span className="font-mono text-xs">{config.convertQuality}</span>
+            </div>
+            <Slider
+              min={1}
+              max={100}
+              step={1}
+              value={[config.convertQuality]}
+              onValueChange={([v]) => set("convertQuality", v)}
+            />
+          </div>
+        )}
       </div>
     </>
   );
@@ -730,6 +754,37 @@ export default function ProcessPage() {
     estimatedBytes: number;
   } | null>(null);
 
+  const effectiveScale = useMemo(
+    () =>
+      resizeConfig.autoTarget && estimate
+        ? calcAutoScale(estimate.currentBytes, resizeConfig.targetMB)
+        : resizeConfig.scalePercent,
+    [
+      resizeConfig.autoTarget,
+      resizeConfig.targetMB,
+      resizeConfig.scalePercent,
+      estimate,
+    ],
+  );
+
+  // 圧縮(画像形式変換)も踏まえた出力サイズの目安。resize無効時はnull
+  const estimatedFinalBytes = useMemo(() => {
+    if (!resizeConfig.enabled || !estimate) return null;
+    const formatMultiplier = estimateFormatMultiplier(
+      resizeConfig.convertFormat,
+      resizeConfig.convertQuality,
+    );
+    return (
+      estimate.currentBytes * (effectiveScale / 100) ** 2 * formatMultiplier
+    );
+  }, [
+    resizeConfig.enabled,
+    resizeConfig.convertFormat,
+    resizeConfig.convertQuality,
+    estimate,
+    effectiveScale,
+  ]);
+
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<ProcessJob | null>(null);
   const [logOpen, setLogOpen] = useState(false);
@@ -889,10 +944,6 @@ export default function ProcessPage() {
           setUploading(false);
         }
       }
-      const effectiveScale =
-        resizeConfig.autoTarget && estimate
-          ? calcAutoScale(estimate.currentBytes, resizeConfig.targetMB)
-          : resizeConfig.scalePercent;
       const body: RunRequest = {
         folder: selectedFolder,
         mosaic: mosaicConfig,
@@ -1020,17 +1071,6 @@ export default function ProcessPage() {
               <Separator />
 
               <ConfigSection
-                title="自動モザイク"
-                enabled={mosaicConfig.enabled}
-                onToggle={(v) => setMosaicConfig((c) => ({ ...c, enabled: v }))}
-              >
-                <MosaicConfig
-                  config={mosaicConfig}
-                  onChange={setMosaicConfig}
-                />
-              </ConfigSection>
-
-              <ConfigSection
                 title="リサイズ / 圧縮"
                 enabled={resizeConfig.enabled}
                 onToggle={(v) => setResizeConfig((c) => ({ ...c, enabled: v }))}
@@ -1039,6 +1079,17 @@ export default function ProcessPage() {
                   config={resizeConfig}
                   onChange={setResizeConfig}
                   estimate={resizeConfig.enabled ? estimate : null}
+                />
+              </ConfigSection>
+
+              <ConfigSection
+                title="自動モザイク"
+                enabled={mosaicConfig.enabled}
+                onToggle={(v) => setMosaicConfig((c) => ({ ...c, enabled: v }))}
+              >
+                <MosaicConfig
+                  config={mosaicConfig}
+                  onChange={setMosaicConfig}
                 />
               </ConfigSection>
 
@@ -1055,6 +1106,17 @@ export default function ProcessPage() {
           </ScrollArea>
 
           <div className="shrink-0 border-t p-3">
+            {estimate && estimatedFinalBytes !== null && (
+              <Alert className="mb-2">
+                <Info />
+                <AlertTitle>出力サイズの目安</AlertTitle>
+                <AlertDescription>
+                  現在 {fmtBytes(estimate.currentBytes)} ({estimate.count}枚) →
+                  約 {fmtBytes(estimatedFinalBytes)}
+                  {resizeConfig.convertFormat === "jpg" && "（JPEG変換込み）"}
+                </AlertDescription>
+              </Alert>
+            )}
             <Button
               className="w-full gap-2"
               disabled={

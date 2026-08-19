@@ -17,7 +17,7 @@ export const NTD11_CLASSES = [
 
 export const DEFAULT_MOSAIC = {
   enabled: true,
-  mosaicSize: 15,
+  mosaicSize: 18,
   autoSize: false,
   confidence: 0.2,
   models: [NTD11_MODEL],

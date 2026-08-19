@@ -30,7 +30,7 @@ _fs_lock = threading.Lock()
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".bmp"}
 
 
-def resize_image(src: Path, dst: Path, scale: float, quality: int) -> None:
+def resize_image(src: Path, dst: Path, scale: float, quality: int, fmt: str = "keep") -> None:
     img = Image.open(src)
     orig_format = (img.format or "PNG").lower()
 
@@ -38,14 +38,39 @@ def resize_image(src: Path, dst: Path, scale: float, quality: int) -> None:
     new_h = max(1, int(img.height * scale))
     resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
+    if fmt == "jpg":
+        dst = dst.with_suffix(".jpg")
+    elif fmt == "png":
+        dst = dst.with_suffix(".png")
+
     with _fs_lock:
         dst.parent.mkdir(parents=True, exist_ok=True)
 
     save_params: dict = {"fp": str(dst)}
+    exif = img.info.get("exif")
 
-    if orig_format in ("jpeg", "jpg"):
+    if fmt == "jpg":
+        # JPEGはアルファチャンネル非対応のため、透過がある場合は白背景に合成してから変換する
+        if resized.mode in ("RGBA", "LA") or "transparency" in resized.info:
+            resized = resized.convert("RGBA")
+            background = Image.new("RGB", resized.size, (255, 255, 255))
+            background.paste(resized, mask=resized.split()[3])
+            resized = background
+        elif resized.mode != "RGB":
+            resized = resized.convert("RGB")
+        save_params["format"] = "JPEG"
         save_params["quality"] = quality
-        exif = img.info.get("exif")
+        if exif:
+            save_params["exif"] = exif
+    elif fmt == "png":
+        save_params["format"] = "PNG"
+        meta = PngImagePlugin.PngInfo()
+        for k, v in img.info.items():
+            if isinstance(v, str):
+                meta.add_itxt(k, v)
+        save_params["pnginfo"] = meta
+    elif orig_format in ("jpeg", "jpg"):
+        save_params["quality"] = quality
         if exif:
             save_params["exif"] = exif
     elif orig_format == "webp":
@@ -53,12 +78,10 @@ def resize_image(src: Path, dst: Path, scale: float, quality: int) -> None:
         save_params["lossless"] = lossless
         if not lossless:
             save_params["quality"] = quality
-        exif = img.info.get("exif")
         if exif:
             save_params["exif"] = exif
     elif orig_format == "avif":
         save_params["quality"] = quality
-        exif = img.info.get("exif")
         if exif:
             save_params["exif"] = exif
     elif orig_format == "png":
@@ -94,7 +117,7 @@ def main(args: argparse.Namespace) -> None:
         for f in files:
             dst = output_dir / f.relative_to(input_dir)
             try:
-                resize_image(f, dst, scale, quality)
+                resize_image(f, dst, scale, quality, args.format)
             except Exception as e:
                 print(f"[WARN] {f} の処理に失敗しました: {e}")
     else:
@@ -106,6 +129,7 @@ def main(args: argparse.Namespace) -> None:
                     output_dir / f.relative_to(input_dir),
                     scale,
                     quality,
+                    args.format,
                 ): f
                 for f in files
             }
@@ -128,6 +152,8 @@ if __name__ == "__main__":
     parser.add_argument("-w", "--workers", type=int,
                         default=max(1, os.cpu_count() or 1),
                         help=f"並列スレッド数（デフォルト: CPUコア数 = {max(1, os.cpu_count() or 1)}）")
+    parser.add_argument("--format", choices=["keep", "png", "jpg"], default="keep",
+                        help="出力形式を強制変換する（keep=元の形式のまま、既定）")
 
     start = time.time()
     main(parser.parse_args())
