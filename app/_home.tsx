@@ -398,40 +398,44 @@ function FloatingEtaOverlay({
   queue,
   isProcessing,
   currentJobImages,
+  pos,
+  onPosChange,
 }: {
   queue: QueueItem[];
   isProcessing: boolean;
   currentJobImages: GalleryImage[];
+  pos: PromptPreviewPos;
+  onPosChange: (p: PromptPreviewPos) => void;
 }) {
-  const [position, setPosition] = useState({ x: -1, y: -1 });
-  const [collapsed, setCollapsed] = useState(false);
+  const [position, setPosition] = useState({ x: pos.x, y: pos.y });
+  const [collapsed, setCollapsed] = useState(pos.collapsed);
 
+  // use-pipeline.tsのlocalStorage読み込み完了(pos.xが-1から実値へ変わる)に合わせて
+  // 内部stateを同期する。他のフローティングウィンドウ(FloatingPromptPreview)と同じ方式
+  // (位置をuse-pipeline.tsのexportData/importDataの管理下に置くため、ここではローカル
+  // storageを直接読み書きしない)。
   const posLoadedRef = useRef(false);
   useEffect(() => {
     if (posLoadedRef.current) return;
-    posLoadedRef.current = true;
-    try {
-      const raw = localStorage.getItem("cp_eta_pos");
-      if (raw) {
-        const saved = JSON.parse(raw);
-        if (typeof saved.x === "number" && saved.x !== -1) {
-          setPosition({ x: saved.x, y: saved.y });
-          setCollapsed(saved.collapsed ?? false);
-          return;
-        }
-      }
-    } catch {}
-    const x = Math.max(10, window.innerWidth - 220);
-    const y = 10;
-    setPosition({ x, y });
-    localStorage.setItem("cp_eta_pos", JSON.stringify({ x, y, collapsed: false }));
-  }, []);
+    if (pos.x === -1 || pos.y === -1) {
+      const x = Math.max(10, window.innerWidth - 220);
+      const y = 10;
+      posLoadedRef.current = true;
+      setPosition({ x, y });
+      onPosChange({ x, y, collapsed: false });
+    } else {
+      posLoadedRef.current = true;
+      setPosition({ x: pos.x, y: pos.y });
+      setCollapsed(pos.collapsed);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pos.x, pos.y]);
 
   const savePos = useCallback(
-    (pos: { x: number; y: number }, col: boolean) => {
-      localStorage.setItem("cp_eta_pos", JSON.stringify({ ...pos, collapsed: col }));
+    (p: { x: number; y: number }, col: boolean) => {
+      onPosChange({ ...p, collapsed: col });
     },
-    [],
+    [onPosChange],
   );
 
   const dragging = useRef(false);
@@ -915,6 +919,8 @@ export default function Home() {
     setPanelSizes,
     promptPreviewPos,
     setPromptPreviewPos,
+    etaPos,
+    setEtaPos,
   } = pipeline;
 
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -1624,6 +1630,8 @@ export default function Home() {
         queue={queue}
         isProcessing={isProcessing}
         currentJobImages={currentJobImages}
+        pos={etaPos}
+        onPosChange={setEtaPos}
       />
 
       <FloatingPromptPreview

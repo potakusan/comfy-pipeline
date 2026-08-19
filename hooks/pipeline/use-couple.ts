@@ -75,6 +75,12 @@ function migrateConfig(raw: unknown): CoupleConfig {
 
 export function useCouple() {
   const [configs, setConfigsRaw] = useState<CoupleConfig[]>([DEFAULT_COUPLE_CONFIG]);
+  // configsはpatchActiveConfig等が関数型更新(setConfigsRaw(prev => ...))で書き込むため、
+  // 更新のたびの永続化はupdater内ではなくこのstateの変化を見るeffectに一本化する
+  // (updater内でlsSetのような外部システムへの副作用を呼ぶと、Reactがupdaterを複数回
+  // 呼び出す状況で余分な書き込みが起きうるため)。configsLoadedはロード完了前の
+  // デフォルト値でlocalStorageを上書きしないためのガード。
+  const [configsLoaded, setConfigsLoaded] = useState(false);
   const [activeConfigId, setActiveConfigIdRaw] = useState<string>(DEFAULT_COUPLE_CONFIG.id);
   // Selected IDs from normal-mode presets (count/scene shared state)
   const [selectedNormalCountId, setSelectedNormalCountIdRaw] = useState<string | null>(null);
@@ -84,16 +90,15 @@ export function useCouple() {
   useEffect(() => {
     const stored = lsGet<unknown[]>(LS.configs, [DEFAULT_COUPLE_CONFIG]);
     setConfigsRaw(stored.map(migrateConfig));
+    setConfigsLoaded(true);
     setActiveConfigIdRaw(lsGet(LS.activeId, DEFAULT_COUPLE_CONFIG.id));
     setSelectedNormalCountIdRaw(lsGet(LS.countId, null));
     setSelectedNormalSceneIdRaw(lsGet(LS.sceneId, null));
   }, []);
 
-  // --- Persist helpers ---
-  const setConfigs = useCallback((next: CoupleConfig[]) => {
-    setConfigsRaw(next);
-    lsSet(LS.configs, next);
-  }, []);
+  useEffect(() => {
+    if (configsLoaded) lsSet(LS.configs, configs);
+  }, [configsLoaded, configs]);
 
   const setActiveConfigId = useCallback((id: string) => {
     setActiveConfigIdRaw(id);
@@ -117,13 +122,9 @@ export function useCouple() {
 
   const patchActiveConfig = useCallback(
     (patch: (c: CoupleConfig) => CoupleConfig) => {
-      setConfigsRaw((prev) => {
-        const next = prev.map((c) =>
-          c.id === activeConfigId ? patch(c) : c,
-        );
-        lsSet(LS.configs, next);
-        return next;
-      });
+      setConfigsRaw((prev) =>
+        prev.map((c) => (c.id === activeConfigId ? patch(c) : c)),
+      );
     },
     [activeConfigId],
   );
@@ -143,10 +144,10 @@ export function useCouple() {
         })),
         controlNet: { ...DEFAULT_CONTROL_NET },
       };
-      setConfigs([...configs, newConfig]);
+      setConfigsRaw((prev) => [...prev, newConfig]);
       setActiveConfigId(newConfig.id);
     },
-    [configs, setConfigs, setActiveConfigId],
+    [setActiveConfigId],
   );
 
   const updateControlNet = useCallback(
@@ -161,29 +162,28 @@ export function useCouple() {
 
   const deleteConfig = useCallback(
     (id: string) => {
-      const next = configs.filter((c) => c.id !== id);
-      if (next.length === 0) {
-        const fresh: CoupleConfig = {
-          ...DEFAULT_COUPLE_CONFIG,
-          id: crypto.randomUUID(),
-          name: "デフォルト",
-        };
-        setConfigs([fresh]);
-        setActiveConfigId(fresh.id);
-      } else {
-        setConfigs(next);
-        if (activeConfigId === id) setActiveConfigId(next[0].id);
-      }
+      let nextActiveId: string | null = null;
+      setConfigsRaw((prev) => {
+        const next = prev.filter((c) => c.id !== id);
+        if (next.length === 0) {
+          const fresh: CoupleConfig = {
+            ...DEFAULT_COUPLE_CONFIG,
+            id: crypto.randomUUID(),
+            name: "デフォルト",
+          };
+          nextActiveId = fresh.id;
+          return [fresh];
+        }
+        if (activeConfigId === id) nextActiveId = next[0].id;
+        return next;
+      });
+      if (nextActiveId) setActiveConfigId(nextActiveId);
     },
-    [configs, activeConfigId, setConfigs, setActiveConfigId],
+    [activeConfigId, setActiveConfigId],
   );
 
   const renameConfig = useCallback((id: string, name: string) => {
-    setConfigsRaw((prev) => {
-      const next = prev.map((c) => (c.id === id ? { ...c, name } : c));
-      lsSet(LS.configs, next);
-      return next;
-    });
+    setConfigsRaw((prev) => prev.map((c) => (c.id === id ? { ...c, name } : c)));
   }, []);
 
   // --- Region operations ---

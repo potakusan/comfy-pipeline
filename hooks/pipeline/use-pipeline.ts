@@ -30,6 +30,7 @@ const LS = {
   gallery: "cp_gallery",
   panelSizes: "cp_panel_sizes",
   promptPreview: "cp_prompt_preview",
+  etaPos: "cp_eta_pos",
   queue: "cp_queue",
 };
 
@@ -84,6 +85,7 @@ export function usePipeline() {
   const DEFAULT_PANEL_SIZES = { left: 28, center: 38, right: 34 };
   const [panelSizes, setPanelSizesState] = useState<Record<string, number>>(DEFAULT_PANEL_SIZES);
   const [promptPreviewPos, setPromptPreviewPosState] = useState<PromptPreviewPos>(DEFAULT_PROMPT_PREVIEW);
+  const [etaPos, setEtaPosState] = useState<PromptPreviewPos>(DEFAULT_PROMPT_PREVIEW);
   const [pipelineLsLoaded, setPipelineLsLoaded] = useState(false);
 
   // Queue
@@ -96,6 +98,7 @@ export function usePipeline() {
     setBatchCount(lsGet(LS.batchCount, 4));
     setPanelSizesState(lsGet(LS.panelSizes, DEFAULT_PANEL_SIZES));
     setPromptPreviewPosState(lsGet(LS.promptPreview, DEFAULT_PROMPT_PREVIEW));
+    setEtaPosState(lsGet(LS.etaPos, DEFAULT_PROMPT_PREVIEW));
     // A "running" item mid-generation at reload time has no way to actually
     // resume (the abort controller / WS connection are gone) — put it back
     // in the pending queue instead of leaving it stuck forever.
@@ -117,6 +120,10 @@ export function usePipeline() {
   const setPromptPreviewPos = useCallback((pos: PromptPreviewPos) => {
     setPromptPreviewPosState(pos);
     lsSet(LS.promptPreview, pos);
+  }, []);
+  const setEtaPos = useCallback((pos: PromptPreviewPos) => {
+    setEtaPosState(pos);
+    lsSet(LS.etaPos, pos);
   }, []);
 
   // Queue must be started explicitly so items can be queued up (with tweaked
@@ -144,6 +151,14 @@ export function usePipeline() {
   // "reroll" = re-draw all randomness (preset/additional/variation) with a fresh seed.
   // "samePrompt" = keep the exact prompt already in flight, only change the seed.
   const redoModeRef = useRef<"reroll" | "samePrompt" | null>(null);
+  // 次バッチ継続用のsetTimeoutハンドル。アンマウント後にprocessQueueRef経由でsetStateが
+  // 呼ばれるのを防ぐため、unmount時にクリアする(下のuseEffect参照)。
+  const nextQueueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (nextQueueTimerRef.current) clearTimeout(nextQueueTimerRef.current);
+    };
+  }, []);
 
   // Current batch prompt (for preview display during generation)
   const [currentBatchPrompt, setCurrentBatchPrompt] = useState<string | null>(null);
@@ -464,7 +479,7 @@ export function usePipeline() {
     setCurrentBatchPrompt(null);
 
     if (queueRunningRef.current) {
-      setTimeout(() => processQueueRef.current?.(), 100);
+      nextQueueTimerRef.current = setTimeout(() => processQueueRef.current?.(), 100);
     }
   };
 
@@ -889,6 +904,7 @@ export function usePipeline() {
       presetCategories,
       panelSizes,
       promptPreviewPos,
+      etaPos,
       // Gallery page settings (owned by hooks/use-gallery.ts, read directly
       // from localStorage here since it's a separate page/hook).
       galleryGroupByPose: lsGet(LS_GROUP_BY_POSE, false),
@@ -917,6 +933,7 @@ export function usePipeline() {
     presetCategories,
     panelSizes,
     promptPreviewPos,
+    etaPos,
   ]);
 
   const importData = useCallback(
@@ -940,6 +957,7 @@ export function usePipeline() {
           if (Array.isArray(data.presetCategories)) setPresetCategories(data.presetCategories);
           if (data.panelSizes && typeof data.panelSizes === "object") setPanelSizes(data.panelSizes);
           if (data.promptPreviewPos && typeof data.promptPreviewPos === "object") setPromptPreviewPos(data.promptPreviewPos as PromptPreviewPos);
+          if (data.etaPos && typeof data.etaPos === "object") setEtaPos(data.etaPos as PromptPreviewPos);
           if (typeof data.galleryGroupByPose === "boolean") lsSet(LS_GROUP_BY_POSE, data.galleryGroupByPose);
         } catch (err) {
           console.error("[pipeline] Import failed:", err);
@@ -1052,5 +1070,7 @@ export function usePipeline() {
     setPanelSizes,
     promptPreviewPos,
     setPromptPreviewPos,
+    etaPos,
+    setEtaPos,
   };
 }

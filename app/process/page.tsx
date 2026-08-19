@@ -562,6 +562,11 @@ function JobProgress({
   const isRunning = job.status === "running" || job.status === "pending";
   const pct = job.total > 0 ? Math.round((job.current / job.total) * 100) : 0;
 
+  // 同一マウント内でjobが差し替わった場合(再実行等)、経過時間の基準をリセットする
+  useEffect(() => {
+    setNow(Date.now());
+  }, [job.id]);
+
   // Tick every second while running to keep ETA live
   useEffect(() => {
     if (!isRunning) return;
