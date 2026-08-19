@@ -10,6 +10,7 @@ import {
   type LmLoraItem,
 } from "@/components/pipeline/lora/lora-picker-dialog";
 import TagAutocompleteTextarea from "@/components/common/tag-autocomplete-textarea";
+import type { DanbooruPost } from "@/lib/lora-dataset/types";
 import { Library, Download } from "lucide-react";
 
 export const EMPTY_LORA: LoraEntry = {
@@ -61,13 +62,11 @@ export default function LoraFields({
     setDanbooruImporting(true);
     setDanbooruError(null);
     try {
-      const res = await fetch(`https://danbooru.donmai.us/posts/${match[1]}.json`);
-      if (!res.ok) throw new Error(`取得に失敗しました（HTTP ${res.status}）`);
+      const res = await fetch(`/api/lora-dataset/posts/${match[1]}`);
       const data = await res.json();
-      const importedTags = [
-        ...String(data.tag_string_character ?? "").split(" "),
-        ...String(data.tag_string_general ?? "").split(" "),
-      ].filter(Boolean);
+      if (!res.ok) throw new Error(data.error ?? `取得に失敗しました（HTTP ${res.status}）`);
+      const post = data.post as DanbooruPost;
+      const importedTags = [...post.tags.character, ...post.tags.general];
       if (importedTags.length === 0) {
         setDanbooruError("Character/Generalタグが見つかりませんでした");
         return;

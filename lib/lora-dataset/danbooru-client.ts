@@ -103,3 +103,25 @@ export async function searchPosts(params: {
   const data = (await res.json()) as RawDanbooruPost[];
   return data.map(normalizePost);
 }
+
+/** GET /posts/{id}.json をサーバー側から呼ぶ（searchPosts同様、UA/レート制限/認証をここに集約する）。 */
+export async function getPost(id: number): Promise<DanbooruPost | null> {
+  await throttle();
+
+  const login = getDanbooruLogin();
+  const apiKey = getDanbooruApiKey();
+
+  const url = new URL(`/posts/${id}.json`, BASE_URL);
+  if (login && apiKey) {
+    url.searchParams.set("login", login);
+    url.searchParams.set("api_key", apiKey);
+  }
+
+  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Referer: DANBOORU_REFERER } });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`Danbooru API error: HTTP ${res.status}`);
+  }
+  const data = (await res.json()) as RawDanbooruPost;
+  return normalizePost(data);
+}
