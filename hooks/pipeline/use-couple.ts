@@ -10,6 +10,7 @@ import {
   MAX_COUPLE_REGIONS,
 } from "@/lib/comfy/couple";
 import type { LoraEntry } from "@/lib/comfy";
+import { lsGet, lsSet } from "@/hooks/ls";
 
 const LS = {
   configs: "cp_couple_configs",
@@ -17,22 +18,6 @@ const LS = {
   countId: "cp_couple_count_id",
   sceneId: "cp_couple_scene_id",
 };
-
-function lsGet<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const v = localStorage.getItem(key);
-    return v ? (JSON.parse(v) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function lsSet(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
-}
 
 function migrateConfig(raw: unknown): CoupleConfig {
   const c = raw as Record<string, unknown>;
