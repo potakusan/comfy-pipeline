@@ -16,7 +16,7 @@ import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/comfy/couple"
 import type { CoupleControlNet, CoupleRegion } from "@/lib/comfy/couple";
 import { useComfyWS } from "../use-comfy-ws";
 import { lsGet, lsSet } from "@/hooks/ls";
-import { submitAndAwaitNewFiles } from "@/lib/comfy/comfy-client";
+import { submitAndAwaitNewFiles, classifyCancelError } from "@/lib/comfy/comfy-client";
 import type { GenerationMode } from "@/lib/gallery";
 import {
   resolvePresetPromptAndLoras,
@@ -404,17 +404,17 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
 
         updateQueueItem(pendingItem.id, { currentBatch: batch + 1 });
       } catch (e) {
-        const msg = (e as Error).message;
-        if (msg === "Cancelled") {
-          if (redoModeRef.current) {
-            abortControllerRef.current = null;
-            batch--;
-            continue;
-          }
+        const outcome = classifyCancelError(e, !!redoModeRef.current);
+        if (outcome === "retry") {
+          abortControllerRef.current = null;
+          batch--;
+          continue;
+        }
+        if (outcome === "cancelled") {
           updateQueueItem(pendingItem.id, { status: "cancelled" });
           cancelledItemIdRef.current = null;
         } else {
-          console.error(`[pipeline] batch ${batch} error:`, msg);
+          console.error(`[pipeline] batch ${batch} error:`, (e as Error).message);
           updateQueueItem(pendingItem.id, { status: "failed" });
         }
         failed = true;

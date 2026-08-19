@@ -2,7 +2,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { buildWorkflow } from "@/lib/comfy";
 import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/comfy/couple";
-import { submitAndAwaitNewFiles } from "@/lib/comfy/comfy-client";
+import { submitAndAwaitNewFiles, classifyCancelError } from "@/lib/comfy/comfy-client";
 import { useComfyWS } from "@/hooks/use-comfy-ws";
 import { lsGet, lsSet } from "@/hooks/ls";
 import {
@@ -299,11 +299,11 @@ export function useGallery() {
           const idx = newVisible.findIndex((i) => i.filename === newFilename);
           if (idx >= 0) setSelectedIndex(idx);
         } catch (e) {
-          const msg = (e as Error).message;
-          if (msg === "Cancelled" && redoRequestedRef.current) {
+          const outcome = classifyCancelError(e, redoRequestedRef.current);
+          if (outcome === "retry") {
             attempting = true; // loop back with a fresh seed
-          } else if (msg !== "Cancelled") {
-            setError(msg);
+          } else if (outcome === "error") {
+            setError((e as Error).message);
           }
         }
       }

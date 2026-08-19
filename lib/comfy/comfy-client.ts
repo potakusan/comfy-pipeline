@@ -97,3 +97,19 @@ export async function submitAndAwaitNewFiles(
   const filesAfter = await listOutputFiles(folder);
   return filesAfter.filter((f) => !filesBefore.includes(f));
 }
+
+export type CancelOutcome = "retry" | "cancelled" | "error";
+
+/**
+ * submitAndAwaitNewFilesが投げた例外を3通りに分類する: 上の"Cancelled"規約に基づき、
+ * redoが要求されていれば"retry"(同じ内容で再試行すべき)、redo無しの単純
+ * キャンセルなら"cancelled"、それ以外の例外なら"error"。リトライループ本体
+ * (forで回すか/whileで回すか、成功時の後処理等)は呼び出し元ごとに異なるため
+ * ここには含めないが、この分岐ロジック自体はuse-pipeline-queue.ts(バッチキュー)と
+ * use-gallery.ts(単体再生成)で同一実装だったため共通化する。
+ */
+export function classifyCancelError(error: unknown, redoRequested: boolean): CancelOutcome {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message === "Cancelled") return redoRequested ? "retry" : "cancelled";
+  return "error";
+}
