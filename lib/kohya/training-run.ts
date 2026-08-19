@@ -25,7 +25,8 @@ export function startTraining(params: TrainingParams): { jobId: string } | { err
 
   const checkpointDir = getCheckpointDir();
   if (!checkpointDir) return { error: "チェックポイントフォルダが設定されていません" };
-  const checkpointPath = path.join(checkpointDir, params.checkpointFileName);
+  const checkpointFileName = path.basename(params.checkpointFileName);
+  const checkpointPath = path.join(checkpointDir, checkpointFileName);
   if (!fs.existsSync(checkpointPath)) return { error: `チェックポイントが見つかりません: ${params.checkpointFileName}` };
 
   const loraDir = getLoraDir();
