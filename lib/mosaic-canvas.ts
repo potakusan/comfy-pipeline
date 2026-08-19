@@ -120,10 +120,17 @@ export function applyMosaicToPath(
   ctx.drawImage(work, x0, y0);
 }
 
-/** 保存時のcanvas.toBlobに渡すMIMEタイプを拡張子から決定する（png/jpg/jpeg/webp対応、それ以外はpng）。 */
-export function mimeFromExt(filename: string): string {
+/**
+ * 保存時のcanvas.toBlobに渡すMIMEタイプを拡張子から決定する。
+ * canvas.toBlobがネイティブに再エンコードできるのはpng/jpeg/webpのみで、
+ * gif/avif等はサポート対象外のtypeを渡しても黙ってpngにフォールバックしてしまい、
+ * 拡張子はgif/avifのままpngバイト列で上書きされる（拡張子と内容の不一致）。
+ * それを防ぐため、対応外の拡張子はnullを返し呼び出し側で保存を止める。
+ */
+export function mimeFromExt(filename: string): string | null {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "png") return "image/png";
   if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
   if (ext === "webp") return "image/webp";
-  return "image/png";
+  return null;
 }

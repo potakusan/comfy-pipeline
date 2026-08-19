@@ -157,6 +157,7 @@ export default function GalleryMosaicEditor({
     setSaveError(null);
     try {
       const mime = mimeFromExt(filename);
+      if (!mime) throw new Error("この画像形式(gif/avif等)は手動編集の保存に対応していません");
       const blob: Blob | null = await new Promise((resolve) =>
         canvas.toBlob((b) => resolve(b), mime, 0.92),
       );

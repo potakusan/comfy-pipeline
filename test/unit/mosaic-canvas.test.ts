@@ -27,8 +27,9 @@ describe("mimeFromExt", () => {
     expect(mimeFromExt("out.webp")).toBe("image/webp");
   });
 
-  it("falls back to png for unknown/missing extensions", () => {
-    expect(mimeFromExt("out.avif")).toBe("image/png");
-    expect(mimeFromExt("out")).toBe("image/png");
+  it("returns null for extensions canvas.toBlob can't natively re-encode (gif/avif/unknown)", () => {
+    expect(mimeFromExt("out.gif")).toBeNull();
+    expect(mimeFromExt("out.avif")).toBeNull();
+    expect(mimeFromExt("out")).toBeNull();
   });
 });
