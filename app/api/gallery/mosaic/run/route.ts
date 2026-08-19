@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { startProcessRun, type RunRequest } from "@/lib/process/process-run";
 import type { MosaicConfigValue } from "@/components/common/mosaic-config";
 
-const DEFAULT_GALLERY_RESIZE = { scalePercent: 40, quality: 92 };
+const DEFAULT_GALLERY_RESIZE = {
+  scalePercent: 40,
+  quality: 92,
+  convertFormat: "keep" as const,
+  convertQuality: 100,
+};
 
 /** POST /api/gallery/mosaic/run
  *  Body: { folder: string, mosaic: MosaicConfigValue, resize?: { scalePercent: number, quality: number } }
