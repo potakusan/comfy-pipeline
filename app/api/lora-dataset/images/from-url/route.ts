@@ -7,6 +7,7 @@ import { tagImageFile } from "@/lib/lora-dataset/tagger";
 import { ALLOWED_IMAGE_EXT } from "@/lib/lora-dataset/types";
 import { validateTaggerAvailable } from "@/lib/kohya/paths";
 import { apiError } from "@/lib/server/api-error";
+import { assertPublicHttpUrl } from "@/lib/server/ssrf-guard";
 
 const USER_AGENT = "ComfyPipeline/1.0 (LoRA dataset builder; +https://github.com/)";
 const DOWNLOAD_TIMEOUT_MS = 20_000;
@@ -32,15 +33,8 @@ export async function POST(req: NextRequest) {
   const { folder, url } = (await req.json()) as { folder: string; url: string };
   if (!folder || !url) return NextResponse.json({ error: "folder and url required" }, { status: 400 });
 
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(url);
-  } catch {
-    return NextResponse.json({ error: "不正なURLです" }, { status: 400 });
-  }
-  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-    return NextResponse.json({ error: "http/httpsのURLを指定してください" }, { status: 400 });
-  }
+  const urlError = await assertPublicHttpUrl(url);
+  if (urlError) return NextResponse.json({ error: urlError }, { status: 400 });
 
   const taggerError = validateTaggerAvailable();
   if (taggerError) return NextResponse.json({ error: taggerError }, { status: 400 });

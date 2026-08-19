@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { getLoraDatasetDir } from "@/lib/setup/config";
 import { safePath } from "@/lib/server/output-dir";
+import { assertPublicHttpUrl } from "@/lib/server/ssrf-guard";
 import { buildCaption, reconcileTagLists } from "./caption-format";
 import { DANBOORU_REFERER, USER_AGENT } from "./danbooru-client";
 import {
@@ -238,7 +239,11 @@ export async function addImage(
   if (!post.fileUrl || !ALLOWED_IMAGE_EXT.has(post.fileExt)) {
     return { error: "この投稿は画像として取得できません" };
   }
+  if (!Number.isInteger(post.id) || post.id < 0) return { error: "不正な投稿IDです" };
   if (hasImage(folder, post.id)) return { error: "既にこのデータセットに追加されています" };
+
+  const urlError = await assertPublicHttpUrl(post.fileUrl);
+  if (urlError) return { error: urlError };
 
   const res = await fetch(post.fileUrl, {
     headers: { "User-Agent": USER_AGENT, Referer: DANBOORU_REFERER },
