@@ -31,7 +31,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const buffer = Buffer.from(await req.arrayBuffer());
-    fs.writeFileSync(fullPath, buffer);
+    // fs.writeFileSync(fullPath, ...) truncates the existing file in place, which fails
+    // with an opaque "UNKNOWN" error on Windows when another process (e.g. Explorer's
+    // thumbnail/preview pane) holds a memory-mapped read handle on it. Writing to a temp
+    // file and renaming over the original is an atomic replace that doesn't truncate the
+    // original, so it isn't blocked by that lock.
+    const tmpPath = `${fullPath}.tmp-${Date.now()}`;
+    fs.writeFileSync(tmpPath, buffer);
+    fs.renameSync(tmpPath, fullPath);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Failed to save" }, { status: 500 });
