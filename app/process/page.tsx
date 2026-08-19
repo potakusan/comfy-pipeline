@@ -798,6 +798,7 @@ export default function ProcessPage() {
     total: number;
     localPath: string;
   } | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -910,6 +911,19 @@ export default function ProcessPage() {
     };
   }, []);
 
+  const failJob = (message: string) => {
+    setJob({
+      id: "run-error",
+      status: "failed",
+      total: 0,
+      current: 0,
+      log: [message],
+      processedImages: [],
+      results: [],
+      startedAt: Date.now(),
+    });
+  };
+
   const handleRun = async () => {
     if (!selectedFolder || (!mosaicConfig.enabled && !resizeConfig.enabled))
       return;
@@ -917,6 +931,7 @@ export default function ProcessPage() {
     setJob(null);
     setJobId(null);
     setSyncResult(null);
+    setSyncError(null);
     setLogOpen(true);
     try {
       if (localMode) {
@@ -928,18 +943,14 @@ export default function ProcessPage() {
             body: JSON.stringify({ folder: selectedFolder }),
           });
           if (!uploadRes.ok) {
-            setJob({
-              id: "upload-error",
-              status: "failed",
-              total: 0,
-              current: 0,
-              log: ["リモートへのアップロードに失敗しました"],
-              processedImages: [],
-              results: [],
-              startedAt: Date.now(),
-            });
+            failJob("リモートへのアップロードに失敗しました");
             return;
           }
+        } catch (e) {
+          failJob(
+            `リモートへのアップロードに失敗しました: ${e instanceof Error ? e.message : String(e)}`,
+          );
+          return;
         } finally {
           setUploading(false);
         }
@@ -949,12 +960,18 @@ export default function ProcessPage() {
         mosaic: mosaicConfig,
         resize: { ...resizeConfig, scalePercent: effectiveScale },
       };
-      const res = await fetch("/api/process/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
+      let data: { jobId?: string; error?: string };
+      try {
+        const res = await fetch("/api/process/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        data = await res.json();
+      } catch (e) {
+        failJob(`実行リクエストに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      }
       if (data.jobId) {
         setJobId(data.jobId);
         setJob({
@@ -967,6 +984,8 @@ export default function ProcessPage() {
           results: [],
           startedAt: Date.now(),
         });
+      } else {
+        failJob(data.error ?? "実行に失敗しました");
       }
     } finally {
       setSubmitting(false);
@@ -978,6 +997,7 @@ export default function ProcessPage() {
     const sub = mosaicConfig.enabled ? "mosaic" : "resized";
     setSyncing(true);
     setSyncResult(null);
+    setSyncError(null);
     try {
       const res = await fetch("/api/process/sync", {
         method: "POST",
@@ -986,6 +1006,9 @@ export default function ProcessPage() {
       });
       const data = await res.json();
       if (res.ok) setSyncResult(data);
+      else setSyncError(data.error ?? "ローカルフォルダへの保存に失敗しました");
+    } catch (e) {
+      setSyncError(`ローカルフォルダへの保存に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setSyncing(false);
     }
@@ -1196,6 +1219,11 @@ export default function ProcessPage() {
                         )}
                         {syncing ? "保存中..." : "ローカルフォルダに保存"}
                       </button>
+                    )}
+                    {syncError && (
+                      <p className="rounded border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-[11px] text-destructive">
+                        {syncError}
+                      </p>
                     )}
                     {syncResult && (
                       <div className="rounded border border-border bg-muted/30 px-2.5 py-2 text-[11px] space-y-0.5">
