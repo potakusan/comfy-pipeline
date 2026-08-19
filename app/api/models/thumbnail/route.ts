@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { getLoraDir, getCheckpointDir, getRemoteProcessUrl } from '@/lib/setup/config';
+import { proxyBinary } from '@/lib/server/remote-proxy';
 
 const MIME: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -13,14 +14,7 @@ const MIME: Record<string, string> = {
 export async function GET(req: NextRequest) {
   const remoteUrl = getRemoteProcessUrl();
   if (remoteUrl) {
-    const res = await fetch(`${remoteUrl}/api/models/thumbnail?${req.nextUrl.searchParams}`);
-    if (!res.ok) return new NextResponse('Not found', { status: res.status });
-    return new NextResponse(await res.arrayBuffer(), {
-      headers: {
-        'Content-Type': res.headers.get('Content-Type') ?? 'image/jpeg',
-        'Cache-Control': 'public, max-age=86400',
-      },
-    });
+    return proxyBinary(remoteUrl, `/api/models/thumbnail?${req.nextUrl.searchParams}`, 'image/jpeg');
   }
   const type = req.nextUrl.searchParams.get('type');
   const name = req.nextUrl.searchParams.get('name');

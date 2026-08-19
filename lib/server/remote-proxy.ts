@@ -17,3 +17,25 @@ export async function proxyJson(
   const res = await fetch(`${remoteUrl}${path}`, init);
   return NextResponse.json(await res.json(), { status: res.status });
 }
+
+/**
+ * リモートのバイナリレスポンス(画像等)をstatus・Content-Typeごと転送する。
+ * models/thumbnailで使用。フォールバック値の有無・ローカルファイル存在チェック
+ * 付きの条件分岐等、単純な無条件転送でないルート(comfy/output/thumbnail等)は
+ * このヘルパーの対象外。
+ */
+export async function proxyBinary(
+  remoteUrl: string,
+  path: string,
+  fallbackContentType: string,
+  init?: RequestInit,
+): Promise<NextResponse> {
+  const res = await fetch(`${remoteUrl}${path}`, init);
+  if (!res.ok) return new NextResponse("Not found", { status: res.status });
+  return new NextResponse(await res.arrayBuffer(), {
+    headers: {
+      "Content-Type": res.headers.get("Content-Type") ?? fallbackContentType,
+      "Cache-Control": "public, max-age=86400",
+    },
+  });
+}

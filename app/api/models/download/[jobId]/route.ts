@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getJob } from '@/lib/models/download-jobs';
 import { getRemoteProcessUrl } from '@/lib/setup/config';
+import { proxyJson } from '@/lib/server/remote-proxy';
 
 export async function GET(
   _req: NextRequest,
@@ -11,8 +12,7 @@ export async function GET(
   const remoteUrl = getRemoteProcessUrl();
   if (remoteUrl && jobId.startsWith('remote:')) {
     const realJobId = jobId.slice('remote:'.length);
-    const res = await fetch(`${remoteUrl}/api/models/download/${realJobId}`);
-    return NextResponse.json(await res.json(), { status: res.status });
+    return proxyJson(remoteUrl, `/api/models/download/${realJobId}`);
   }
 
   const job = getJob(jobId);
