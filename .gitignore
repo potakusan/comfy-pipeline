@@ -49,3 +49,5 @@ lib/config.ts
 *.pt
 *.pyc
 */venv/
+lora-datasets/
+.comfy-pipeline.json

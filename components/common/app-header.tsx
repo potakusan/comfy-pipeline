@@ -2,12 +2,12 @@
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { HardDrive, Wand2, Images, Settings } from "lucide-react";
+import { HardDrive, Wand2, Images, Settings, Tags } from "lucide-react";
 import ModelManagerDialog from "@/components/models/model-manager-dialog";
 import SettingsDialog from "@/components/settings/settings-dialog";
 import type { LoraEntry } from "@/lib/comfy";
 
-export type AppHeaderActive = "home" | "process" | "gallery" | "setup";
+export type AppHeaderActive = "home" | "process" | "gallery" | "setup" | "lora-dataset";
 
 interface AppHeaderProps {
   active: AppHeaderActive;
@@ -82,6 +82,18 @@ export default function AppHeader({
             <a href="/gallery">
               <Images className="h-3.5 w-3.5" />
               ギャラリー
+            </a>
+          </Button>
+          <Separator orientation="vertical" className="h-4" />
+        </>
+      )}
+
+      {active !== "lora-dataset" && (
+        <>
+          <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
+            <a href="/lora-dataset">
+              <Tags className="h-3.5 w-3.5" />
+              LoRAデータセット
             </a>
           </Button>
           <Separator orientation="vertical" className="h-4" />

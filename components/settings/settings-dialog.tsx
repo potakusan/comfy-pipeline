@@ -47,6 +47,20 @@ const FIELD_GROUPS: { title: string; fields: { key: FieldKey; label: string; pla
     title: "その他",
     fields: [{ key: "civitaiApiKey", label: "Civitai API Key" }],
   },
+  {
+    title: "LoRAデータセット",
+    fields: [
+      { key: "loraDatasetDir", label: "データセット保存フォルダ (LORA_DATASET_DIR)" },
+      { key: "danbooruLogin", label: "Danbooru ユーザー名" },
+      { key: "danbooruApiKey", label: "Danbooru API Key" },
+    ],
+  },
+  {
+    title: "Kohya's GUI / LoRA学習",
+    fields: [
+      { key: "kohyaGuiPath", label: "Kohya's GUI / sd-scriptsインストールフォルダ" },
+    ],
+  },
 ];
 
 export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {

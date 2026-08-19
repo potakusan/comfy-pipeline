@@ -14,6 +14,10 @@ export interface SetupConfig {
   upscalerDir?: string
   remoteProcessUrl?: string
   civitaiApiKey?: string
+  loraDatasetDir?: string
+  danbooruLogin?: string
+  danbooruApiKey?: string
+  kohyaGuiPath?: string
 }
 
 export function readSetupConfig(): SetupConfig {
@@ -37,6 +41,11 @@ export function validateSetupConfig(config: Partial<SetupConfig>): string | null
   if (config.comfyuiPath !== undefined && config.comfyuiPath !== "") {
     if (!fs.existsSync(config.comfyuiPath) || !fs.statSync(config.comfyuiPath).isDirectory()) {
       return `comfyuiPathが存在するディレクトリではありません: ${config.comfyuiPath}`
+    }
+  }
+  if (config.kohyaGuiPath !== undefined && config.kohyaGuiPath !== "") {
+    if (!fs.existsSync(config.kohyaGuiPath) || !fs.statSync(config.kohyaGuiPath).isDirectory()) {
+      return `kohyaGuiPathが存在するディレクトリではありません: ${config.kohyaGuiPath}`
     }
   }
   return null
@@ -71,6 +80,10 @@ const FIELD_ENV_MAP: Record<keyof SetupConfig, string> = {
   upscalerDir: "COMFYUI_UPSCALER_DIR",
   remoteProcessUrl: "REMOTE_PROCESS_URL",
   civitaiApiKey: "CIVITAI_API_KEY",
+  loraDatasetDir: "LORA_DATASET_DIR",
+  danbooruLogin: "DANBOORU_LOGIN",
+  danbooruApiKey: "DANBOORU_API_KEY",
+  kohyaGuiPath: "KOHYA_GUI_PATH",
 }
 
 /** Fields currently pinned by an environment variable (settings UI should disable these). */
@@ -129,4 +142,20 @@ export function getRemoteProcessUrl(): string | undefined {
 
 export function getCivitaiApiKey(): string | undefined {
   return getOptionalField("civitaiApiKey")
+}
+
+export function getLoraDatasetDir(): string {
+  return getField("loraDatasetDir", path.join(process.cwd(), "lora-datasets"))
+}
+
+export function getDanbooruLogin(): string | undefined {
+  return getOptionalField("danbooruLogin")
+}
+
+export function getDanbooruApiKey(): string | undefined {
+  return getOptionalField("danbooruApiKey")
+}
+
+export function getKohyaGuiPath(): string {
+  return getField("kohyaGuiPath", "")
 }

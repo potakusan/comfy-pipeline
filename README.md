@@ -60,6 +60,17 @@ COMFYUI_CHECKPOINT_DIR=C:/path/to/ComfyUI/models/checkpoints
 
 # Civitai からのモデルダウンロードに使用（任意）
 CIVITAI_API_KEY=
+
+# LoRA学習データセット(Danbooru連携)の保存先フォルダ（任意、未指定時は ./lora-datasets）
+LORA_DATASET_DIR=
+
+# Danbooru API 認証情報（任意。R-18/Explicit投稿の取得にはアカウントのAPI Keyが必要）
+DANBOORU_LOGIN=
+DANBOORU_API_KEY=
+
+# Kohya's GUI / sd-scripts のインストールフォルダ（venv・sd-scriptsサブモジュールを含むkohya_ssのルート、任意）
+# /lora-dataset からKohya's GUIを経由せず直接LoRA学習を実行するのに使用
+KOHYA_GUI_PATH=
 ```
 
 > `.env.example` に載っていない `COMFYUI_UPSCALER_DIR`（アップスケールモデルのディレクトリ）や `REMOTE_PROCESS_URL`（リモートモード先 URL）、`comfyuiApiKey` などは、起動後にアプリ内の「設定」ダイアログから設定することもできます。環境変数を設定した項目は設定ダイアログ側では変更不可（優先度: 環境変数 > `.comfy-pipeline.json` > デフォルト値）として表示されます。
@@ -97,6 +108,7 @@ ComfyUI 本体が未導入の場合や初回セットアップを自動化した
 
 - `/gallery` — 生成画像をフォルダ単位で閲覧・選別・再生成するギャラリー専用ページ
 - `/process` — automosaic / リサイズを実行する画像処理ツール（ローカル・リモート両対応）
+- `/lora-dataset` — Danbooruから選択的に画像・タグを収集し、Kohya's GUI互換のLoRA学習データセットを作成するページ
 - `/setup` — 初回セットアップウィザード（未セットアップ環境でアクセスすると表示）
 
 ---
@@ -207,6 +219,28 @@ ComfyUI 本体が未導入の場合や初回セットアップを自動化した
 - **再生成（リビジョン）** — 気に入らない画像を同条件で再生成し、`<元ファイル名>_rev_0001` のように連番を振って元画像と紐付けて保存
 - **モザイク適用** — ギャラリーのフォルダに対して直接 automosaic を実行（`/process` と同じ処理基盤を再利用）
 - リモートモード時、再生成した画像はリモートマシンから自動でダウンロードされてローカルに同期されます
+
+### LoRAデータセット作成（`/lora-dataset`）
+
+[Danbooru API](https://danbooru.donmai.us/wiki_pages/help:api) を使って、Kohya's GUIでのLoRA学習に使う「画像+キャプション」データセットを選択的に収集・編集するページです。
+
+1. データセット（名前・繰り返し回数・トリガーワード・キャプションに含めるタグカテゴリ）を作成
+2. Danbooruをタグ検索し、学習に使いたい画像を選んでデータセットへ追加（画像＋タグを取得してローカルに保存）
+3. 追加した画像ごとにタグを確認し、不要なタグを削除・新しいタグを追加
+4. `LORA_DATASET_DIR/<繰り返し回数>_<名前>/` 以下に `<danbooruID>.png` + `<danbooruID>.txt`（キャプション）のペアとして保存され、Kohya's GUIの学習画像フォルダとしてそのまま指定できる
+
+R-18/Explicit投稿を取得するにはDanbooruアカウントのAPI Key（設定ダイアログまたは`DANBOORU_LOGIN`/`DANBOORU_API_KEY`）が必要です。Kohya's GUIをリモート（GPU）マシンで実行している場合は、完成したデータセットフォルダを「リモートへ同期」ボタンでそのマシンへ転送できます（`REMOTE_PROCESS_URL`設定時のみ表示）。
+
+#### LoRA学習（Kohya's GUIを経由しない直接実行）
+
+ページ上部の「LoRA学習」ボタンから、Kohya's GUI（Gradio UI）を起動せずcomfy-pipeline上で直接LoRA学習を実行できます。裏側ではkohya_ssのvenv内`accelerate`から`sd-scripts/sdxl_train_network.py`を直接呼び出しており、Kohya's GUIが内部で行っているのと同じ処理（学習パラメータをTOML化して`accelerate launch`する）をKohya's GUIを介さず行っています。
+
+- 対応は **SDXL + Standard LoRA（`networks.lora`）** のみ（LyCORIS/Flux/SD3等は対象外）
+- モーダル内でベースモデル（`COMFYUI_CHECKPOINT_DIR`、モデルマネージャーと共通）・出力名・解像度・network dim/alpha・学習率・バッチサイズ・epoch数・optimizer・mixed precision・シードを設定して学習を開始
+- 学習データは対象データセットのフォルダを直接指定するため、`LORA_DATASET_DIR`に他のデータセットが同居していても混ざらない
+- 進捗ログをモーダル内にリアルタイム表示、「停止」で学習プロセスをツリーごと終了できる
+- 完成したLoRAは`COMFYUI_LORA_DIR`に保存され、モデルマネージャー・生成パイプラインからそのまま使用可能
+- 利用には設定ダイアログまたは`KOHYA_GUI_PATH`で、venv・`sd-scripts`サブモジュールを含むkohya_ssのインストールフォルダを指定しておく必要がある
 
 ### モデルマネージャー
 
