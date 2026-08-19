@@ -829,27 +829,34 @@ export default function ProcessPage() {
     setEstimate(null);
   }, [localMode]);
 
-  // Estimate size when folder or scale changes
+  // Estimate size when folder or scale changes.
+  // scalePercentはスライダーのドラッグ中に連続更新されるため、デバウンスを挟んで
+  // ドラッグ中の連続APIコールを防ぐ(止まってから300ms後に1回だけ呼ぶ)。
   useEffect(() => {
     if (!selectedFolder) {
       setEstimate(null);
       return;
     }
     const controller = new AbortController();
-    fetch("/api/process/estimate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        folder: selectedFolder,
-        scalePercent: resizeConfig.scalePercent,
-        local: localMode,
-      }),
-      signal: controller.signal,
-    })
-      .then((r) => r.json())
-      .then(setEstimate)
-      .catch(() => {});
-    return () => controller.abort();
+    const timer = setTimeout(() => {
+      fetch("/api/process/estimate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folder: selectedFolder,
+          scalePercent: resizeConfig.scalePercent,
+          local: localMode,
+        }),
+        signal: controller.signal,
+      })
+        .then((r) => r.json())
+        .then(setEstimate)
+        .catch(() => {});
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [selectedFolder, resizeConfig.scalePercent, localMode]);
 
   // Poll job status
