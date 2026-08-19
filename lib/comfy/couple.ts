@@ -230,6 +230,39 @@ export function applySelectedPresets(
   };
 }
 
+/**
+ * count/sceneプリセットIDを解決し、各regionへ選択中プリセットのプロンプトを反映した上で
+ * buildCouplePromptへ渡す一連の処理。プレビュー用計算とhandleAddToQueueの両方で
+ * 同一の「count/scene解決→applySelectedPresets→buildCouplePrompt」処理列が
+ * 個別実装されていたため共通化した。
+ */
+export function resolveCouplePromptAndRegions(input: {
+  activeConfig: CoupleConfig;
+  countPresetId: string | null;
+  scenePresetId: string | null;
+  countPresets: Preset[];
+  scenePresets: Preset[];
+  physicalPresets: Preset[];
+  posePresets: Preset[];
+  otherPresets: Preset[];
+  fixedTags: string;
+}): { positivePrompt: string; effectiveRegions: CoupleRegion[]; selectedScene: Preset | null } {
+  const selectedCount = input.countPresets.find((p) => p.id === input.countPresetId) ?? null;
+  const selectedScene = input.scenePresets.find((p) => p.id === input.scenePresetId) ?? null;
+  const allPresets = [...input.physicalPresets, ...input.posePresets, ...input.otherPresets];
+  const effectiveRegions = input.activeConfig.regions.map((r) =>
+    applySelectedPresets(r, allPresets),
+  );
+  const positivePrompt = buildCouplePrompt({
+    fixedTags: input.fixedTags,
+    basePrompt: input.activeConfig.basePrompt,
+    countPrompt: selectedCount?.prompt ?? "",
+    scenePrompt: selectedScene?.prompt ?? "",
+    regions: effectiveRegions,
+  });
+  return { positivePrompt, effectiveRegions, selectedScene };
+}
+
 /** Assembles the prompt text sent to RegionalConditioningColorMask for one region. */
 export function buildRegionPrompt(region: CoupleRegion): string {
   const parts = [

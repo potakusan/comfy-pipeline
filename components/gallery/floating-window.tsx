@@ -13,6 +13,8 @@ type ResizeEdge = "e" | "s" | "se" | "sw" | "w" | null;
 export default function FloatingWindow({
   title,
   icon,
+  badges,
+  titleActions,
   pos,
   onPosChange,
   defaultWidth = 380,
@@ -24,6 +26,10 @@ export default function FloatingWindow({
 }: {
   title: string;
   icon?: ReactNode;
+  /** Rendered right after the title text (e.g. status badges). */
+  badges?: ReactNode;
+  /** Rendered in the title bar's trailing area, before the collapse chevron (e.g. an action button). */
+  titleActions?: ReactNode;
   pos: FloatingWindowPos;
   onPosChange: (p: FloatingWindowPos) => void;
   defaultWidth?: number;
@@ -31,7 +37,7 @@ export default function FloatingWindow({
   minWidth?: number;
   minHeight?: number;
   /** Where to place the window the very first time (before any saved position exists). */
-  initialPlacement?: "bottom-right" | "center";
+  initialPlacement?: "bottom-right" | "bottom-left" | "top-right" | "center";
   children: ReactNode;
 }) {
   const [position, setPosition] = useState({ x: pos.x, y: pos.y });
@@ -51,11 +57,15 @@ export default function FloatingWindow({
       const x =
         initialPlacement === "center"
           ? Math.max(10, (window.innerWidth - size.w) / 2)
-          : Math.max(10, window.innerWidth - size.w - 20);
+          : initialPlacement === "bottom-left"
+            ? 10
+            : Math.max(10, window.innerWidth - size.w - 20);
       const y =
         initialPlacement === "center"
           ? Math.max(10, (window.innerHeight - size.h) / 2)
-          : Math.max(10, window.innerHeight - size.h - 20);
+          : initialPlacement === "top-right"
+            ? 10
+            : Math.max(10, window.innerHeight - size.h - 20);
       posLoadedRef.current = true;
       setPosition({ x, y });
       onPosChange({ x, y, collapsed: false, width: size.w, height: size.h });
@@ -150,7 +160,9 @@ export default function FloatingWindow({
         <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
           {title}
         </span>
+        {badges}
         <div className="ml-auto flex items-center gap-1.5">
+          {titleActions}
           {collapsed ? (
             <ChevronDown className="h-3 w-3 text-muted-foreground" />
           ) : (
