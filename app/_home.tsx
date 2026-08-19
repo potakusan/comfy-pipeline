@@ -42,7 +42,8 @@ import {
 import { Wifi, WifiOff, Download, Upload } from "lucide-react";
 import LeftIconNav, { type LeftSectionId } from "@/components/pipeline/left-icon-nav";
 import Section from "@/components/pipeline/section";
-import GpuMonitor, { type SysSnapshot } from "@/components/pipeline/gpu-monitor";
+import GpuMonitor from "@/components/pipeline/gpu-monitor";
+import { useSysMonitor } from "@/hooks/use-sys-monitor";
 import EtaWindow from "@/components/pipeline/eta-window";
 import PromptPreviewWindow from "@/components/pipeline/prompt-preview-window";
 
@@ -343,38 +344,8 @@ export default function Home() {
   addToQueueRef.current = handleAddToQueue;
 
   // GPU monitor state
-  const [gpuSnapshots, setGpuSnapshots] = useState<SysSnapshot[]>([]);
+  const { snapshots: gpuSnapshots } = useSysMonitor();
   const [gpuCollapsed, setGpuCollapsed] = useState(false);
-
-  useEffect(() => {
-    const poll = async () => {
-      try {
-        const res = await fetch("/api/process/sysinfo");
-        if (!res.ok) return;
-        const data = await res.json();
-        setGpuSnapshots((prev) => [
-          ...prev.slice(-59),
-          {
-            t: Date.now(),
-            cpu: data.cpu ?? 0,
-            gpu: data.gpu ?? null,
-            vramPct:
-              data.vramUsed != null && data.vramTotal > 0
-                ? Math.round((data.vramUsed / data.vramTotal) * 100)
-                : null,
-            vramUsed: data.vramUsed ?? null,
-            vramTotal: data.vramTotal ?? null,
-            gpuName: data.gpuName ?? null,
-          },
-        ]);
-      } catch {
-        // ignore network errors
-      }
-    };
-    poll();
-    const id = setInterval(poll, 2000);
-    return () => clearInterval(id);
-  }, []);
 
   const currentItem = queue.find((i) => i.status === "running") ?? null;
   const pendingCount = queue.filter((i) => i.status === "pending").length;

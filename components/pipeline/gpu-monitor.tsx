@@ -1,15 +1,8 @@
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import type { SysSnapshot } from "@/hooks/use-sys-monitor";
 
-export type SysSnapshot = {
-  t: number;
-  cpu: number;
-  gpu: number | null;
-  vramPct: number | null;
-  vramUsed: number | null;
-  vramTotal: number | null;
-  gpuName: string | null;
-};
+export type { SysSnapshot };
 
 function GpuStatPill({
   label,

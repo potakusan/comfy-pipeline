@@ -1,12 +1,4 @@
-export type SysSnapshot = {
-  t: number;
-  cpu: number;
-  gpu: number | null;
-  vramPct: number | null;
-  vramUsed: number | null;
-  vramTotal: number | null;
-  gpuName: string | null;
-};
+export type { SysSnapshot } from "@/hooks/use-sys-monitor";
 
 export function fmtBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

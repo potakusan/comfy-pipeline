@@ -22,13 +22,13 @@ import {
   DEFAULT_MOSAIC,
 } from "@/components/common/mosaic-config";
 import {
-  type SysSnapshot,
   fmtBytes,
   DEFAULT_RESIZE,
   calcAutoScale,
   estimateFormatMultiplier,
   thumbUrl,
 } from "@/components/process/process-helpers";
+import { useSysMonitor } from "@/hooks/use-sys-monitor";
 import ResourceMonitor from "@/components/process/resource-monitor";
 import FolderPickerModal from "@/components/process/folder-picker-modal";
 import ConfigSection from "@/components/process/config-section";
@@ -102,9 +102,7 @@ export default function ProcessPage() {
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Sysinfo polling
-  const [snapshots, setSnapshots] = useState<SysSnapshot[]>([]);
-  const sysinfoRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { snapshots } = useSysMonitor();
 
   const loadDirs = useCallback(async () => {
     setLoadingDirs(true);
@@ -184,39 +182,6 @@ export default function ProcessPage() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [jobId]);
-
-  // Sysinfo polling — always on, 2 s interval
-  useEffect(() => {
-    const poll = async () => {
-      try {
-        const res = await fetch("/api/process/sysinfo");
-        if (!res.ok) return;
-        const data = await res.json();
-        setSnapshots((prev) => [
-          ...prev.slice(-59),
-          {
-            t: Date.now(),
-            cpu: data.cpu ?? 0,
-            gpu: data.gpu ?? null,
-            vramPct:
-              data.vramUsed != null && data.vramTotal > 0
-                ? Math.round((data.vramUsed / data.vramTotal) * 100)
-                : null,
-            vramUsed: data.vramUsed ?? null,
-            vramTotal: data.vramTotal ?? null,
-            gpuName: data.gpuName ?? null,
-          },
-        ]);
-      } catch {
-        // ignore network errors
-      }
-    };
-    poll();
-    sysinfoRef.current = setInterval(poll, 2000);
-    return () => {
-      if (sysinfoRef.current) clearInterval(sysinfoRef.current);
-    };
-  }, []);
 
   const failJob = (message: string) => {
     setJob({
