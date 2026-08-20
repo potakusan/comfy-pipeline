@@ -23,12 +23,13 @@ export async function POST(req: NextRequest) {
 
   const outputDir = getOutputDir();
   let saved = 0;
+  const confirmed: string[] = [];
 
   for (const relPath of paths) {
     const localFull = safePath(outputDir, relPath);
     if (!localFull) continue;
     // Skip if already on disk
-    if (fs.existsSync(localFull)) { saved++; continue; }
+    if (fs.existsSync(localFull)) { saved++; confirmed.push(relPath); continue; }
 
     try {
       const res = await fetch(
@@ -39,9 +40,20 @@ export async function POST(req: NextRequest) {
       fs.mkdirSync(path.dirname(localFull), { recursive: true });
       fs.writeFileSync(localFull, buf);
       saved++;
+      confirmed.push(relPath);
     } catch {
       // best-effort; next file continues
     }
+  }
+
+  // ローカルへの保存を確認できたファイルのみ、リモート(ホスト)側の原本を削除する
+  // (issue #44: 画像はローカル側にのみ残し、ホスト側に残り続けないようにする)
+  if (confirmed.length > 0) {
+    fetch(`${remoteUrl}/api/comfy/output/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths: confirmed }),
+    }).catch(() => {});
   }
 
   return NextResponse.json({ saved });

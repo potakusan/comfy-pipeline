@@ -84,6 +84,37 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ローカルへの保存を確認できたファイル(新規保存+既存スキップ分)のみ、
+  // リモート(ホスト)側の処理結果を削除する(issue #44)。
+  const confirmedFiles = files.filter((f) => !errors.includes(f));
+  if (confirmedFiles.length > 0) {
+    fetch(`${remoteUrl}/api/comfy/output/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        paths: confirmedFiles.map((f) => `${folder}/${sub}/${f}`),
+      }),
+    }).catch(() => {});
+  }
+
+  // 出力側が全件同期できた場合のみ、アップロード機能で転送した生画像の原本
+  // (folder/直下、mosaic・resizedサブフォルダは含まない)も削除する。
+  if (errors.length === 0) {
+    fetch(`${remoteUrl}/api/comfy/output?subfolder=${encodeURIComponent(folder)}`)
+      .then((res) => (res.ok ? res.json() : { files: [] }))
+      .then(({ files: rawFiles }: { files?: string[] }) => {
+        if (!rawFiles || rawFiles.length === 0) return;
+        return fetch(`${remoteUrl}/api/comfy/output/delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            paths: rawFiles.map((f) => `${folder}/${f}`),
+          }),
+        });
+      })
+      .catch(() => {});
+  }
+
   return NextResponse.json({
     saved,
     skipped,
