@@ -28,8 +28,8 @@ export function toMosaicFilename(filename: string): string {
 
 export const DEFAULT_RESIZE = {
   enabled: true,
-  scalePercent: 40,
-  autoTarget: true,
+  scalePercent: 60,
+  autoTarget: false,
   targetMB: 100,
   quality: 100,
   convertFormat: "jpg" as "keep" | "png" | "jpg",
