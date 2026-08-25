@@ -2,9 +2,10 @@
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { HardDrive, Wand2, Images, Settings, Tags } from "lucide-react";
+import { HardDrive, Wand2, Images, Settings, Tags, Menu } from "lucide-react";
 import ModelManagerDialog from "@/components/models/model-manager-dialog";
 import SettingsDialog from "@/components/settings/settings-dialog";
+import AppMenuDialog, { type AppMenuItem } from "@/components/common/app-menu-dialog";
 import type { LoraEntry } from "@/lib/comfy";
 
 export type AppHeaderActive = "home" | "process" | "gallery" | "setup" | "lora-dataset";
@@ -12,7 +13,7 @@ export type AppHeaderActive = "home" | "process" | "gallery" | "setup" | "lora-d
 interface AppHeaderProps {
   active: AppHeaderActive;
   /** Page-specific extra content (connection badges, export/import, etc.),
-   * rendered right after the title and before the common nav buttons. */
+   * rendered right after the title and before the menu button. */
   children?: ReactNode;
   onAddLora?: (entry: LoraEntry) => void;
   onRemoveLora?: (name: string) => void;
@@ -41,6 +42,48 @@ export default function AppHeader({
   const modelManagerOpen = modelManagerOpenProp ?? internalModelManagerOpen;
   const setModelManagerOpen = onModelManagerOpenChange ?? setInternalModelManagerOpen;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const menuItems: AppMenuItem[] = [
+    {
+      key: "models",
+      icon: HardDrive,
+      label: "モデル管理",
+      description: "チェックポイント・LoRA・アップスケーラーの一覧管理とCivitaiからのダウンロード",
+      onSelect: () => setModelManagerOpen(true),
+    },
+    {
+      key: "process",
+      icon: Wand2,
+      label: "画像処理",
+      description: "ComfyUIワークフローで画像を生成・アップスケール",
+      href: "/process",
+      active: active === "process",
+    },
+    {
+      key: "gallery",
+      icon: Images,
+      label: "ギャラリー",
+      description: "生成済み画像の閲覧・整理・モザイク適用",
+      href: "/gallery",
+      active: active === "gallery",
+    },
+    {
+      key: "lora-dataset",
+      icon: Tags,
+      label: "LoRAデータセット",
+      description: "Danbooruからのタグ収集とLoRA学習データセットの作成・学習",
+      href: "/lora-dataset",
+      active: active === "lora-dataset",
+    },
+    {
+      key: "settings",
+      icon: Settings,
+      label: "設定",
+      description: "ComfyUI接続先・各種フォルダ・APIキーなどの設定",
+      onSelect: () => setSettingsOpen(true),
+    },
+  ];
 
   return (
     <header className="flex shrink-0 items-center gap-3 border-b px-4 py-2">
@@ -57,59 +100,13 @@ export default function AppHeader({
         variant="ghost"
         size="sm"
         className="gap-1.5 text-xs"
-        onClick={() => setModelManagerOpen(true)}
+        onClick={() => setMenuOpen(true)}
       >
-        <HardDrive className="h-3.5 w-3.5" />
-        モデル管理
-      </Button>
-      <Separator orientation="vertical" className="h-4" />
-
-      {active !== "process" && (
-        <>
-          <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
-            <a href="/process">
-              <Wand2 className="h-3.5 w-3.5" />
-              画像処理
-            </a>
-          </Button>
-          <Separator orientation="vertical" className="h-4" />
-        </>
-      )}
-
-      {active !== "gallery" && (
-        <>
-          <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
-            <a href="/gallery">
-              <Images className="h-3.5 w-3.5" />
-              ギャラリー
-            </a>
-          </Button>
-          <Separator orientation="vertical" className="h-4" />
-        </>
-      )}
-
-      {active !== "lora-dataset" && (
-        <>
-          <Button variant="ghost" size="sm" className="gap-1.5 text-xs" asChild>
-            <a href="/lora-dataset">
-              <Tags className="h-3.5 w-3.5" />
-              LoRAデータセット
-            </a>
-          </Button>
-          <Separator orientation="vertical" className="h-4" />
-        </>
-      )}
-
-      <Button
-        variant="ghost"
-        size="sm"
-        className="gap-1.5 text-xs"
-        onClick={() => setSettingsOpen(true)}
-      >
-        <Settings className="h-3.5 w-3.5" />
-        設定
+        <Menu className="h-3.5 w-3.5" />
+        メニュー
       </Button>
 
+      <AppMenuDialog open={menuOpen} onClose={() => setMenuOpen(false)} items={menuItems} />
       <ModelManagerDialog
         open={modelManagerOpen}
         onClose={() => setModelManagerOpen(false)}
