@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import {
-  readSetupConfig,
-  applySetupConfigUpdate,
-  getEnvOverrides,
-} from "@/lib/setup/config"
+import { readSetupConfig, applySetupConfigUpdate } from "@/lib/setup/config"
 
-/** GET /api/settings -> { config, envOverrides } for the settings dialog. */
+/** GET /api/settings -> { config } for the settings dialog. */
 export async function GET() {
   return NextResponse.json({
     config: readSetupConfig(),
-    envOverrides: getEnvOverrides(),
   })
 }
 

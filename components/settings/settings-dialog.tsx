@@ -5,12 +5,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { SetupConfig } from "@/lib/setup/config";
 import { apiFetch } from "@/lib/api-client";
 
@@ -33,7 +33,7 @@ const FIELD_GROUPS: { title: string; fields: { key: FieldKey; label: string; pla
   {
     title: "出力・モデルフォルダ",
     fields: [
-      { key: "outputDir", label: "出力フォルダ (COMFYUI_OUTPUT_DIR)" },
+      { key: "outputDir", label: "出力フォルダ" },
       { key: "checkpointDir", label: "チェックポイントフォルダ" },
       { key: "loraDir", label: "LoRAフォルダ" },
       { key: "upscalerDir", label: "アップスケーラーフォルダ" },
@@ -50,7 +50,7 @@ const FIELD_GROUPS: { title: string; fields: { key: FieldKey; label: string; pla
   {
     title: "LoRAデータセット",
     fields: [
-      { key: "loraDatasetDir", label: "データセット保存フォルダ (LORA_DATASET_DIR)" },
+      { key: "loraDatasetDir", label: "データセット保存フォルダ" },
       { key: "danbooruLogin", label: "Danbooru ユーザー名" },
       { key: "danbooruApiKey", label: "Danbooru API Key" },
     ],
@@ -65,25 +65,25 @@ const FIELD_GROUPS: { title: string; fields: { key: FieldKey; label: string; pla
 
 export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const [config, setConfig] = useState<SetupConfig>({});
-  const [envOverrides, setEnvOverrides] = useState<Partial<Record<FieldKey, boolean>>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [activeGroup, setActiveGroup] = useState(FIELD_GROUPS[0].title);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch<{ config?: SetupConfig; envOverrides?: Partial<Record<FieldKey, boolean>> }>(
-        "/api/settings",
-      );
+      const data = await apiFetch<{ config?: SetupConfig }>("/api/settings");
       setConfig(data.config ?? {});
-      setEnvOverrides(data.envOverrides ?? {});
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (open) load();
+    if (open) {
+      load();
+      setActiveGroup(FIELD_GROUPS[0].title);
+    }
   }, [open, load]);
 
   const handleSave = async () => {
@@ -100,54 +100,60 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     }
   };
 
+  const group = FIELD_GROUPS.find((g) => g.title === activeGroup) ?? FIELD_GROUPS[0];
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="flex h-[70vh] max-h-160 flex-col gap-0 p-0 sm:max-w-2xl">
+        <DialogHeader className="border-b px-5 py-4">
           <DialogTitle>設定</DialogTitle>
         </DialogHeader>
 
         {loading ? (
-          <div className="flex justify-center py-8">
+          <div className="flex flex-1 items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="space-y-5">
-            {FIELD_GROUPS.map((group) => (
-              <div key={group.title} className="space-y-2">
-                <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                  {group.title}
-                </p>
-                {group.fields.map((f) => {
-                  const disabled = !!envOverrides[f.key];
-                  return (
-                    <div key={f.key} className="space-y-1">
-                      <Label htmlFor={f.key} className="text-xs">
-                        {f.label}
-                      </Label>
-                      <Input
-                        id={f.key}
-                        value={config[f.key] ?? ""}
-                        placeholder={f.placeholder}
-                        disabled={disabled}
-                        onChange={(e) =>
-                          setConfig((prev) => ({ ...prev, [f.key]: e.target.value }))
-                        }
-                      />
-                      {disabled && (
-                        <p className="text-[10px] text-muted-foreground">
-                          環境変数で設定されているため変更できません
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+          <div className="flex flex-1 overflow-hidden">
+            <nav className="w-40 shrink-0 space-y-0.5 overflow-y-auto border-r p-2">
+              {FIELD_GROUPS.map((g) => (
+                <button
+                  key={g.title}
+                  type="button"
+                  onClick={() => setActiveGroup(g.title)}
+                  className={cn(
+                    "block w-full rounded-md px-2.5 py-1.5 text-left text-xs transition-colors",
+                    g.title === activeGroup
+                      ? "bg-accent font-medium text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent/50",
+                  )}
+                >
+                  {g.title}
+                </button>
+              ))}
+            </nav>
+
+            <div className="flex-1 space-y-3 overflow-y-auto p-5">
+              {group.fields.map((f) => (
+                <div key={f.key} className="space-y-1">
+                  <Label htmlFor={f.key} className="text-xs">
+                    {f.label}
+                  </Label>
+                  <Input
+                    id={f.key}
+                    value={config[f.key] ?? ""}
+                    placeholder={f.placeholder}
+                    onChange={(e) =>
+                      setConfig((prev) => ({ ...prev, [f.key]: e.target.value }))
+                    }
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        <DialogFooter>
+        <div className="flex justify-end gap-2 border-t px-5 py-3">
           <Button variant="outline" onClick={onClose} disabled={saving}>
             キャンセル
           </Button>
@@ -155,7 +161,7 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             保存
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -41,39 +41,14 @@ cd comfy-pipeline
 pnpm install
 ```
 
-`.env.example` をコピーして `.env.local` を作成し、環境に合わせて編集します。
+設定はすべてアプリ内で行い、`.env` は使用しません。起動後、ヘッダーの「メニュー」から「設定」を開き、以下を入力してください（値は `.comfy-pipeline.json` に保存されます）。
 
-```bash
-cp .env.example .env.local
-```
-
-```env
-COMFYUI_URL=http://localhost:8188
-NEXT_PUBLIC_COMFYUI_URL=http://localhost:8188
-
-# ComfyUI の各種ディレクトリへの絶対パス
-# Windows: C:/Users/yourname/ComfyUI/output
-# Mac/Linux: /home/yourname/ComfyUI/output
-COMFYUI_OUTPUT_DIR=C:/path/to/ComfyUI/output
-COMFYUI_LORA_DIR=C:/path/to/ComfyUI/models/loras
-COMFYUI_CHECKPOINT_DIR=C:/path/to/ComfyUI/models/checkpoints
-
-# Civitai からのモデルダウンロードに使用（任意）
-CIVITAI_API_KEY=
-
-# LoRA学習データセット(Danbooru連携)の保存先フォルダ（任意、未指定時は ./lora-datasets）
-LORA_DATASET_DIR=
-
-# Danbooru API 認証情報（任意。R-18/Explicit投稿の取得にはアカウントのAPI Keyが必要）
-DANBOORU_LOGIN=
-DANBOORU_API_KEY=
-
-# Kohya's GUI / sd-scripts のインストールフォルダ（venv・sd-scriptsサブモジュールを含むkohya_ssのルート、任意）
-# /lora-dataset からKohya's GUIを経由せず直接LoRA学習を実行するのに使用
-KOHYA_GUI_PATH=
-```
-
-> `.env.example` に載っていない `COMFYUI_UPSCALER_DIR`（アップスケールモデルのディレクトリ）や `REMOTE_PROCESS_URL`（リモートモード先 URL）、`comfyuiApiKey` などは、起動後にアプリ内の「設定」ダイアログから設定することもできます。環境変数を設定した項目は設定ダイアログ側では変更不可（優先度: 環境変数 > `.comfy-pipeline.json` > デフォルト値）として表示されます。
+- ComfyUI URL / API Key / インストールパス
+- 出力・チェックポイント・LoRA・アップスケーラーの各フォルダ
+- リモート処理サーバー URL（リモートモード使用時）
+- Civitai API Key（認証が必要なモデルのダウンロードに使用、任意）
+- データセット保存フォルダ、Danbooru ユーザー名 / API Key（LoRAデータセット機能で使用、任意）
+- Kohya's GUI / sd-scripts のインストールフォルダ（Kohya's GUIを経由しない直接学習に使用、任意）
 
 #### 起動
 
@@ -227,20 +202,20 @@ ComfyUI 本体が未導入の場合や初回セットアップを自動化した
 1. データセット（名前・繰り返し回数・トリガーワード・キャプションに含めるタグカテゴリ）を作成
 2. Danbooruをタグ検索し、学習に使いたい画像を選んでデータセットへ追加（画像＋タグを取得してローカルに保存）
 3. 追加した画像ごとにタグを確認し、不要なタグを削除・新しいタグを追加
-4. `LORA_DATASET_DIR/<繰り返し回数>_<名前>/` 以下に `<danbooruID>.png` + `<danbooruID>.txt`（キャプション）のペアとして保存され、Kohya's GUIの学習画像フォルダとしてそのまま指定できる
+4. 設定で指定した「データセット保存フォルダ」配下の `<繰り返し回数>_<名前>/` に `<danbooruID>.png` + `<danbooruID>.txt`（キャプション）のペアとして保存され、Kohya's GUIの学習画像フォルダとしてそのまま指定できる
 
-R-18/Explicit投稿を取得するにはDanbooruアカウントのAPI Key（設定ダイアログまたは`DANBOORU_LOGIN`/`DANBOORU_API_KEY`）が必要です。Kohya's GUIをリモート（GPU）マシンで実行している場合は、完成したデータセットフォルダを「リモートへ同期」ボタンでそのマシンへ転送できます（`REMOTE_PROCESS_URL`設定時のみ表示）。
+R-18/Explicit投稿を取得するにはDanbooruアカウントのAPI Key（設定の「Danbooru ユーザー名」「Danbooru API Key」）が必要です。Kohya's GUIをリモート（GPU）マシンで実行している場合は、完成したデータセットフォルダを「リモートへ同期」ボタンでそのマシンへ転送できます（設定で「リモート処理サーバーURL」を指定している場合のみ表示）。
 
 #### LoRA学習（Kohya's GUIを経由しない直接実行）
 
 ページ上部の「LoRA学習」ボタンから、Kohya's GUI（Gradio UI）を起動せずcomfy-pipeline上で直接LoRA学習を実行できます。裏側ではkohya_ssのvenv内`accelerate`から`sd-scripts/sdxl_train_network.py`を直接呼び出しており、Kohya's GUIが内部で行っているのと同じ処理（学習パラメータをTOML化して`accelerate launch`する）をKohya's GUIを介さず行っています。
 
 - 対応は **SDXL + Standard LoRA（`networks.lora`）** のみ（LyCORIS/Flux/SD3等は対象外）
-- モーダル内でベースモデル（`COMFYUI_CHECKPOINT_DIR`、モデルマネージャーと共通）・出力名・解像度・network dim/alpha・学習率・バッチサイズ・epoch数・optimizer・mixed precision・シードを設定して学習を開始
-- 学習データは対象データセットのフォルダを直接指定するため、`LORA_DATASET_DIR`に他のデータセットが同居していても混ざらない
+- モーダル内でベースモデル（設定の「チェックポイントフォルダ」、モデルマネージャーと共通）・出力名・解像度・network dim/alpha・学習率・バッチサイズ・epoch数・optimizer・mixed precision・シードを設定して学習を開始
+- 学習データは対象データセットのフォルダを直接指定するため、設定の「データセット保存フォルダ」に他のデータセットが同居していても混ざらない
 - 進捗ログをモーダル内にリアルタイム表示、「停止」で学習プロセスをツリーごと終了できる
-- 完成したLoRAは`COMFYUI_LORA_DIR`に保存され、モデルマネージャー・生成パイプラインからそのまま使用可能
-- 利用には設定ダイアログまたは`KOHYA_GUI_PATH`で、venv・`sd-scripts`サブモジュールを含むkohya_ssのインストールフォルダを指定しておく必要がある
+- 完成したLoRAは設定の「LoRAフォルダ」に保存され、モデルマネージャー・生成パイプラインからそのまま使用可能
+- 利用には設定の「Kohya's GUI / sd-scriptsインストールフォルダ」で、venv・`sd-scripts`サブモジュールを含むkohya_ssのインストールフォルダを指定しておく必要がある
 
 ### モデルマネージャー
 
@@ -254,17 +229,17 @@ LoRA / チェックポイント / アップスケールモデルを一覧・管�
 
 ### リモートモード
 
-非力な PC（Web UI 操作用）と、ComfyUI・automosaic を実際に実行する GPU マシンを分離して使うための機能です。「設定」ダイアログで `リモート処理サーバー URL` を指定すると、以下がそのマシン上で動く同一アプリのインスタンスへ自動的にプロキシされます。
+非力な PC（Web UI 操作用）と、ComfyUI・automosaic を実際に実行する GPU マシンを分離して使うための機能です。「設定」で「リモート処理サーバーURL」を指定すると、以下がそのマシン上で動く同一アプリのインスタンスへ自動的にプロキシされます。
 
 - モデルマネージャー（LoRA/チェックポイント/アップスケーラーの一覧・ダウンロード・削除・サムネイル）
 - `/process` の automosaic / リサイズ実行、CPU/GPU モニタリング、フォルダ一覧
 - 生成画像・処理済みフォルダの同期（アップロード/ダウンロードは差分のみ、既存ファイルはスキップ）
 
-なお ComfyUI 自体への生成リクエスト（`/prompt` 送信）は常に設定された `COMFYUI_URL` へ直接送信され、リモートモードの対象外です（リモートの ComfyUI を直接指定してください）。
+なお ComfyUI 自体への生成リクエスト（`/prompt` 送信）は常に設定された「ComfyUI URL」へ直接送信され、リモートモードの対象外です（リモートの ComfyUI を直接指定してください）。
 
 ### 設定
 
-ヘッダーの歯車アイコンから開く設定ダイアログで、ComfyUI のパス/URL/API キー、各種モデルディレクトリ、出力ディレクトリ、リモート処理サーバー URL、Civitai API キーを変更できます。値は `.comfy-pipeline.json` に保存され、環境変数が設定されている項目は環境変数が優先されます（`NEXT_PUBLIC_*` 環境変数はビルド時にバンドルへ焼き込まれビルド後に変更できないため、この仕組みが必須です）。
+ヘッダーの「メニュー」→「設定」から開く設定画面（左に設定項目のグループ一覧、右に選択したグループの入力欄を表示する2カラム構成）で、ComfyUI のパス/URL/API キー、各種モデルディレクトリ、出力ディレクトリ、リモート処理サーバー URL、Civitai API キーなどを変更できます。値はすべて `.comfy-pipeline.json` に保存され、`.env` は使用しません。API 経由でランタイムに取得する `/api/settings/public` により、URL・API キーの変更は再ビルドなしで即座にクライアントへ反映されます。
 
 ### エクスポート / インポート
 

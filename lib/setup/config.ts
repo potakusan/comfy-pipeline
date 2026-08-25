@@ -68,43 +68,11 @@ export function applySetupConfigUpdate(
   return { config: updated }
 }
 
-// Field -> env var name. Env vars always win over the JSON config, matching
-// the existing getComfyUIPath() precedence (env > config.json > default).
-const FIELD_ENV_MAP: Record<keyof SetupConfig, string> = {
-  comfyuiPath: "COMFYUI_PATH",
-  comfyuiUrl: "COMFYUI_URL",
-  comfyuiApiKey: "NEXT_PUBLIC_COMFYUI_API_KEY",
-  outputDir: "COMFYUI_OUTPUT_DIR",
-  checkpointDir: "COMFYUI_CHECKPOINT_DIR",
-  loraDir: "COMFYUI_LORA_DIR",
-  upscalerDir: "COMFYUI_UPSCALER_DIR",
-  remoteProcessUrl: "REMOTE_PROCESS_URL",
-  civitaiApiKey: "CIVITAI_API_KEY",
-  loraDatasetDir: "LORA_DATASET_DIR",
-  danbooruLogin: "DANBOORU_LOGIN",
-  danbooruApiKey: "DANBOORU_API_KEY",
-  kohyaGuiPath: "KOHYA_GUI_PATH",
-}
-
-/** Fields currently pinned by an environment variable (settings UI should disable these). */
-export function getEnvOverrides(): Partial<Record<keyof SetupConfig, boolean>> {
-  const result: Partial<Record<keyof SetupConfig, boolean>> = {}
-  for (const key of Object.keys(FIELD_ENV_MAP) as (keyof SetupConfig)[]) {
-    if (process.env[FIELD_ENV_MAP[key]]) result[key] = true
-  }
-  return result
-}
-
 function getField(key: keyof SetupConfig, fallback: string): string {
-  const envVal = process.env[FIELD_ENV_MAP[key]]
-  if (envVal) return envVal
-  const config = readSetupConfig()
-  return config[key] || fallback
+  return readSetupConfig()[key] || fallback
 }
 
 function getOptionalField(key: keyof SetupConfig): string | undefined {
-  const envVal = process.env[FIELD_ENV_MAP[key]]
-  if (envVal) return envVal
   return readSetupConfig()[key] || undefined
 }
 
