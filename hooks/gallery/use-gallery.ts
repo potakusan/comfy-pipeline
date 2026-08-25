@@ -293,6 +293,16 @@ export function useGallery() {
           if (!res.ok) throw new Error("再生成後の保存に失敗しました");
           const { filename: newFilename } = (await res.json()) as { filename: string };
 
+          // 販売用にマーク済みの画像から再生成した場合、生成し直した画像も
+          // 同じく販売用としてマークする(手動での再マークを不要にする)
+          if (entry.releasePath) {
+            await fetch("/api/gallery/release", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ paths: [`${folder}/${newFilename}`] }),
+            }).catch(() => {});
+          }
+
           const newList = await refreshImages(folder);
           await refreshFolders();
           const newVisible = showReleasedOnly ? newList.filter((i) => i.releasePath) : newList;
