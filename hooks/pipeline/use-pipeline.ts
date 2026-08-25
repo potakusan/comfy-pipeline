@@ -7,6 +7,8 @@ import { usePipelineIO } from "@/hooks/pipeline/use-pipeline-io";
 
 export type { PromptPreviewPos } from "@/hooks/pipeline/use-pipeline-settings";
 
+export type PipelineHook = ReturnType<typeof usePipeline>;
+
 // ---------------------------------------------------------------------------
 // Core hook — composes useNormalMode + settings/queue/gallery/io sub-hooks
 // ---------------------------------------------------------------------------
