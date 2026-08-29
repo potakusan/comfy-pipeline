@@ -61,6 +61,10 @@ export interface QueueItem {
   negativePrompt: string;
   settings: GenerationSettings;
   batchCount: number;
+  /** ユーザーが指定した元の生成枚数。batchCountが良品率で調整された場合のみ、両者が異なる。 */
+  requestedBatchCount?: number;
+  /** 一括キュープリセットから生成された場合のBatchPreset.id */
+  batchPresetId?: string;
   status: "pending" | "running" | "completed" | "cancelled" | "failed";
   currentBatch: number;
   completedImages: GalleryImage[];
@@ -135,4 +139,6 @@ export interface GalleryImage {
   createdAt: number;
   /** The actual additional prompt applied to this image (recorded for random mode) */
   appliedAdditional?: string;
+  /** BatchPreset.id this image was generated from (一括キュー実行時のみ) */
+  batchPresetId?: string;
 }
