@@ -21,6 +21,8 @@ export function getSeedPoolInfo(sourceFolder: string): SeedPoolInfo {
     filename: e.sourceFilename,
     seed: e.seed,
     upscaleSeed: e.upscaleSeed,
+    reusablePromptSuffix: e.reusablePromptSuffix,
+    reusableLoras: e.reusableLoras,
   }));
 
   const presetIdCounts = new Map<string, number>();

@@ -11,6 +11,8 @@ import {
   buildWorkflow,
   buildOutputPrefix,
   isCommentLine,
+  buildReusablePromptSegment,
+  collectPresetLoras,
 } from "@/lib/comfy";
 import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/comfy/couple";
 import type { CoupleControlNet, CoupleRegion } from "@/lib/comfy/couple";
@@ -204,6 +206,8 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
     let lastBatchPrompt: string | null = null;
     let lastPickedAdditional: string | undefined;
     let lastBatchAllLoras: LoraEntry[] | null = null;
+    let lastReusablePromptSuffix: string | undefined;
+    let lastReusableLoras: LoraEntry[] | undefined;
 
     for (let batch = 0; batch < pendingItem.batchCount; batch++) {
       if (cancelledItemIdRef.current === pendingItem.id) {
@@ -216,41 +220,91 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
       const redoMode = redoModeRef.current;
       redoModeRef.current = null;
       const forceNewSeed = redoMode !== null;
+      // 「やり直し(新しいseedで)」はseedPoolより常に優先する(ユーザーの明示操作のため)。
+      // そうでなければ、seedPoolが設定されていればbatch番目のプールエントリを使う。
+      const poolEntry = !forceNewSeed ? pendingItem.seedPool?.[batch] : undefined;
 
       let batchPrompt: string;
       let pickedAdditional: string | undefined;
       let batchAllLoras: LoraEntry[];
+      let reusablePromptSuffix: string | undefined;
+      let reusableLoras: LoraEntry[] | undefined;
 
       if (redoMode === "samePrompt" && lastBatchPrompt !== null) {
         batchPrompt = lastBatchPrompt;
         pickedAdditional = lastPickedAdditional;
         batchAllLoras = lastBatchAllLoras!;
+        reusablePromptSuffix = lastReusablePromptSuffix;
+        reusableLoras = lastReusableLoras;
+      } else if (poolEntry?.reusablePromptSuffix !== undefined) {
+        // シード引き継ぎ: 可変LoRA/身体的特徴だけ選び直し、それ以外(人数/ポーズ/
+        // シーン/その他プリセットの解決済みテキスト+追加プロンプト+バリエーション
+        // タグ)はアーカイブ済みの値をそのまま使う(元プリセットの再選択・再抽選はしない)。
+        const { positivePromptBase: physicalBase, presetLoras: physicalLoras } =
+          resolvePresetPromptAndLoras({
+            variableLora: pendingItem.variableLora,
+            fixedLoras,
+            fixedPrefix: pendingItem.fixedTags,
+            selectedPhysicalPresets: bp.selectedPhysicals,
+            selectedCountPreset: null,
+            selectedPosePreset: null,
+            selectedScenePreset: null,
+            selectedOtherPresets: [],
+          });
+        reusablePromptSuffix = poolEntry.reusablePromptSuffix;
+        reusableLoras = poolEntry.reusableLoras;
+        batchPrompt = reusablePromptSuffix
+          ? `${physicalBase}\n\n${reusablePromptSuffix}`
+          : physicalBase;
+        batchAllLoras = [
+          ...fixedLoras,
+          ...physicalLoras,
+          ...(reusableLoras ?? []),
+          ...(pendingItem.variableLora && !pendingItem.variableLora.isPromptOnly
+            ? [pendingItem.variableLora]
+            : []),
+        ];
+        pickedAdditional = undefined;
+
+        lastBatchPrompt = batchPrompt;
+        lastPickedAdditional = pickedAdditional;
+        lastBatchAllLoras = batchAllLoras;
+        lastReusablePromptSuffix = reusablePromptSuffix;
+        lastReusableLoras = reusableLoras;
       } else {
         let presetBase: string;
         let batchPresetLoras: LoraEntry[];
+        let countPreset: Preset | null;
+        let posePreset: Preset | null;
+        let scenePreset: Preset | null;
+        let otherPresets: Preset[];
 
         if (anyPresetRandom) {
           const batchPhysicals = bp.selectedPhysicals.map(resolvePreset);
-          const batchCountPreset = bp.selectedCount ? resolvePreset(bp.selectedCount) : null;
-          const batchPose = bp.selectedPose ? resolvePreset(bp.selectedPose) : null;
-          const batchScene = bp.selectedScene ? resolvePreset(bp.selectedScene) : null;
-          const batchOthers = bp.selectedOthers.map(resolvePreset);
+          countPreset = bp.selectedCount ? resolvePreset(bp.selectedCount) : null;
+          posePreset = bp.selectedPose ? resolvePreset(bp.selectedPose) : null;
+          scenePreset = bp.selectedScene ? resolvePreset(bp.selectedScene) : null;
+          otherPresets = bp.selectedOthers.map(resolvePreset);
 
           const resolved = resolvePresetPromptAndLoras({
             variableLora: pendingItem.variableLora,
             fixedLoras,
             fixedPrefix: pendingItem.fixedTags,
             selectedPhysicalPresets: batchPhysicals,
-            selectedCountPreset: batchCountPreset,
-            selectedPosePreset: batchPose,
-            selectedScenePreset: batchScene,
-            selectedOtherPresets: batchOthers,
+            selectedCountPreset: countPreset,
+            selectedPosePreset: posePreset,
+            selectedScenePreset: scenePreset,
+            selectedOtherPresets: otherPresets,
           });
           presetBase = resolved.positivePromptBase;
           batchPresetLoras = resolved.presetLoras;
         } else {
           presetBase = pendingItem.positivePromptBase;
           batchPresetLoras = pendingItem.presetLoras;
+          countPreset = bp.selectedCount;
+          posePreset = bp.selectedPose;
+          scenePreset = bp.selectedScene;
+          otherPresets = bp.selectedOthers;
         }
 
         batchAllLoras = [
@@ -281,24 +335,45 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
         }
 
         batchPrompt = promptWithAdditional;
+        let appliedVariationTag: string | undefined;
         if (pendingItem.variationTags.length > 0) {
-          const tag =
+          appliedVariationTag =
             pendingItem.variationTags[
               Math.floor(Math.random() * pendingItem.variationTags.length)
             ];
-          batchPrompt = `${promptWithAdditional}\n\n${tag}`;
+          batchPrompt = `${promptWithAdditional}\n\n${appliedVariationTag}`;
         }
+
+        // 可変LoRA・固定LoRA・身体的特徴を除いた部分(人数/ポーズ/シーン/その他
+        // プリセットの実際に使われたテキスト+追加プロンプト+バリエーションタグ)を、
+        // シード引き継ぎ実行時に再利用できるよう保存しておく。
+        reusablePromptSuffix = [
+          buildReusablePromptSegment({
+            selectedCountPreset: countPreset,
+            selectedPosePreset: posePreset,
+            selectedScenePreset: scenePreset,
+            selectedOtherPresets: otherPresets,
+          }),
+          pickedAdditional,
+          appliedVariationTag,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+        reusableLoras = collectPresetLoras(
+          [countPreset, posePreset, scenePreset, ...otherPresets].filter(
+            (p): p is Preset => !!p,
+          ),
+        );
 
         lastBatchPrompt = batchPrompt;
         lastPickedAdditional = pickedAdditional;
         lastBatchAllLoras = batchAllLoras;
+        lastReusablePromptSuffix = reusablePromptSuffix;
+        lastReusableLoras = reusableLoras;
       }
 
       setCurrentBatchPrompt(batchPrompt);
 
-      // 「やり直し(新しいseedで)」はseedPoolより常に優先する(ユーザーの明示操作のため)。
-      // そうでなければ、seedPoolが設定されていればbatch番目のプールseedを固定で使う。
-      const poolEntry = !forceNewSeed ? pendingItem.seedPool?.[batch] : undefined;
       const workflowArgs = {
         settings: forceNewSeed
           ? { ...pendingItem.settings, randomizeSeed: true }
@@ -373,6 +448,8 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           createdAt: Date.now(),
           appliedAdditional: pickedAdditional,
           batchPresetId: pendingItem.batchPresetId,
+          reusablePromptSuffix,
+          reusableLoras,
         }));
 
         // Fire-and-forget: persist prompt/seed metadata as a JSON sidecar next
@@ -402,6 +479,8 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
                   createdAt: img.createdAt,
                   appliedAdditional: img.appliedAdditional,
                   batchPresetId: img.batchPresetId,
+                  reusablePromptSuffix: img.reusablePromptSuffix,
+                  reusableLoras: img.reusableLoras,
                   ...(mode === "colorMask"
                     ? {
                         colorMaskControlNet: pendingItem.colorMaskControlNet,

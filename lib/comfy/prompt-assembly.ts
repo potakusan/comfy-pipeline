@@ -114,6 +114,32 @@ export function collectPresetLoras(presets: Preset[]): LoraEntry[] {
   return presets.flatMap((p) => (p.lora ? [p.lora] : []));
 }
 
+/**
+ * assemblePositivePrompt()のうち、可変LoRA・固定LoRA・身体的特徴プリセットを
+ * 除いた「人数/ポーズ/シーン/その他プリセット」部分だけを組み立てる。
+ * シード引き継ぎ実行時、可変LoRA/身体的特徴だけ選び直して残りは生成時の
+ * 実際の値(ランダム選択で決まった行等)をそのまま再利用するために、
+ * 保存対象を可変LoRA/身体的特徴とそれ以外とで分離できるようにしている。
+ */
+export function buildReusablePromptSegment({
+  selectedCountPreset,
+  selectedPosePreset,
+  selectedScenePreset,
+  selectedOtherPresets,
+}: {
+  selectedCountPreset: Preset | null;
+  selectedPosePreset: Preset | null;
+  selectedScenePreset: Preset | null;
+  selectedOtherPresets: Preset[];
+}): string {
+  const parts: string[] = [];
+  if (selectedCountPreset) pushPreset(parts, selectedCountPreset);
+  if (selectedPosePreset) pushPreset(parts, selectedPosePreset);
+  if (selectedScenePreset) pushPreset(parts, selectedScenePreset);
+  for (const p of selectedOtherPresets) pushPreset(parts, p);
+  return parts.join("\n\n");
+}
+
 /** 未分類を先頭に出してからカテゴリ別にグルーピングする(空カテゴリは除外)。 */
 export function groupPresetsByCategory(
   presets: Preset[],

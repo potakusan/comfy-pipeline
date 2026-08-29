@@ -3,6 +3,7 @@ import path from "path";
 import sharp from "sharp";
 import { getOutputDir } from "./output-dir";
 import type { ImageMetadata } from "@/lib/gallery";
+import type { LoraEntry } from "@/lib/comfy";
 
 /** 出力フォルダのライフサイクル(ユーザーがアップロード後にフォルダごと削除する運用)
  * とは独立して、販売用に選んだ画像のseedだけを永続的に残しておく保管庫。
@@ -20,6 +21,11 @@ export interface SeedArchiveEntry {
   /** 生成元のBatchPreset.id(一括キュープリセットから生成された場合のみ)。
    * どの一括キューセットを実行すればよいか特定するために使う。 */
   batchPresetId?: string;
+  /** ImageMetadata.reusablePromptSuffix(可変LoRA・固定LoRA・身体的特徴を除いた
+   * 人数/ポーズ/シーン/その他プリセット+追加プロンプト+バリエーションタグの解決済みテキスト) */
+  reusablePromptSuffix?: string;
+  /** ImageMetadata.reusableLoras(人数/ポーズ/シーン/その他プリセット由来のLoRA) */
+  reusableLoras?: LoraEntry[];
   archivedAt: number;
 }
 
@@ -57,6 +63,8 @@ export async function archiveSeed(params: {
     seed: settings.seed,
     upscaleSeed: settings.upscaleSeed ?? null,
     batchPresetId: params.metadata?.batchPresetId,
+    reusablePromptSuffix: params.metadata?.reusablePromptSuffix,
+    reusableLoras: params.metadata?.reusableLoras,
     archivedAt: Date.now(),
   };
   fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(entry, null, 2));
