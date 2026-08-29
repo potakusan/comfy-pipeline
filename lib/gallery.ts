@@ -64,7 +64,10 @@ export function releaseFolderName(folder: string): string {
  */
 export function getPoseGroup(filename: string): string {
   const stem = filename.replace(/\.[^.]+$/, "");
-  const withoutRev = stem.replace(/_rev_\d+$/, "");
+  // 同じ画像をさらに再生成すると"_rev_0001_rev_0002"のように_rev_NNNNが
+  // 連続することがあるため、末尾から繰り返し全て剥がす(1回だけだと
+  // 内側の_rev_NNNNが残りグルーピングが壊れる)。
+  const withoutRev = stem.replace(/(?:_rev_\d+)+$/, "");
   const withoutCounter = withoutRev.replace(/_\d{5}_?$/, "");
   return (withoutCounter || withoutRev || stem).replace(/_+$/, "") || stem;
 }
