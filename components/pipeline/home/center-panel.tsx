@@ -1,11 +1,13 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { ResizablePanel } from "@/components/ui/resizable";
 import PreviewPanel from "@/components/pipeline/preview-panel";
 import BatchQueueDialog from "@/components/pipeline/queue/batch-queue-dialog";
 import QuickAddToBatch from "@/components/pipeline/queue/quick-add-to-batch";
-import { type QueueItem } from "@/lib/comfy";
+import { type QueueItem, type ReleasedSeed } from "@/lib/comfy";
+import { apiFetch } from "@/lib/api-client";
 import type { PipelineHook } from "@/hooks/pipeline/use-pipeline";
 
 export interface CenterPanelProps {
@@ -54,6 +56,36 @@ export default function CenterPanel({
     [variableLoras],
   );
 
+  // ギャラリーの「このフォルダの良品seedで一括キューを実行」から
+  // ?seedSourceFolder=<folder> 付きで遷移してきた場合、そのフォルダの
+  // 販売用選択画像のseedを取得し、一括キューダイアログへ引き継ぐ
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const seedSourceFolderParam = searchParams.get("seedSourceFolder");
+  const [seedSource, setSeedSource] = useState<{ folder: string; seeds: ReleasedSeed[] } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!seedSourceFolderParam) return;
+    let cancelled = false;
+    apiFetch<{ seeds: ReleasedSeed[] }>(
+      `/api/gallery/seed-pool?folder=${encodeURIComponent(seedSourceFolderParam)}`,
+    )
+      .then((res) => {
+        if (!cancelled) setSeedSource({ folder: seedSourceFolderParam, seeds: res.seeds });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [seedSourceFolderParam]);
+
+  const handleConsumeSeedSource = () => {
+    setSeedSource(null);
+    router.replace("/");
+  };
+
   return (
     <ResizablePanel
       id="center"
@@ -84,6 +116,8 @@ export default function CenterPanel({
             posePresets={posePresets}
             otherPresets={otherPresets}
             currentSettings={settings}
+            seedSource={seedSource}
+            onConsumeSeedSource={handleConsumeSeedSource}
           />
           <QuickAddToBatch
             batchPresetSets={batchPresetSets}

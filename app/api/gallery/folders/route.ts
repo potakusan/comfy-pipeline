@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { getOutputDir, IMAGE_EXT } from "@/lib/server/output-dir";
 import { releaseFolderName, type GalleryFolderInfo } from "@/lib/gallery";
+import { SEED_ARCHIVE_DIR } from "@/lib/server/gallery-seed-archive";
 
 const THUMB_DIR = ".thumbcache";
 
@@ -30,6 +31,7 @@ export async function GET() {
         (e) =>
           e.isDirectory() &&
           e.name !== THUMB_DIR &&
+          e.name !== SEED_ARCHIVE_DIR &&
           !e.name.endsWith("_release"),
       )
       .map((e) => e.name)

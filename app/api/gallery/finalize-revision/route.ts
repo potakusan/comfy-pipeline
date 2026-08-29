@@ -42,7 +42,12 @@ export async function POST(req: NextRequest) {
   }
 
   const ext = path.extname(tempName);
-  const sourceBase = sourceName.slice(0, sourceName.length - path.extname(sourceName).length);
+  const sourceStem = sourceName.slice(0, sourceName.length - path.extname(sourceName).length);
+  // sourceがすでにrev画像の場合(再生成した画像をさらに再生成した場合)、末尾の
+  // _rev_NNNNを剥がして元画像のbase名に対して採番する。剥がさないと
+  // "..._rev_0001_rev_0001"のように連番が入れ子になり、getPoseGroup()による
+  // ギャラリーのポーズ単位グルーピングが壊れる。
+  const sourceBase = sourceStem.replace(/(?:_rev_\d+)+$/, "");
 
   let maxN = 0;
   try {
