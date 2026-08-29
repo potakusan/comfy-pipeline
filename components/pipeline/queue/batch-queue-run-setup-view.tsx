@@ -69,7 +69,7 @@ export default function RunSetupView({
               ) : (
                 <span>
                   シード引き継ぎ元: {seedSource.folder}({seedSource.seeds.length}枚)
-                  。プロンプト/LoRAが元画像と同一であれば同じ画像を再現し、変更すれば構図の傾向だけ引き継ぎます。
+                  。seedに加えて、人数/ポーズ/シーン/その他プリセットの内容・追加プロンプト・バリエーションタグも元画像の状態のまま引き継ぎます（プリセットの再抽選はしません）。可変LoRAと身体的特徴はここで選んだ内容に差し替えられます。
                   各プリセットの生成枚数は最大{seedSource.seeds.length}枚に切り詰められます。
                 </span>
               )}

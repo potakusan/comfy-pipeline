@@ -26,6 +26,14 @@ export interface ImageMetadata {
   revisionOf?: string;
   /** BatchPreset.id this image was generated from (一括キュー実行時のみ). Used to aggregate per-preset release rate. */
   batchPresetId?: string;
+  /** positivePromptのうち、可変LoRA・固定LoRA・身体的特徴プリセット由来の部分を除いた
+   * 残り(人数/ポーズ/シーン/その他プリセットの実際に使われたテキスト+追加プロンプト+
+   * バリエーションタグ、生成時点で解決済みのもの)。シード引き継ぎ実行時、可変LoRA/
+   * 身体的特徴だけ選び直してこの部分はそのまま再利用する(buildReusablePromptSegment参照)。 */
+  reusablePromptSuffix?: string;
+  /** reusablePromptSuffixに対応する、人数/ポーズ/シーン/その他プリセット由来のLoRA一覧。
+   * シード引き継ぎ実行時、可変LoRA/身体的特徴のLoRAは選び直すが、これらは一緒に再利用する。 */
+  reusableLoras?: LoraEntry[];
 }
 
 export interface GalleryFolderInfo {

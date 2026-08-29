@@ -136,6 +136,11 @@ export interface ReleasedSeed {
   filename: string;
   seed: number;
   upscaleSeed: number | null;
+  /** ImageMetadata.reusablePromptSuffix(人数/ポーズ/シーン/その他プリセット+追加プロンプト+
+   * バリエーションタグの解決済みテキスト)。可変LoRA/身体的特徴は含まない。 */
+  reusablePromptSuffix?: string;
+  /** ImageMetadata.reusableLoras(人数/ポーズ/シーン/その他プリセット由来のLoRA) */
+  reusableLoras?: LoraEntry[];
 }
 
 export interface BatchPresetSet {
@@ -160,4 +165,9 @@ export interface GalleryImage {
   appliedAdditional?: string;
   /** BatchPreset.id this image was generated from (一括キュー実行時のみ) */
   batchPresetId?: string;
+  /** positivePromptのうち可変LoRA・固定LoRA・身体的特徴プリセットを除いた残り(解決済み)。
+   * ImageMetadata.reusablePromptSuffix参照。 */
+  reusablePromptSuffix?: string;
+  /** reusablePromptSuffixに対応する人数/ポーズ/シーン/その他プリセット由来のLoRA */
+  reusableLoras?: LoraEntry[];
 }

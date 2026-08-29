@@ -282,6 +282,11 @@ export function useGallery() {
             positivePrompt,
             negativePrompt,
             createdAt: Date.now(),
+            // プロンプトを上書きした場合、元画像のreusablePromptSuffix/reusableLorasは
+            // 新しいpositivePromptと対応しなくなるため引き継がない
+            ...(overrides?.positivePrompt !== undefined
+              ? { reusablePromptSuffix: undefined, reusableLoras: undefined }
+              : {}),
           };
           const res = await fetch("/api/gallery/finalize-revision", {
             method: "POST",
