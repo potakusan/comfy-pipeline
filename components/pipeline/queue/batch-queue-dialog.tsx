@@ -22,6 +22,7 @@ import ListView from "@/components/pipeline/queue/batch-queue-list-view";
 import EditView from "@/components/pipeline/queue/batch-queue-edit-view";
 import RunSetupView from "@/components/pipeline/queue/batch-queue-run-setup-view";
 import BulkRunSetupView from "@/components/pipeline/queue/batch-queue-bulk-run-setup-view";
+import { findSetByFilenamePresetName } from "@/lib/gallery-preset-name-match";
 
 interface BatchQueueDialogProps {
   batchPresetSets: BatchPresetSet[];
@@ -84,16 +85,21 @@ export default function BatchQueueDialog({
 
   // seedSourceにbatchPresetIdが含まれる場合、それを持つプリセットを含むセットを
   // 自動的に特定してrun-setup画面まで進める(一覧からの手動選択を省略する)。
+  // batchPresetId未記録(#58より前に生成された画像)の場合は、保存済み
+  // ファイル名から復元したプリセット名で現在のプリセットと突き合わせる
+  // フォールバックを試す(findSetByFilenamePresetName参照。名前ベースなので
+  // ID一致より弱いベストエフォート)。
   // レンダー中にstateを調整する(useEffect不使用)ことで、propが変化した
   // タイミングだけ反応させる — https://react.dev/learn/you-might-not-need-an-effect
   const [autoSelectedFolder, setAutoSelectedFolder] = useState<string | null>(null);
   if (seedSource && seedSource.folder !== autoSelectedFolder) {
     setAutoSelectedFolder(seedSource.folder);
-    const matchedSet = seedSource.batchPresetId
-      ? batchPresetSets.find((set) =>
-          set.presets.some((p) => p.id === seedSource.batchPresetId),
-        )
-      : undefined;
+    const matchedSet =
+      (seedSource.batchPresetId
+        ? batchPresetSets.find((set) =>
+            set.presets.some((p) => p.id === seedSource.batchPresetId),
+          )
+        : undefined) ?? findSetByFilenamePresetName(seedSource.seeds, batchPresetSets);
     if (matchedSet) {
       setPendingRunSet(matchedSet);
       setView("run-setup");
