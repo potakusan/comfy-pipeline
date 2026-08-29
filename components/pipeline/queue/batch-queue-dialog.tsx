@@ -7,6 +7,7 @@ import {
   type LoraEntry,
   type Preset,
   type GenerationSettings,
+  type ReleasedSeed,
 } from "@/lib/comfy";
 import {
   Dialog,
@@ -44,6 +45,11 @@ interface BatchQueueDialogProps {
   otherPresets: Preset[];
   /** サンプラー設定の初期値 */
   currentSettings: GenerationSettings;
+  /** ギャラリーから「シード引き継ぎ元フォルダ」付きで遷移してきた場合に設定される。
+   * 設定されるとダイアログを自動的に開く。 */
+  seedSource?: { folder: string; seeds: ReleasedSeed[] } | null;
+  /** seedSourceを読み取り終えたことを親に伝える(URLクエリパラメータのクリア用) */
+  onConsumeSeedSource?: () => void;
 }
 
 export default function BatchQueueDialog({
@@ -61,8 +67,14 @@ export default function BatchQueueDialog({
   posePresets,
   otherPresets,
   currentSettings,
+  seedSource,
+  onConsumeSeedSource,
 }: BatchQueueDialogProps) {
   const [open, setOpen] = useState(false);
+  // seedSourceが設定されたら(ギャラリーからの遷移時)自動的に開く。effect無しで
+  // 導出できるようopenとの論理和で表現する(onOpenChangeでの閉じる操作は
+  // onConsumeSeedSourceでseedSource自体をクリアすることで反映される)。
+  const isOpen = open || !!seedSource;
   const [view, setView] = useState<
     "list" | "edit" | "run-setup" | "bulk-run-setup"
   >("list");
@@ -137,10 +149,13 @@ export default function BatchQueueDialog({
 
   return (
     <Dialog
-      open={open}
+      open={isOpen}
       onOpenChange={(v) => {
         setOpen(v);
-        if (!v) backToList();
+        if (!v) {
+          backToList();
+          if (seedSource) onConsumeSeedSource?.();
+        }
       }}
     >
       <DialogTrigger asChild>
@@ -162,6 +177,11 @@ export default function BatchQueueDialog({
               </button>
             )}
             {dialogTitle}
+            {seedSource && (
+              <span className="text-[10px] font-normal text-muted-foreground">
+                (シード引き継ぎ元: {seedSource.folder})
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -197,6 +217,7 @@ export default function BatchQueueDialog({
             physicalPresets={physicalPresets}
             scenePresets={scenePresets}
             initialSettings={currentSettings}
+            seedSource={seedSource}
             onConfirm={handleRunConfirm}
             onCancel={backToList}
           />
