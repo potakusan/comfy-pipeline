@@ -24,6 +24,8 @@ export interface ImageMetadata {
   colorMaskRegions?: CoupleRegion[];
   /** Set when this image was produced by the gallery "regenerate with new seed" action. */
   revisionOf?: string;
+  /** BatchPreset.id this image was generated from (一括キュー実行時のみ). Used to aggregate per-preset release rate. */
+  batchPresetId?: string;
 }
 
 export interface GalleryFolderInfo {

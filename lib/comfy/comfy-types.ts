@@ -63,8 +63,10 @@ export interface QueueItem {
   negativePrompt: string;
   settings: GenerationSettings;
   batchCount: number;
-  /** ユーザーが指定した元の生成枚数。seedPoolの枚数不足等でbatchCountが切り詰められた場合のみ、両者が異なる。 */
+  /** ユーザーが指定した元の生成枚数。良品率調整やseedPoolの枚数不足等でbatchCountが切り詰められた場合のみ、両者が異なる。 */
   requestedBatchCount?: number;
+  /** 一括キュープリセットから生成された場合のBatchPreset.id */
+  batchPresetId?: string;
   /** 設定時、batch番目の生成にはこのプールのseed/upscaleSeedを使う(ランダム生成しない) */
   seedPool?: ReleasedSeed[];
   /** seedPoolの引き継ぎ元フォルダ名(UI表示用) */
@@ -154,4 +156,6 @@ export interface GalleryImage {
   createdAt: number;
   /** The actual additional prompt applied to this image (recorded for random mode) */
   appliedAdditional?: string;
+  /** BatchPreset.id this image was generated from (一括キュー実行時のみ) */
+  batchPresetId?: string;
 }

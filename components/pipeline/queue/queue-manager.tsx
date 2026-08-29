@@ -109,7 +109,7 @@ function QueueItemRow({
           <p className="text-[10px] text-muted-foreground">
             {createdAt} ·{" "}
             {item.requestedBatchCount !== undefined ? (
-              <span title="生成枚数が指定枚数から調整されました">
+              <span title="生成枚数が指定枚数から調整されました(良品率調整/シード引き継ぎ)">
                 {item.batchCount}枚(指定{item.requestedBatchCount}枚から調整)
               </span>
             ) : (

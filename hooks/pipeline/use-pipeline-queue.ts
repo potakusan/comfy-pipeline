@@ -18,6 +18,11 @@ import { useComfyWS } from "../use-comfy-ws";
 import { lsGet, lsSet } from "@/hooks/ls";
 import { submitAndAwaitNewFiles, classifyCancelError } from "@/lib/comfy/comfy-client";
 import type { GenerationMode } from "@/lib/gallery";
+import { apiFetch } from "@/lib/api-client";
+import {
+  computeAdjustedBatchCount,
+  type PresetGenerationStats,
+} from "@/lib/gallery-preset-stats";
 import { resolveSeedPoolBatchCount } from "@/lib/gallery-seed-pool";
 import {
   resolvePresetPromptAndLoras,
@@ -367,6 +372,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           queueLabel: pendingItem.label,
           createdAt: Date.now(),
           appliedAdditional: pickedAdditional,
+          batchPresetId: pendingItem.batchPresetId,
         }));
 
         // Fire-and-forget: persist prompt/seed metadata as a JSON sidecar next
@@ -395,6 +401,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
                   queueLabel: img.queueLabel,
                   createdAt: img.createdAt,
                   appliedAdditional: img.appliedAdditional,
+                  batchPresetId: img.batchPresetId,
                   ...(mode === "colorMask"
                     ? {
                         colorMaskControlNet: pendingItem.colorMaskControlNet,
@@ -620,7 +627,17 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
   );
 
   const runBatchPresets = useCallback(
-    (presets: BatchPreset[], overrides: BatchRunOverrides) => {
+    async (presets: BatchPreset[], overrides: BatchRunOverrides) => {
+      let presetStats: Record<string, PresetGenerationStats> = {};
+      try {
+        const res = await apiFetch<{ stats: Record<string, PresetGenerationStats> }>(
+          "/api/gallery/preset-stats",
+        );
+        presetStats = res.stats;
+      } catch {
+        // 集計取得に失敗しても、調整せず指定枚数のまま生成を続行する
+      }
+
       const items: QueueItem[] = presets.map((preset) => {
         // IDから最新のプリセット内容を解決
         const resolvedCount = countPresets.find((p) => p.id === preset.countPresetId) ?? null;
@@ -650,12 +667,19 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           overrides.variableLora?.name.split("/").pop()?.replace(".safetensors", "") ?? null;
         const label = [loraLabel, preset.name].filter(Boolean).join(" / ");
 
+        // 良品率による調整(#58)とシード引き継ぎのプールサイズ切り詰め(#59)は独立した
+        // 機能だが、両方指定されている場合は良品率調整後の枚数をさらにプールサイズで
+        // 上限クランプする(どちらの上限も守るため)。
+        const adjustedBatchCount = computeAdjustedBatchCount(
+          preset.batchCount,
+          presetStats[preset.id],
+        );
         // シード引き継ぎ元が指定されている場合、生成枚数をプールサイズに切り詰め、
         // batch番目の生成にはこのプリセット独自ではなくプール全体から同じseedを使う
         // (プリセットごとにプールを分割消費しない。詳細はPR説明を参照)
         const seedPoolBatchCount = overrides.seedPool
-          ? resolveSeedPoolBatchCount(preset.batchCount, overrides.seedPool.length)
-          : preset.batchCount;
+          ? resolveSeedPoolBatchCount(adjustedBatchCount, overrides.seedPool.length)
+          : adjustedBatchCount;
 
         return {
           id: crypto.randomUUID(),
@@ -671,6 +695,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           batchCount: seedPoolBatchCount,
           requestedBatchCount:
             seedPoolBatchCount !== preset.batchCount ? preset.batchCount : undefined,
+          batchPresetId: preset.id,
           seedPool: overrides.seedPool?.slice(0, seedPoolBatchCount),
           seedSourceFolder: overrides.seedPool ? overrides.seedSourceFolder : undefined,
           status: "pending",
