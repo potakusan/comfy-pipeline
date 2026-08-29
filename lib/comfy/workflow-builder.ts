@@ -56,6 +56,10 @@ export function buildBasePipeline(
  * リファインメントパス→SaveImageという、buildWorkflow/buildCoupleWorkflow/
  * buildColorMaskWorkflow全てで同一のテール処理。latent_imageは常に
  * buildBasePipelineが作る"lat"ノードを参照する。
+ *
+ * 実際に使用したseed/upscaleSeedを返す。呼び出し元がメタデータへ保存する値は
+ * 必ずこの戻り値を使うこと(settingsに入れた値をそのまま使うと、
+ * randomizeSeed/upscaleSeed省略時にランダム決定された実際の値と食い違う)。
  */
 export function buildSamplingAndSaveTail(
   wf: Record<string, unknown>,
@@ -72,7 +76,7 @@ export function buildSamplingAndSaveTail(
     negative: NodeRef;
     outputPrefix: string;
   },
-): void {
+): { seed: number; upscaleSeed: number | null } {
   const seed = settings.randomizeSeed
     ? Math.floor(Math.random() * 2 ** 32)
     : settings.seed;
@@ -104,14 +108,16 @@ export function buildSamplingAndSaveTail(
   };
 
   let saveSource: NodeRef = ["upi", 0];
+  let upscaleSeed: number | null = null;
   if (settings.upscaleSteps > 0) {
+    upscaleSeed = settings.upscaleSeed ?? Math.floor(Math.random() * 2 ** 32);
     wf["vae2"] = {
       inputs: { pixels: ["upi", 0], vae: ["chk", 2] },
       class_type: "VAEEncode",
     };
     wf["ksamp2"] = {
       inputs: {
-        seed: Math.floor(Math.random() * 2 ** 32),
+        seed: upscaleSeed,
         steps: settings.upscaleSteps,
         cfg: settings.cfg,
         sampler_name: settings.sampler,
@@ -135,6 +141,8 @@ export function buildSamplingAndSaveTail(
     inputs: { filename_prefix: outputPrefix, images: saveSource },
     class_type: "SaveImage",
   };
+
+  return { seed, upscaleSeed };
 }
 
 export function buildWorkflow({
@@ -149,7 +157,7 @@ export function buildWorkflow({
   positivePrompt: string;
   negativePrompt: string;
   outputPrefix: string;
-}): Record<string, unknown> {
+}): { workflow: Record<string, unknown>; seed: number; upscaleSeed: number | null } {
   const wf: Record<string, unknown> = {};
 
   const { model, clip } = buildBasePipeline(wf, settings, loras);
@@ -164,7 +172,7 @@ export function buildWorkflow({
     class_type: "CLIPTextEncode",
   };
 
-  buildSamplingAndSaveTail(wf, {
+  const { seed, upscaleSeed } = buildSamplingAndSaveTail(wf, {
     settings,
     model,
     positive: ["pos", 0],
@@ -172,5 +180,5 @@ export function buildWorkflow({
     outputPrefix,
   });
 
-  return wf;
+  return { workflow: wf, seed, upscaleSeed };
 }

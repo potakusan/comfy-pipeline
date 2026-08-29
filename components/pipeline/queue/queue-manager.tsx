@@ -19,6 +19,7 @@ import {
   Pause,
   Pencil,
   RotateCcw,
+  Sprout,
 } from "lucide-react";
 
 interface QueueManagerProps {
@@ -96,9 +97,24 @@ function QueueItemRow({
       <div className="flex items-start gap-2">
         <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${cfg.className}`} />
         <div className="flex-1 min-w-0">
-          <p className="truncate text-sm font-medium">{item.label}</p>
+          <p className="flex items-center gap-1 truncate text-sm font-medium">
+            {item.label}
+            {item.seedSourceFolder && (
+              <Sprout
+                className="h-3 w-3 shrink-0 text-muted-foreground"
+                aria-label={`シード引き継ぎ元: ${item.seedSourceFolder}`}
+              />
+            )}
+          </p>
           <p className="text-[10px] text-muted-foreground">
-            {createdAt} · {item.batchCount}枚
+            {createdAt} ·{" "}
+            {item.requestedBatchCount !== undefined ? (
+              <span title="生成枚数が指定枚数から調整されました">
+                {item.batchCount}枚(指定{item.requestedBatchCount}枚から調整)
+              </span>
+            ) : (
+              <>{item.batchCount}枚</>
+            )}
             {item.variableLora && (
               <>
                 {" "}

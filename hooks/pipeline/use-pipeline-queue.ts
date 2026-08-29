@@ -18,6 +18,7 @@ import { useComfyWS } from "../use-comfy-ws";
 import { lsGet, lsSet } from "@/hooks/ls";
 import { submitAndAwaitNewFiles, classifyCancelError } from "@/lib/comfy/comfy-client";
 import type { GenerationMode } from "@/lib/gallery";
+import { resolveSeedPoolBatchCount } from "@/lib/gallery-seed-pool";
 import {
   resolvePresetPromptAndLoras,
   buildPositivePromptWithAdditional,
@@ -290,10 +291,20 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
 
       setCurrentBatchPrompt(batchPrompt);
 
+      // 「やり直し(新しいseedで)」はseedPoolより常に優先する(ユーザーの明示操作のため)。
+      // そうでなければ、seedPoolが設定されていればbatch番目のプールseedを固定で使う。
+      const poolEntry = !forceNewSeed ? pendingItem.seedPool?.[batch] : undefined;
       const workflowArgs = {
         settings: forceNewSeed
           ? { ...pendingItem.settings, randomizeSeed: true }
-          : pendingItem.settings,
+          : poolEntry
+            ? {
+                ...pendingItem.settings,
+                randomizeSeed: false,
+                seed: poolEntry.seed,
+                upscaleSeed: poolEntry.upscaleSeed ?? undefined,
+              }
+            : pendingItem.settings,
         loras: batchAllLoras,
         positivePrompt: batchPrompt,
         negativePrompt: pendingItem.negativePrompt,
@@ -306,16 +317,17 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
       try {
         // buildColorMaskWorkflowはregionsが空だと例外を投げるため、
         // このtry内で構築して下のcatchでバッチ失敗として扱う
-        const workflow = pendingItem.colorMaskWorkflow
-          ? buildColorMaskWorkflow({
-              ...workflowArgs,
-              basePositivePrompt: batchPrompt,
-              regions: pendingItem.colorMaskRegions ?? [],
-              controlNet: pendingItem.colorMaskControlNet!,
-            })
-          : pendingItem.coupleWorkflow
-            ? buildCoupleWorkflow(workflowArgs)
-            : buildWorkflow(workflowArgs);
+        const { workflow, seed: resolvedSeed, upscaleSeed: resolvedUpscaleSeed } =
+          pendingItem.colorMaskWorkflow
+            ? buildColorMaskWorkflow({
+                ...workflowArgs,
+                basePositivePrompt: batchPrompt,
+                regions: pendingItem.colorMaskRegions ?? [],
+                controlNet: pendingItem.colorMaskControlNet!,
+              })
+            : pendingItem.coupleWorkflow
+              ? buildCoupleWorkflow(workflowArgs)
+              : buildWorkflow(workflowArgs);
 
         const newFiles = await submitAndAwaitNewFiles(
           workflow,
@@ -335,13 +347,22 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           }).catch(() => {});
         }
 
+        // 実際にComfyUIへ送ったworkflowに埋め込まれたseed(resolvedSeed/resolvedUpscaleSeed)を
+        // 保存する。pendingItem.settings.seedをそのまま使うと、randomizeSeed:trueの場合に
+        // 実際の生成に使われた値と食い違ったメタデータになってしまう。
+        const resolvedSettings: GenerationSettings = {
+          ...pendingItem.settings,
+          seed: resolvedSeed,
+          upscaleSeed: resolvedUpscaleSeed ?? undefined,
+        };
+
         const newImages: GalleryImage[] = newFiles.map((filename) => ({
           id: crypto.randomUUID(),
           path: `${outputSubfolder}/${filename}`,
           loraName: pendingItem.variableLora?.name || "no-lora",
           positivePrompt: batchPrompt,
           negativePrompt: pendingItem.negativePrompt,
-          settings: { ...pendingItem.settings },
+          settings: resolvedSettings,
           loras: batchAllLoras,
           queueLabel: pendingItem.label,
           createdAt: Date.now(),
@@ -629,6 +650,13 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           overrides.variableLora?.name.split("/").pop()?.replace(".safetensors", "") ?? null;
         const label = [loraLabel, preset.name].filter(Boolean).join(" / ");
 
+        // シード引き継ぎ元が指定されている場合、生成枚数をプールサイズに切り詰め、
+        // batch番目の生成にはこのプリセット独自ではなくプール全体から同じseedを使う
+        // (プリセットごとにプールを分割消費しない。詳細はPR説明を参照)
+        const seedPoolBatchCount = overrides.seedPool
+          ? resolveSeedPoolBatchCount(preset.batchCount, overrides.seedPool.length)
+          : preset.batchCount;
+
         return {
           id: crypto.randomUUID(),
           label: label || "(一括)",
@@ -640,7 +668,11 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           negativePrompt: presetNegativePrompt,
           settings: { ...overrides.settings },
           fixedTags: presetFixedTags,
-          batchCount: preset.batchCount,
+          batchCount: seedPoolBatchCount,
+          requestedBatchCount:
+            seedPoolBatchCount !== preset.batchCount ? preset.batchCount : undefined,
+          seedPool: overrides.seedPool?.slice(0, seedPoolBatchCount),
+          seedSourceFolder: overrides.seedPool ? overrides.seedSourceFolder : undefined,
           status: "pending",
           currentBatch: 0,
           completedImages: [],

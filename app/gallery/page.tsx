@@ -20,6 +20,7 @@ import {
 import { useGallery } from "@/hooks/gallery/use-gallery";
 import AppHeader from "@/components/common/app-header";
 import GalleryFolderList from "@/components/gallery/gallery-folder-list";
+import GallerySeedArchiveList from "@/components/gallery/gallery-seed-archive-list";
 import GalleryThumbGrid from "@/components/gallery/gallery-thumb-grid";
 import GalleryMosaicThumbGrid from "@/components/gallery/gallery-mosaic-thumb-grid";
 import GalleryMosaicEditor from "@/components/gallery/gallery-mosaic-editor";
@@ -157,6 +158,7 @@ export default function GalleryPage() {
               onSelect={handleSelectFolder}
             />
           </div>
+          <GallerySeedArchiveList />
         </ResizablePanel>
         <ResizableHandle withHandle />
 

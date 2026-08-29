@@ -116,7 +116,7 @@ describe("buildCouplePrompt", () => {
 
 describe("buildCoupleWorkflow", () => {
   it("uses PCLazyTextEncode (COUPLE-syntax aware) for both prompts", () => {
-    const wf = buildCoupleWorkflow({
+    const { workflow: wf } = buildCoupleWorkflow({
       settings: makeSettings(),
       loras: [],
       positivePrompt: "COUPLE(0 0.5)\n1girl,\n\nCOUPLE(0.5 1)\n1girl,",
@@ -177,7 +177,7 @@ describe("buildColorMaskWorkflow", () => {
   });
 
   it("chains ConditioningCombine across all regions plus the base prompt", () => {
-    const wf = buildColorMaskWorkflow({
+    const { workflow: wf } = buildColorMaskWorkflow({
       settings: makeSettings(),
       loras: [],
       basePositivePrompt: "2girls,",
@@ -203,7 +203,7 @@ describe("buildColorMaskWorkflow", () => {
   });
 
   it("wires ControlNetApplyAdvanced in front of the sampler only when a pose image is set", () => {
-    const withoutPose = buildColorMaskWorkflow({
+    const { workflow: withoutPose } = buildColorMaskWorkflow({
       settings: makeSettings(),
       loras: [],
       basePositivePrompt: "2girls,",
@@ -218,7 +218,7 @@ describe("buildColorMaskWorkflow", () => {
       0,
     ]);
 
-    const withPose = buildColorMaskWorkflow({
+    const { workflow: withPose } = buildColorMaskWorkflow({
       settings: makeSettings(),
       loras: [],
       basePositivePrompt: "2girls,",
@@ -234,7 +234,7 @@ describe("buildColorMaskWorkflow", () => {
   });
 
   it("creates a CreateHookLora/SetClipHooks pair only for regions that have a LoRA assigned", () => {
-    const wf = buildColorMaskWorkflow({
+    const { workflow: wf } = buildColorMaskWorkflow({
       settings: makeSettings(),
       loras: [],
       basePositivePrompt: "2girls,",

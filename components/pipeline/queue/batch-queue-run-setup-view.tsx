@@ -5,16 +5,19 @@ import {
   type LoraEntry,
   type Preset,
   type GenerationSettings,
+  type ReleasedSeed,
 } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
 import SamplerSettings from "@/components/pipeline/sampler-settings";
-import { Play, ChevronUp, ChevronDown } from "lucide-react";
+import { Play, ChevronUp, ChevronDown, Sprout } from "lucide-react";
 
 interface RunSetupViewProps {
   variableLoras: LoraEntry[];
   physicalPresets: Preset[];
   scenePresets: Preset[];
   initialSettings: GenerationSettings;
+  /** ギャラリーの販売用選択画像から引き継ぐseedプール(選択されている場合のみ) */
+  seedSource?: { folder: string; seeds: ReleasedSeed[] } | null;
   onConfirm: (overrides: BatchRunOverrides) => void;
   onCancel: () => void;
 }
@@ -24,6 +27,7 @@ export default function RunSetupView({
   physicalPresets,
   scenePresets,
   initialSettings,
+  seedSource,
   onConfirm,
   onCancel,
 }: RunSetupViewProps) {
@@ -44,13 +48,34 @@ export default function RunSetupView({
       physicalPresets: physicalPresets.filter((p) => selectedPhysicalIds.includes(p.id)),
       scenePreset: scenePresets.find((p) => p.id === selectedSceneId) ?? null,
       settings: runSettings,
+      seedPool: seedSource && seedSource.seeds.length > 0 ? seedSource.seeds : undefined,
+      seedSourceFolder: seedSource?.folder,
     });
   };
+
+  const seedPoolEmpty = !!seedSource && seedSource.seeds.length === 0;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <div className="space-y-4">
+          {seedSource && (
+            <div className="flex items-start gap-1.5 rounded-lg border bg-muted/30 p-2 text-[10px] text-muted-foreground">
+              <Sprout className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {seedPoolEmpty ? (
+                <span>
+                  シード引き継ぎ元「{seedSource.folder}」に販売用選択画像がありません。実行すると通常通りランダムなseedで生成されます。
+                </span>
+              ) : (
+                <span>
+                  シード引き継ぎ元: {seedSource.folder}({seedSource.seeds.length}枚)
+                  。プロンプト/LoRAが元画像と同一であれば同じ画像を再現し、変更すれば構図の傾向だけ引き継ぎます。
+                  各プリセットの生成枚数は最大{seedSource.seeds.length}枚に切り詰められます。
+                </span>
+              )}
+            </div>
+          )}
+
           {/* 可変LoRA */}
           <div>
             <p className="mb-1.5 text-xs font-semibold">可変LoRA</p>

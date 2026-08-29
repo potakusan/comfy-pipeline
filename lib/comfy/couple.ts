@@ -180,7 +180,7 @@ export function buildCoupleWorkflow({
   positivePrompt: string;
   negativePrompt: string;
   outputPrefix: string;
-}): Record<string, unknown> {
+}): { workflow: Record<string, unknown>; seed: number; upscaleSeed: number | null } {
   const wf: Record<string, unknown> = {};
 
   const { model, clip } = buildBasePipeline(wf, settings, loras);
@@ -195,7 +195,7 @@ export function buildCoupleWorkflow({
     class_type: "PCLazyTextEncode",
   };
 
-  buildSamplingAndSaveTail(wf, {
+  const { seed, upscaleSeed } = buildSamplingAndSaveTail(wf, {
     settings,
     model,
     positive: ["pos", 0],
@@ -203,7 +203,7 @@ export function buildCoupleWorkflow({
     outputPrefix,
   });
 
-  return wf;
+  return { workflow: wf, seed, upscaleSeed };
 }
 
 // ---------------------------------------------------------------------------
@@ -288,7 +288,7 @@ export function buildColorMaskWorkflow({
   regions: CoupleRegion[];
   controlNet: CoupleControlNet;
   outputPrefix: string;
-}): Record<string, unknown> {
+}): { workflow: Record<string, unknown>; seed: number; upscaleSeed: number | null } {
   if (regions.length === 0) {
     throw new Error("カラーマップのリージョンが1つも設定されていません");
   }
@@ -413,7 +413,7 @@ export function buildColorMaskWorkflow({
     finalNeg = ["cnapply", 1];
   }
 
-  buildSamplingAndSaveTail(wf, {
+  const { seed, upscaleSeed } = buildSamplingAndSaveTail(wf, {
     settings,
     model,
     positive: finalPos,
@@ -421,5 +421,5 @@ export function buildColorMaskWorkflow({
     outputPrefix,
   });
 
-  return wf;
+  return { workflow: wf, seed, upscaleSeed };
 }

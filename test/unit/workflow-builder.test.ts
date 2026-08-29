@@ -124,7 +124,7 @@ describe("buildSamplingAndSaveTail", () => {
 
   it("adds a fixed-denoise refinement pass and saves from its output when upscaleSteps > 0", () => {
     const wf: Record<string, unknown> = {};
-    buildSamplingAndSaveTail(wf, {
+    const result = buildSamplingAndSaveTail(wf, {
       settings: makeSettings({ upscaleSteps: 10 }),
       model: ["chk", 0],
       positive: ["pos", 0],
@@ -136,19 +136,47 @@ describe("buildSamplingAndSaveTail", () => {
       inputs: { pixels: ["upi", 0], vae: ["chk", 2] },
       class_type: "VAEEncode",
     });
-    const ksamp2 = wf["ksamp2"] as { inputs: { steps: number; denoise: number } };
+    const ksamp2 = wf["ksamp2"] as { inputs: { steps: number; denoise: number; seed: number } };
     expect(ksamp2.inputs.steps).toBe(10);
     expect(ksamp2.inputs.denoise).toBe(0.5);
+    expect(result.upscaleSeed).toBe(ksamp2.inputs.seed);
     expect(wf["save"]).toEqual({
       inputs: { filename_prefix: "out", images: ["vae3", 0] },
       class_type: "SaveImage",
     });
   });
+
+  it("uses settings.upscaleSeed for the refinement pass when provided, instead of a random value", () => {
+    const wf: Record<string, unknown> = {};
+    const { upscaleSeed } = buildSamplingAndSaveTail(wf, {
+      settings: makeSettings({ upscaleSteps: 10, upscaleSeed: 999 }),
+      model: ["chk", 0],
+      positive: ["pos", 0],
+      negative: ["neg", 0],
+      outputPrefix: "out",
+    });
+
+    expect(upscaleSeed).toBe(999);
+    expect((wf["ksamp2"] as { inputs: { seed: number } }).inputs.seed).toBe(999);
+  });
+
+  it("upscaleSeed is null in the return value when upscaleSteps is 0", () => {
+    const wf: Record<string, unknown> = {};
+    const { upscaleSeed } = buildSamplingAndSaveTail(wf, {
+      settings: makeSettings({ upscaleSteps: 0 }),
+      model: ["chk", 0],
+      positive: ["pos", 0],
+      negative: ["neg", 0],
+      outputPrefix: "out",
+    });
+
+    expect(upscaleSeed).toBeNull();
+  });
 });
 
 describe("buildWorkflow", () => {
   it("wires CLIPTextEncode prompts off the base pipeline's clip and feeds them into the sampler", () => {
-    const wf = buildWorkflow({
+    const { workflow: wf } = buildWorkflow({
       settings: makeSettings(),
       loras: [],
       positivePrompt: "1girl, masterpiece",
@@ -167,5 +195,32 @@ describe("buildWorkflow", () => {
     expect((wf["ksamp"] as { inputs: { positive: unknown; negative: unknown } }).inputs).toMatchObject(
       { positive: ["pos", 0], negative: ["neg", 0] },
     );
+  });
+
+  it("returns the resolved seed/upscaleSeed actually embedded in the workflow", () => {
+    const { workflow: wf, seed, upscaleSeed } = buildWorkflow({
+      settings: makeSettings({ randomizeSeed: false, seed: 777, upscaleSteps: 10, upscaleSeed: 888 }),
+      loras: [],
+      positivePrompt: "p",
+      negativePrompt: "n",
+      outputPrefix: "out",
+    });
+
+    expect(seed).toBe(777);
+    expect(upscaleSeed).toBe(888);
+    expect((wf["ksamp"] as { inputs: { seed: number } }).inputs.seed).toBe(777);
+    expect((wf["ksamp2"] as { inputs: { seed: number } }).inputs.seed).toBe(888);
+  });
+
+  it("upscaleSeed is null when upscaleSteps is 0 (no refinement pass)", () => {
+    const { upscaleSeed } = buildWorkflow({
+      settings: makeSettings({ upscaleSteps: 0 }),
+      loras: [],
+      positivePrompt: "p",
+      negativePrompt: "n",
+      outputPrefix: "out",
+    });
+
+    expect(upscaleSeed).toBeNull();
   });
 });
