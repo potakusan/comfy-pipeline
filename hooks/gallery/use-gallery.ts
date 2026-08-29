@@ -244,7 +244,7 @@ export function useGallery() {
         try {
           // buildColorMaskWorkflowはregionsが空だと例外を投げるため、
           // このtry内で構築してcatch側のエラー表示に載せる
-          const workflow =
+          const { workflow, upscaleSeed: resolvedUpscaleSeed } =
             meta.mode === "colorMask"
               ? buildColorMaskWorkflow({
                   ...workflowArgs,
@@ -255,6 +255,9 @@ export function useGallery() {
               : meta.mode === "couple"
                 ? buildCoupleWorkflow(workflowArgs)
                 : buildWorkflow(workflowArgs);
+          // アップスケール2段目のseedは呼び出し前には決まらないため、
+          // 実際に使われた値(resolvedUpscaleSeed)をメタデータへ反映する
+          const finalSettings = { ...settings, upscaleSeed: resolvedUpscaleSeed ?? undefined };
 
           const newFiles = await submitAndAwaitNewFiles(
             workflow,
@@ -275,7 +278,7 @@ export function useGallery() {
 
           const newMetadata: ImageMetadata = {
             ...meta,
-            settings,
+            settings: finalSettings,
             positivePrompt,
             negativePrompt,
             createdAt: Date.now(),

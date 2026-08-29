@@ -27,6 +27,8 @@ export interface GenerationSettings {
   sampler: string;
   scheduler: string;
   denoise: number;
+  /** アップスケール2段目(ksamp2)のseedを固定したい場合に指定する。省略時は生成のたびにランダムな値が使われる。 */
+  upscaleSeed?: number;
 }
 
 export interface Preset {
@@ -61,6 +63,12 @@ export interface QueueItem {
   negativePrompt: string;
   settings: GenerationSettings;
   batchCount: number;
+  /** ユーザーが指定した元の生成枚数。seedPoolの枚数不足等でbatchCountが切り詰められた場合のみ、両者が異なる。 */
+  requestedBatchCount?: number;
+  /** 設定時、batch番目の生成にはこのプールのseed/upscaleSeedを使う(ランダム生成しない) */
+  seedPool?: ReleasedSeed[];
+  /** seedPoolの引き継ぎ元フォルダ名(UI表示用) */
+  seedSourceFolder?: string;
   status: "pending" | "running" | "completed" | "cancelled" | "failed";
   currentBatch: number;
   completedImages: GalleryImage[];
@@ -113,6 +121,17 @@ export interface BatchRunOverrides {
   physicalPresets: Preset[];
   scenePreset: Preset | null;
   settings: GenerationSettings;
+  /** ギャラリーの販売用選択画像から引き継ぐseedのプール(RunSetupViewのみ対応) */
+  seedPool?: ReleasedSeed[];
+  /** seedPoolの引き継ぎ元フォルダ名(UI表示用) */
+  seedSourceFolder?: string;
+}
+
+/** 販売用選択画像から引き継ぐ、1枚分のseed情報 */
+export interface ReleasedSeed {
+  filename: string;
+  seed: number;
+  upscaleSeed: number | null;
 }
 
 export interface BatchPresetSet {
