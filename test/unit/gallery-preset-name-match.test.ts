@@ -59,4 +59,14 @@ describe("findSetByFilenamePresetName", () => {
     const set: BatchPresetSet = { id: "set-1", name: "セットA", presets: [makePreset()] };
     expect(findSetByFilenamePresetName([], [set])).toBeUndefined();
   });
+
+  it("matches a preset name that itself ends with an underscore (regression: getPoseGroup's cosmetic trailing-underscore strip must not be used here)", () => {
+    const preset = makePreset({ name: "1_0_1_ランダム待機_" });
+    const set: BatchPresetSet = { id: "set-1", name: "セットA", presets: [preset] };
+    // ComfyUIの連番"_00004_"がプリセット名自体の末尾の"_"の直後に続くため、
+    // 実際のファイル名には"_"が2つ連続する("...待機__00004_.png")
+    const seeds = [makeSeed({ filename: "1_0_1_ランダム待機__00004_.png" })];
+
+    expect(findSetByFilenamePresetName(seeds, [set])).toBe(set);
+  });
 });
