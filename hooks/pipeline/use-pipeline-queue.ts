@@ -18,6 +18,11 @@ import { useComfyWS } from "../use-comfy-ws";
 import { lsGet, lsSet } from "@/hooks/ls";
 import { submitAndAwaitNewFiles, classifyCancelError } from "@/lib/comfy/comfy-client";
 import type { GenerationMode } from "@/lib/gallery";
+import { apiFetch } from "@/lib/api-client";
+import {
+  computeAdjustedBatchCount,
+  type PresetGenerationStats,
+} from "@/lib/gallery-preset-stats";
 import {
   resolvePresetPromptAndLoras,
   buildPositivePromptWithAdditional,
@@ -346,6 +351,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           queueLabel: pendingItem.label,
           createdAt: Date.now(),
           appliedAdditional: pickedAdditional,
+          batchPresetId: pendingItem.batchPresetId,
         }));
 
         // Fire-and-forget: persist prompt/seed metadata as a JSON sidecar next
@@ -374,6 +380,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
                   queueLabel: img.queueLabel,
                   createdAt: img.createdAt,
                   appliedAdditional: img.appliedAdditional,
+                  batchPresetId: img.batchPresetId,
                   ...(mode === "colorMask"
                     ? {
                         colorMaskControlNet: pendingItem.colorMaskControlNet,
@@ -599,7 +606,17 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
   );
 
   const runBatchPresets = useCallback(
-    (presets: BatchPreset[], overrides: BatchRunOverrides) => {
+    async (presets: BatchPreset[], overrides: BatchRunOverrides) => {
+      let presetStats: Record<string, PresetGenerationStats> = {};
+      try {
+        const res = await apiFetch<{ stats: Record<string, PresetGenerationStats> }>(
+          "/api/gallery/preset-stats",
+        );
+        presetStats = res.stats;
+      } catch {
+        // 集計取得に失敗しても、調整せず指定枚数のまま生成を続行する
+      }
+
       const items: QueueItem[] = presets.map((preset) => {
         // IDから最新のプリセット内容を解決
         const resolvedCount = countPresets.find((p) => p.id === preset.countPresetId) ?? null;
@@ -629,6 +646,11 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           overrides.variableLora?.name.split("/").pop()?.replace(".safetensors", "") ?? null;
         const label = [loraLabel, preset.name].filter(Boolean).join(" / ");
 
+        const adjustedBatchCount = computeAdjustedBatchCount(
+          preset.batchCount,
+          presetStats[preset.id],
+        );
+
         return {
           id: crypto.randomUUID(),
           label: label || "(一括)",
@@ -640,7 +662,10 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           negativePrompt: presetNegativePrompt,
           settings: { ...overrides.settings },
           fixedTags: presetFixedTags,
-          batchCount: preset.batchCount,
+          batchCount: adjustedBatchCount,
+          requestedBatchCount:
+            adjustedBatchCount !== preset.batchCount ? preset.batchCount : undefined,
+          batchPresetId: preset.id,
           status: "pending",
           currentBatch: 0,
           completedImages: [],

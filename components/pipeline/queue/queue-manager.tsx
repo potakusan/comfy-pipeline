@@ -98,7 +98,14 @@ function QueueItemRow({
         <div className="flex-1 min-w-0">
           <p className="truncate text-sm font-medium">{item.label}</p>
           <p className="text-[10px] text-muted-foreground">
-            {createdAt} · {item.batchCount}枚
+            {createdAt} ·{" "}
+            {item.requestedBatchCount !== undefined ? (
+              <span title="過去の良品率(販売用選択率)に基づいて生成枚数を調整しました">
+                {item.batchCount}枚(指定{item.requestedBatchCount}枚から調整)
+              </span>
+            ) : (
+              <>{item.batchCount}枚</>
+            )}
             {item.variableLora && (
               <>
                 {" "}
