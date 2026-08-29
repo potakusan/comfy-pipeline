@@ -131,6 +131,8 @@ export interface BatchRunOverrides {
 
 /** 販売用選択画像から引き継ぐ、1枚分のseed情報 */
 export interface ReleasedSeed {
+  /** アーカイブID(/api/gallery/seed-archive/thumbnail?id=で参照するサムネの識別子) */
+  id: string;
   filename: string;
   seed: number;
   upscaleSeed: number | null;
