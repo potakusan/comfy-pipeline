@@ -47,7 +47,7 @@ interface BatchQueueDialogProps {
   currentSettings: GenerationSettings;
   /** ギャラリーから「シード引き継ぎ元フォルダ」付きで遷移してきた場合に設定される。
    * 設定されるとダイアログを自動的に開く。 */
-  seedSource?: { folder: string; seeds: ReleasedSeed[] } | null;
+  seedSource?: { folder: string; seeds: ReleasedSeed[]; batchPresetId?: string } | null;
   /** seedSourceを読み取り終えたことを親に伝える(URLクエリパラメータのクリア用) */
   onConsumeSeedSource?: () => void;
 }
@@ -81,6 +81,26 @@ export default function BatchQueueDialog({
   const [pendingEditSet, setPendingEditSet] = useState<BatchPresetSet | null>(null);
   const [pendingRunSet, setPendingRunSet] = useState<BatchPresetSet | null>(null);
   const [pendingBulkRunSets, setPendingBulkRunSets] = useState<BatchPresetSet[]>([]);
+
+  // seedSourceにbatchPresetIdが含まれる場合、それを持つプリセットを含むセットを
+  // 自動的に特定してrun-setup画面まで進める(一覧からの手動選択を省略する)。
+  // レンダー中にstateを調整する(useEffect不使用)ことで、propが変化した
+  // タイミングだけ反応させる — https://react.dev/learn/you-might-not-need-an-effect
+  const [autoSelectedFolder, setAutoSelectedFolder] = useState<string | null>(null);
+  if (seedSource && seedSource.folder !== autoSelectedFolder) {
+    setAutoSelectedFolder(seedSource.folder);
+    const matchedSet = seedSource.batchPresetId
+      ? batchPresetSets.find((set) =>
+          set.presets.some((p) => p.id === seedSource.batchPresetId),
+        )
+      : undefined;
+    if (matchedSet) {
+      setPendingRunSet(matchedSet);
+      setView("run-setup");
+    }
+  } else if (!seedSource && autoSelectedFolder !== null) {
+    setAutoSelectedFolder(null);
+  }
 
   function openNewSet() {
     setPendingEditSet({

@@ -10,6 +10,7 @@ const LS = {
   panelSizes: "cp_panel_sizes",
   promptPreview: "cp_prompt_preview",
   etaPos: "cp_eta_pos",
+  seedRefPos: "cp_seed_ref_pos",
 };
 
 export type PromptPreviewPos = { x: number; y: number; collapsed: boolean; width?: number; height?: number };
@@ -23,6 +24,7 @@ export function usePipelineSettings() {
   const [panelSizes, setPanelSizesState] = useState<Record<string, number>>(DEFAULT_PANEL_SIZES);
   const [promptPreviewPos, setPromptPreviewPosState] = useState<PromptPreviewPos>(DEFAULT_PROMPT_PREVIEW);
   const [etaPos, setEtaPosState] = useState<PromptPreviewPos>(DEFAULT_PROMPT_PREVIEW);
+  const [seedRefPos, setSeedRefPosState] = useState<PromptPreviewPos>(DEFAULT_PROMPT_PREVIEW);
   const [lsLoaded, setLsLoaded] = useState(false);
 
   useEffect(() => {
@@ -31,6 +33,7 @@ export function usePipelineSettings() {
     setPanelSizesState(lsGet(LS.panelSizes, DEFAULT_PANEL_SIZES));
     setPromptPreviewPosState(lsGet(LS.promptPreview, DEFAULT_PROMPT_PREVIEW));
     setEtaPosState(lsGet(LS.etaPos, DEFAULT_PROMPT_PREVIEW));
+    setSeedRefPosState(lsGet(LS.seedRefPos, DEFAULT_PROMPT_PREVIEW));
     setLsLoaded(true);
   }, []);
 
@@ -49,6 +52,10 @@ export function usePipelineSettings() {
     setEtaPosState(pos);
     lsSet(LS.etaPos, pos);
   }, []);
+  const setSeedRefPos = useCallback((pos: PromptPreviewPos) => {
+    setSeedRefPosState(pos);
+    lsSet(LS.seedRefPos, pos);
+  }, []);
 
   return {
     settings,
@@ -61,6 +68,8 @@ export function usePipelineSettings() {
     setPromptPreviewPos,
     etaPos,
     setEtaPos,
+    seedRefPos,
+    setSeedRefPos,
     lsLoaded,
   };
 }

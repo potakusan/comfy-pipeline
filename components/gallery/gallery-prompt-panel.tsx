@@ -108,6 +108,9 @@ export default function GalleryPromptPanel({
               ["スケジューラ", meta.settings.scheduler],
               ["デノイズ", meta.settings.denoise],
               ["シード", meta.settings.randomizeSeed ? "ランダム" : meta.settings.seed],
+              ...(meta.settings.upscaleSteps > 0
+                ? ([["アップスケールseed", meta.settings.upscaleSeed ?? "(未記録)"]] as const)
+                : []),
             ].map(([k, v]) => (
               <div key={k as string} className="flex gap-1">
                 <span className="text-muted-foreground">{k}:</span>

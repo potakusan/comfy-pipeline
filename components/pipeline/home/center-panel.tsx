@@ -62,18 +62,26 @@ export default function CenterPanel({
   const router = useRouter();
   const searchParams = useSearchParams();
   const seedSourceFolderParam = searchParams.get("seedSourceFolder");
-  const [seedSource, setSeedSource] = useState<{ folder: string; seeds: ReleasedSeed[] } | null>(
-    null,
-  );
+  const [seedSource, setSeedSource] = useState<{
+    folder: string;
+    seeds: ReleasedSeed[];
+    batchPresetId?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!seedSourceFolderParam) return;
     let cancelled = false;
-    apiFetch<{ seeds: ReleasedSeed[] }>(
+    apiFetch<{ seeds: ReleasedSeed[]; batchPresetId?: string }>(
       `/api/gallery/seed-pool?folder=${encodeURIComponent(seedSourceFolderParam)}`,
     )
       .then((res) => {
-        if (!cancelled) setSeedSource({ folder: seedSourceFolderParam, seeds: res.seeds });
+        if (!cancelled) {
+          setSeedSource({
+            folder: seedSourceFolderParam,
+            seeds: res.seeds,
+            batchPresetId: res.batchPresetId,
+          });
+        }
       })
       .catch(() => {});
     return () => {

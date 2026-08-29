@@ -51,7 +51,7 @@ export function usePipeline() {
   } = normalMode;
 
   const pipelineSettings = usePipelineSettings();
-  const { settings, setSettings, batchCount, setBatchCount, panelSizes, setPanelSizes, promptPreviewPos, setPromptPreviewPos, etaPos, setEtaPos } = pipelineSettings;
+  const { settings, setSettings, batchCount, setBatchCount, panelSizes, setPanelSizes, promptPreviewPos, setPromptPreviewPos, etaPos, setEtaPos, seedRefPos, setSeedRefPos } = pipelineSettings;
 
   const sessionGallery = usePipelineSessionGallery();
   const { gallery, setGallery, clearGallery, refreshGalleryFromFs } = sessionGallery;
@@ -160,5 +160,7 @@ export function usePipeline() {
     setPromptPreviewPos,
     etaPos,
     setEtaPos,
+    seedRefPos,
+    setSeedRefPos,
   };
 }

@@ -19,6 +19,7 @@ import LeftIconNav, {
 } from "@/components/pipeline/left-icon-nav";
 import EtaWindow from "@/components/pipeline/eta-window";
 import PromptPreviewWindow from "@/components/pipeline/prompt-preview-window";
+import SeedReferenceWindow from "@/components/pipeline/seed-reference-window";
 
 // ---------------------------------------------------------------------------
 // Home page
@@ -194,6 +195,12 @@ export default function Home() {
         onRefresh={refreshPreview}
         pos={pipeline.promptPreviewPos}
         onPosChange={pipeline.setPromptPreviewPos}
+      />
+
+      <SeedReferenceWindow
+        queue={pipeline.queue}
+        pos={pipeline.seedRefPos}
+        onPosChange={pipeline.setSeedRefPos}
       />
 
       <CancelGenerationDialog

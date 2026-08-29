@@ -40,7 +40,7 @@ export default function GallerySeedArchiveList() {
             title="このシードを引き継いで一括キューを実行"
             className="flex items-center gap-2 rounded-lg border border-border p-1.5 text-left transition-colors hover:border-muted-foreground/50 hover:bg-muted/30"
           >
-            <div className="h-8 w-8 shrink-0 overflow-hidden rounded bg-muted/30">
+            <div className="h-12 w-12 shrink-0 overflow-hidden rounded bg-muted/30">
               <img
                 src={archiveThumbUrl(g.thumbnailId)}
                 alt={g.folder}

@@ -8,7 +8,7 @@ import type { ImageMetadata } from "@/lib/gallery";
  * とは独立して、販売用に選んだ画像のseedだけを永続的に残しておく保管庫。
  * 画像本体ではなく、小さいサムネ(.webp)とシード値等を書いたJSONのみを持つ。 */
 export const SEED_ARCHIVE_DIR = ".seed-archive";
-const THUMB_WIDTH = 160;
+const THUMB_WIDTH = 320;
 
 export interface SeedArchiveEntry {
   id: string;
@@ -17,6 +17,9 @@ export interface SeedArchiveEntry {
   sourceFilename: string;
   seed: number;
   upscaleSeed: number | null;
+  /** 生成元のBatchPreset.id(一括キュープリセットから生成された場合のみ)。
+   * どの一括キューセットを実行すればよいか特定するために使う。 */
+  batchPresetId?: string;
   archivedAt: number;
 }
 
@@ -53,6 +56,7 @@ export async function archiveSeed(params: {
     sourceFilename: params.filename,
     seed: settings.seed,
     upscaleSeed: settings.upscaleSeed ?? null,
+    batchPresetId: params.metadata?.batchPresetId,
     archivedAt: Date.now(),
   };
   fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(entry, null, 2));
