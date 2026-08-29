@@ -30,16 +30,18 @@ export function migrateBatchPresetSets(raw: BatchPresetSet[]): BatchPresetSet[] 
   }));
 }
 
+/** ファイル名に使えない文字を置換し40文字に切り詰める。ComfyUIへ渡すfilename_prefixの
+ * 実際のサニタイズと同一のロジックを共有することで、保存済みファイル名から元のプリセット名を
+ * 逆引きする処理(lib/gallery-preset-name-match.ts)との食い違いを防ぐ。 */
+export function sanitizeFilePrefix(name: string): string {
+  return name.replace(/[/\\:*?"<>|\x00-\x1f]/g, "_").trim().substring(0, 40);
+}
+
 export function buildOutputPrefix(loraName: string, filePrefix?: string): string {
   const d = new Date();
   const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-  const safeName = (loraName || "no-lora")
-    .replace(/[/\\:*?"<>|\x00-\x1f]/g, "_")
-    .trim()
-    .substring(0, 40);
-  const safePrefix = filePrefix
-    ? filePrefix.replace(/[/\\:*?"<>|\x00-\x1f]/g, "_").trim().substring(0, 40)
-    : "out";
+  const safeName = sanitizeFilePrefix(loraName || "no-lora");
+  const safePrefix = filePrefix ? sanitizeFilePrefix(filePrefix) : "out";
   return `${dateStr}-${safeName}/${safePrefix}`;
 }
 
