@@ -3,6 +3,10 @@ import {
   computeAdjustedBatchCount,
   MIN_SAMPLES_FOR_ADJUSTMENT,
 } from "@/lib/gallery-preset-stats";
+import {
+  computePresetStats,
+  invalidatePresetStatsCache,
+} from "@/lib/server/gallery-preset-stats";
 
 describe("computeAdjustedBatchCount", () => {
   it("履歴が無い場合は指定枚数をそのまま返す", () => {
@@ -38,5 +42,22 @@ describe("computeAdjustedBatchCount", () => {
     const stats = { generated: 20, released: 1 };
     // ceil(1/0.05) = 20 > requested(10) なので10のまま
     expect(computeAdjustedBatchCount(10, stats)).toBe(10);
+  });
+});
+
+describe("computePresetStats のキャッシュ", () => {
+  it("2回目以降は再走査せず同一オブジェクトを返す", () => {
+    invalidatePresetStatsCache();
+    const first = computePresetStats();
+    const second = computePresetStats();
+    expect(second).toBe(first);
+  });
+
+  it("invalidatePresetStatsCache 後は再走査して別オブジェクトを返す(内容は同じ)", () => {
+    const before = computePresetStats();
+    invalidatePresetStatsCache();
+    const after = computePresetStats();
+    expect(after).not.toBe(before);
+    expect(after).toEqual(before);
   });
 });

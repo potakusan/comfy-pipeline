@@ -10,6 +10,7 @@ export function buildBasePipeline(
   wf: Record<string, unknown>,
   settings: GenerationSettings,
   loras: LoraEntry[],
+  initImage?: { name: string },
 ): { model: NodeRef; clip: NodeRef } {
   wf["chk"] = {
     inputs: { ckpt_name: settings.checkpoint },
@@ -21,10 +22,34 @@ export function buildBasePipeline(
     class_type: "UpscaleModelLoader",
   };
 
-  wf["lat"] = {
-    inputs: { width: settings.width, height: settings.height, batch_size: 1 },
-    class_type: "EmptyLatentImage",
-  };
+  if (initImage) {
+    // img2img: 空latentの代わりに下絵をVAEEncodeして初期latentにする。
+    // アスペクト比不一致は中央クロップで吸収し、生成サイズは settings のまま。
+    // 最終ノードのキーは "lat" のままにし、テールの latent_image 参照を変えない。
+    wf["initimg"] = {
+      inputs: { image: initImage.name },
+      class_type: "LoadImage",
+    };
+    wf["initscale"] = {
+      inputs: {
+        image: ["initimg", 0],
+        width: settings.width,
+        height: settings.height,
+        upscale_method: "lanczos",
+        crop: "center",
+      },
+      class_type: "ImageScale",
+    };
+    wf["lat"] = {
+      inputs: { pixels: ["initscale", 0], vae: ["chk", 2] },
+      class_type: "VAEEncode",
+    };
+  } else {
+    wf["lat"] = {
+      inputs: { width: settings.width, height: settings.height, batch_size: 1 },
+      class_type: "EmptyLatentImage",
+    };
+  }
 
   let model: NodeRef = ["chk", 0];
   let clip: NodeRef = ["chk", 1];
@@ -151,16 +176,28 @@ export function buildWorkflow({
   positivePrompt,
   negativePrompt,
   outputPrefix,
+  initImage,
 }: {
   settings: GenerationSettings;
   loras: LoraEntry[];
   positivePrompt: string;
   negativePrompt: string;
   outputPrefix: string;
+  /** 指定時は img2img。下絵を初期latentに使い、メインKSamplerの denoise をこの値にする。 */
+  initImage?: { name: string; denoise: number };
 }): { workflow: Record<string, unknown>; seed: number; upscaleSeed: number | null } {
   const wf: Record<string, unknown> = {};
 
-  const { model, clip } = buildBasePipeline(wf, settings, loras);
+  const effSettings = initImage
+    ? { ...settings, denoise: initImage.denoise }
+    : settings;
+
+  const { model, clip } = buildBasePipeline(
+    wf,
+    effSettings,
+    loras,
+    initImage ? { name: initImage.name } : undefined,
+  );
 
   wf["pos"] = {
     inputs: { text: positivePrompt, clip },
@@ -173,7 +210,7 @@ export function buildWorkflow({
   };
 
   const { seed, upscaleSeed } = buildSamplingAndSaveTail(wf, {
-    settings,
+    settings: effSettings,
     model,
     positive: ["pos", 0],
     negative: ["neg", 0],

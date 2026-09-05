@@ -1,10 +1,17 @@
 import {
   type LoraEntry,
   type Preset,
+  type VariableBindings,
+  type VariableDefs,
+  type PromptReplacement,
   collectPresetLoras,
   assemblePositivePrompt,
   isCommentLine,
   stripCommentLines,
+  extractVariableNames,
+  resolveBindings,
+  applyVariableBindings,
+  applyPromptReplacements,
 } from "@/lib/comfy";
 
 /**
@@ -66,4 +73,30 @@ export function buildPositivePromptWithAdditional(
       : positivePromptBase;
 
   return { positivePrompt, additionalPromptLines };
+}
+
+/**
+ * 組み立て済みプロンプト中の `%%name%%` を解決し、確定したバインディングを返す。
+ * 1バッチ1回、キュー処理本体から呼ぶ。変数が無ければ入力プロンプトをそのまま返す。
+ * 解決後、変数化していない箇所向けの文字列置換(promptReplacements)も適用する。
+ */
+export function resolvePromptVariables(input: {
+  prompt: string;
+  variableDefs: VariableDefs;
+  variableInputValues: VariableBindings;
+  promptReplacements?: PromptReplacement[];
+}): { prompt: string; bindings: VariableBindings } {
+  const names = extractVariableNames(input.prompt);
+  let bindings: VariableBindings = {};
+  let prompt = input.prompt;
+  if (names.length > 0) {
+    bindings = resolveBindings({
+      names,
+      defs: input.variableDefs,
+      inputValues: input.variableInputValues,
+    });
+    prompt = applyVariableBindings(prompt, bindings);
+  }
+  prompt = applyPromptReplacements(prompt, input.promptReplacements);
+  return { prompt, bindings };
 }

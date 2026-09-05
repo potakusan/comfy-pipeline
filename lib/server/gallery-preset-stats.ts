@@ -2,16 +2,37 @@ import fs from "fs";
 import path from "path";
 import { getOutputDir, IMAGE_EXT } from "./output-dir";
 import { releaseFolderName, type ImageMetadata } from "@/lib/gallery";
+import { SEED_ARCHIVE_DIR } from "./gallery-seed-archive";
+import { I2I_DIR } from "./i2i-pool";
 import type { PresetGenerationStats } from "@/lib/gallery-preset-stats";
 
 const THUMB_DIR = ".thumbcache";
 
+/** 全走査は重い(画像1枚ごとにサイドカーJSONを読む)ため結果をキャッシュする。
+ * 新規生成(metadata POST)・販売用選択の増減(release)・削除で無効化される。
+ * それらを取りこぼしても最大この時間で自然に反映されるようにするTTLの保険付き。 */
+const CACHE_TTL_MS = 60_000;
+let cache: { value: Record<string, PresetGenerationStats>; at: number } | null = null;
+
+/** サイドカーJSON・_release の増減で集計結果が変わったときに呼ぶ。次回取得で再走査される。 */
+export function invalidatePresetStatsCache(): void {
+  cache = null;
+}
+
 /**
  * 全出力フォルダのサイドカーJSONを走査し、batchPresetId単位で
  * 「生成数」と「販売用(_release)に選択された数」を集計する。
- * DBが無くファイルシステムが唯一の記録なので、都度全走査する。
+ * DBが無くファイルシステムが唯一の記録なので、都度全走査する(結果はキャッシュ)。
  */
 export function computePresetStats(): Record<string, PresetGenerationStats> {
+  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
+
+  const value = scanPresetStats();
+  cache = { value, at: Date.now() };
+  return value;
+}
+
+function scanPresetStats(): Record<string, PresetGenerationStats> {
   const outputDir = getOutputDir();
   const stats: Record<string, PresetGenerationStats> = {};
 
@@ -20,7 +41,12 @@ export function computePresetStats(): Record<string, PresetGenerationStats> {
     folderNames = fs
       .readdirSync(outputDir, { withFileTypes: true })
       .filter(
-        (e) => e.isDirectory() && e.name !== THUMB_DIR && !e.name.endsWith("_release"),
+        (e) =>
+          e.isDirectory() &&
+          e.name !== THUMB_DIR &&
+          e.name !== SEED_ARCHIVE_DIR &&
+          e.name !== I2I_DIR &&
+          !e.name.endsWith("_release"),
       )
       .map((e) => e.name);
   } catch {

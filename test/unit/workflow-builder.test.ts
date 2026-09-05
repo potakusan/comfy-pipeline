@@ -56,6 +56,31 @@ describe("buildBasePipeline", () => {
     });
   });
 
+  it("builds a LoadImage → ImageScale(center crop) → VAEEncode init-latent chain when initImage is given", () => {
+    const wf: Record<string, unknown> = {};
+    const settings = makeSettings({ width: 1024, height: 1536 });
+    buildBasePipeline(wf, settings, [], { name: "ref_123.png" });
+
+    expect(wf["initimg"]).toEqual({
+      inputs: { image: "ref_123.png" },
+      class_type: "LoadImage",
+    });
+    expect(wf["initscale"]).toEqual({
+      inputs: {
+        image: ["initimg", 0],
+        width: 1024,
+        height: 1536,
+        upscale_method: "lanczos",
+        crop: "center",
+      },
+      class_type: "ImageScale",
+    });
+    expect(wf["lat"]).toEqual({
+      inputs: { pixels: ["initscale", 0], vae: ["chk", 2] },
+      class_type: "VAEEncode",
+    });
+  });
+
   it("chains multiple LoRAs and appends .safetensors only when missing", () => {
     const wf: Record<string, unknown> = {};
     const loras = [
@@ -222,5 +247,36 @@ describe("buildWorkflow", () => {
     });
 
     expect(upscaleSeed).toBeNull();
+  });
+
+  it("without initImage, keeps the EmptyLatentImage path and settings.denoise unchanged", () => {
+    const { workflow: wf } = buildWorkflow({
+      settings: makeSettings({ denoise: 1 }),
+      loras: [],
+      positivePrompt: "p",
+      negativePrompt: "n",
+      outputPrefix: "out",
+    });
+    expect((wf["lat"] as { class_type: string }).class_type).toBe("EmptyLatentImage");
+    expect((wf["ksamp"] as { inputs: { denoise: number } }).inputs.denoise).toBe(1);
+    expect(wf["initimg"]).toBeUndefined();
+  });
+
+  it("with initImage, encodes the reference as init latent and overrides the main KSampler denoise", () => {
+    const { workflow: wf } = buildWorkflow({
+      settings: makeSettings({ denoise: 1, upscaleSteps: 10 }),
+      loras: [],
+      positivePrompt: "p",
+      negativePrompt: "n",
+      outputPrefix: "out",
+      initImage: { name: "ref_9.png", denoise: 0.45 },
+    });
+    expect((wf["lat"] as { class_type: string }).class_type).toBe("VAEEncode");
+    expect((wf["initimg"] as { inputs: { image: string } }).inputs.image).toBe("ref_9.png");
+    expect((wf["ksamp"] as { inputs: { denoise: number; latent_image: unknown } }).inputs).toMatchObject(
+      { denoise: 0.45, latent_image: ["lat", 0] },
+    );
+    // 精緻化パスの denoise は 0.5 固定のまま
+    expect((wf["ksamp2"] as { inputs: { denoise: number } }).inputs.denoise).toBe(0.5);
   });
 });

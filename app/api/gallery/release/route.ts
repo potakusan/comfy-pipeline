@@ -4,6 +4,7 @@ import path from "path";
 import { getOutputDir, safePath } from "@/lib/server/output-dir";
 import { releaseFolderName, type ImageMetadata } from "@/lib/gallery";
 import { archiveSeed, removeArchivedSeed } from "@/lib/server/gallery-seed-archive";
+import { invalidatePresetStatsCache } from "@/lib/server/gallery-preset-stats";
 
 function releaseTargetFor(outputDir: string, relPath: string): string | null {
   const parts = relPath.split("/");
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
       }
     } catch {}
   }
+  if (copied > 0) invalidatePresetStatsCache();
   return NextResponse.json({ copied });
 }
 
@@ -81,5 +83,6 @@ export async function DELETE(req: NextRequest) {
       if (split) removeArchivedSeed(split.folder, split.filename);
     } catch {}
   }
+  if (removed > 0) invalidatePresetStatsCache();
   return NextResponse.json({ removed });
 }

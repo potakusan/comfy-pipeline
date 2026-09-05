@@ -8,7 +8,9 @@ import {
   type GenerationSettings,
 } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import SamplerSettings from "@/components/pipeline/sampler-settings";
+import PresetI2iToggles from "@/components/pipeline/queue/preset-i2i-toggles";
 import { Play, ChevronUp, ChevronDown } from "lucide-react";
 
 const chipClass = (active: boolean) =>
@@ -153,6 +155,29 @@ function SetConfig({
             )}
           </div>
 
+          <PresetI2iToggles
+            presets={set.presets}
+            enabledIds={overrides.i2iEnabledPresetIds ?? []}
+            onChange={(ids) => onChange({ ...overrides, i2iEnabledPresetIds: ids })}
+          />
+
+          {/* 良品率調整 */}
+          <label className="flex cursor-pointer items-start gap-2 text-xs">
+            <Checkbox
+              className="mt-0.5"
+              checked={overrides.applyReleaseRateAdjustment ?? false}
+              onCheckedChange={(v) =>
+                onChange({ ...overrides, applyReleaseRateAdjustment: v === true })
+              }
+            />
+            <span>
+              <span className="font-semibold">良品率で生成枚数を自動調整する</span>
+              <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                過去実績の集計を行うため実行にやや時間がかかります。
+              </span>
+            </span>
+          </label>
+
           {/* サンプラー設定 (折りたたみ) */}
           <div>
             <button
@@ -214,6 +239,8 @@ export default function BulkRunSetupView({
             physicalPresets: [],
             scenePreset: null,
             settings: initialSettings,
+            i2iEnabledPresetIds: [],
+            applyReleaseRateAdjustment: false,
           } satisfies BatchRunOverrides,
         ]),
       ),

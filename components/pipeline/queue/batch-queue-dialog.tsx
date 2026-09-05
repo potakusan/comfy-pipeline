@@ -8,6 +8,10 @@ import {
   type Preset,
   type GenerationSettings,
   type ReleasedSeed,
+  type VariableDefs,
+  type VariableBindings,
+  type PromptReplacement,
+  extractVariableNames,
 } from "@/lib/comfy";
 import {
   Dialog,
@@ -22,7 +26,33 @@ import ListView from "@/components/pipeline/queue/batch-queue-list-view";
 import EditView from "@/components/pipeline/queue/batch-queue-edit-view";
 import RunSetupView from "@/components/pipeline/queue/batch-queue-run-setup-view";
 import BulkRunSetupView from "@/components/pipeline/queue/batch-queue-bulk-run-setup-view";
+import VariableInputView from "@/components/pipeline/queue/batch-queue-variable-input-view";
 import { findSetByFilenamePresetName } from "@/lib/gallery-preset-name-match";
+
+/** セット＋オーバーライド＋固定タグが参照する `%%name%%` 変数が1つでもあるか。
+ * 一括生成の実プロンプト組み立て(runBatchPresets)と同じテキストを走査する。 */
+function setUsesVariables(
+  set: BatchPresetSet,
+  overrides: BatchRunOverrides,
+  fixedTags: string,
+  countPresets: Preset[],
+  posePresets: Preset[],
+  otherPresets: Preset[],
+): boolean {
+  const texts: string[] = [fixedTags];
+  for (const bp of set.presets) {
+    texts.push(bp.additionalPrompt, bp.fixedTags);
+    if (bp.countPresetId)
+      texts.push(countPresets.find((p) => p.id === bp.countPresetId)?.prompt ?? "");
+    if (bp.posePresetId)
+      texts.push(posePresets.find((p) => p.id === bp.posePresetId)?.prompt ?? "");
+    for (const oid of bp.otherPresetIds)
+      texts.push(otherPresets.find((p) => p.id === oid)?.prompt ?? "");
+  }
+  for (const p of overrides.physicalPresets) texts.push(p.prompt);
+  if (overrides.scenePreset) texts.push(overrides.scenePreset.prompt);
+  return extractVariableNames(texts.join("\n")).length > 0;
+}
 
 interface BatchQueueDialogProps {
   batchPresetSets: BatchPresetSet[];
@@ -48,9 +78,21 @@ interface BatchQueueDialogProps {
   currentSettings: GenerationSettings;
   /** ギャラリーから「シード引き継ぎ元フォルダ」付きで遷移してきた場合に設定される。
    * 設定されるとダイアログを自動的に開く。 */
-  seedSource?: { folder: string; seeds: ReleasedSeed[]; batchPresetId?: string } | null;
+  seedSource?: {
+    folder: string;
+    seeds: ReleasedSeed[];
+    batchPresetId?: string;
+    bindings?: VariableBindings;
+  } | null;
   /** seedSourceを読み取り終えたことを親に伝える(URLクエリパラメータのクリア用) */
   onConsumeSeedSource?: () => void;
+  /** `%%name%%` 変数の定義(グローバル)。変数入力ステップで参照・編集する。 */
+  variableDefs: VariableDefs;
+  onVariableDefsChange: (defs: VariableDefs) => void;
+  /** 現在の固定タグ(一括生成時も使われるため、変数検出・入力ステップの走査対象に含める) */
+  fixedTags: string;
+  /** 通常モードのフローティングウィンドウで入力済みの変数値。変数入力ステップの既定値に引き継ぐ。 */
+  variableInputValues: VariableBindings;
 }
 
 export default function BatchQueueDialog({
@@ -70,6 +112,10 @@ export default function BatchQueueDialog({
   currentSettings,
   seedSource,
   onConsumeSeedSource,
+  variableDefs,
+  onVariableDefsChange,
+  fixedTags,
+  variableInputValues,
 }: BatchQueueDialogProps) {
   const [open, setOpen] = useState(false);
   // seedSourceが設定されたら(ギャラリーからの遷移時)自動的に開く。effect無しで
@@ -77,10 +123,12 @@ export default function BatchQueueDialog({
   // onConsumeSeedSourceでseedSource自体をクリアすることで反映される)。
   const isOpen = open || !!seedSource;
   const [view, setView] = useState<
-    "list" | "edit" | "run-setup" | "bulk-run-setup"
+    "list" | "edit" | "run-setup" | "variable-input" | "bulk-run-setup"
   >("list");
   const [pendingEditSet, setPendingEditSet] = useState<BatchPresetSet | null>(null);
   const [pendingRunSet, setPendingRunSet] = useState<BatchPresetSet | null>(null);
+  const [pendingRunOverrides, setPendingRunOverrides] =
+    useState<BatchRunOverrides | null>(null);
   const [pendingBulkRunSets, setPendingBulkRunSets] = useState<BatchPresetSet[]>([]);
 
   // seedSourceにbatchPresetIdが含まれる場合、それを持つプリセットを含むセットを
@@ -126,6 +174,7 @@ export default function BatchQueueDialog({
     setView("list");
     setPendingEditSet(null);
     setPendingRunSet(null);
+    setPendingRunOverrides(null);
     setPendingBulkRunSets([]);
   }
 
@@ -151,7 +200,40 @@ export default function BatchQueueDialog({
 
   function handleRunConfirm(overrides: BatchRunOverrides) {
     if (!pendingRunSet) return;
-    onRunPresets(pendingRunSet.presets, overrides);
+    // セットが `%%name%%` 変数を使うなら、実行前に変数入力ステップを挟む。
+    if (
+      setUsesVariables(
+        pendingRunSet,
+        overrides,
+        fixedTags,
+        countPresets,
+        posePresets,
+        otherPresets,
+      )
+    ) {
+      setPendingRunOverrides(overrides);
+      setView("variable-input");
+      return;
+    }
+    // 変数が検出されなくても、通常モードで入力済みの値は既定として渡しておく。
+    onRunPresets(pendingRunSet.presets, {
+      ...overrides,
+      variableValues: variableInputValues,
+    });
+    setOpen(false);
+    backToList();
+  }
+
+  function handleVariableInputConfirm(
+    variableValues: VariableBindings,
+    promptReplacements: PromptReplacement[],
+  ) {
+    if (!pendingRunSet || !pendingRunOverrides) return;
+    onRunPresets(pendingRunSet.presets, {
+      ...pendingRunOverrides,
+      variableValues,
+      promptReplacements,
+    });
     setOpen(false);
     backToList();
   }
@@ -169,9 +251,11 @@ export default function BatchQueueDialog({
       ? "一括キュープリセット"
       : view === "run-setup"
         ? "実行前設定"
-        : view === "bulk-run-setup"
-          ? "一括実行設定"
-          : "セット編集";
+        : view === "variable-input"
+          ? "変数入力"
+          : view === "bulk-run-setup"
+            ? "一括実行設定"
+            : "セット編集";
 
   return (
     <Dialog
@@ -194,9 +278,16 @@ export default function BatchQueueDialog({
       <DialogContent className="flex max-h-[85vh] max-w-4xl! flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="shrink-0 border-b px-4 py-3">
           <DialogTitle className="flex items-center gap-2 text-sm">
-            {(view === "edit" || view === "run-setup" || view === "bulk-run-setup") && (
+            {(view === "edit" ||
+              view === "run-setup" ||
+              view === "variable-input" ||
+              view === "bulk-run-setup") && (
               <button
-                onClick={backToList}
+                onClick={
+                  view === "variable-input"
+                    ? () => setView("run-setup")
+                    : backToList
+                }
                 className="rounded p-0.5 hover:bg-muted"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -242,10 +333,28 @@ export default function BatchQueueDialog({
             variableLoras={variableLoras}
             physicalPresets={physicalPresets}
             scenePresets={scenePresets}
+            presets={pendingRunSet.presets}
             initialSettings={currentSettings}
             seedSource={seedSource}
             onConfirm={handleRunConfirm}
             onCancel={backToList}
+          />
+        )}
+
+        {view === "variable-input" && pendingRunSet && pendingRunOverrides && (
+          <VariableInputView
+            set={pendingRunSet}
+            overrides={pendingRunOverrides}
+            fixedTags={fixedTags}
+            countPresets={countPresets}
+            posePresets={posePresets}
+            otherPresets={otherPresets}
+            variableDefs={variableDefs}
+            onDefsChange={onVariableDefsChange}
+            baseValues={variableInputValues}
+            seedBindings={seedSource?.bindings}
+            onConfirm={handleVariableInputConfirm}
+            onBack={() => setView("run-setup")}
           />
         )}
 

@@ -36,6 +36,10 @@ export function usePipeline() {
     variationEnabled,
     variationTags,
     batchPresetSets,
+    variableDefs,
+    variableInputValues,
+    imageRef,
+    imageRefPool,
     setVariableLoras,
     setPhysicalPresets,
     setScenePresets,
@@ -51,7 +55,7 @@ export function usePipeline() {
   } = normalMode;
 
   const pipelineSettings = usePipelineSettings();
-  const { settings, setSettings, batchCount, setBatchCount, panelSizes, setPanelSizes, promptPreviewPos, setPromptPreviewPos, etaPos, setEtaPos, seedRefPos, setSeedRefPos } = pipelineSettings;
+  const { settings, setSettings, batchCount, setBatchCount, panelSizes, setPanelSizes, promptPreviewPos, setPromptPreviewPos, etaPos, setEtaPos, seedRefPos, setSeedRefPos, varBindPos, setVarBindPos, refImgPos, setRefImgPos, randElemPos, setRandElemPos } = pipelineSettings;
 
   const sessionGallery = usePipelineSessionGallery();
   const { gallery, setGallery, clearGallery, refreshGalleryFromFs } = sessionGallery;
@@ -77,6 +81,10 @@ export function usePipeline() {
     variationTags,
     settings,
     batchCount,
+    variableDefs,
+    variableInputValues,
+    imageRef,
+    imageRefPool,
     setGallery,
   });
 
@@ -105,6 +113,8 @@ export function usePipeline() {
     setBatchPresetSets,
     presetCategories,
     setPresetCategories,
+    variableDefs,
+    setVariableDefs: normalMode.setVariableDefs,
     panelSizes,
     setPanelSizes,
     promptPreviewPos,
@@ -146,6 +156,8 @@ export function usePipeline() {
     previewUrl: queue.previewUrl,
     currentJobImages: queue.currentJobImages,
     currentBatchPrompt: queue.currentBatchPrompt,
+    currentBatchRandomChoices: queue.currentBatchRandomChoices,
+    currentBatchInitImageName: queue.currentBatchInitImageName,
     // Gallery
     gallery,
     clearGallery,
@@ -162,5 +174,11 @@ export function usePipeline() {
     setEtaPos,
     seedRefPos,
     setSeedRefPos,
+    varBindPos,
+    setVarBindPos,
+    refImgPos,
+    setRefImgPos,
+    randElemPos,
+    setRandElemPos,
   };
 }

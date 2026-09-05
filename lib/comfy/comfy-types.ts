@@ -1,3 +1,9 @@
+import type {
+  VariableBindings,
+  VariableDefs,
+  PromptReplacement,
+} from "./prompt-variables";
+
 export interface PresetCategory {
   id: string;
   name: string;
@@ -81,6 +87,16 @@ export interface QueueItem {
   fixedTags: string;
   createdAt: number;
   batchPresets: QueueItemBatchPresets;
+  /** `%%name%%` 変数へユーザーが与えた入力値(input モード用)。実行時にこれを土台に解決する。 */
+  variableInputValues?: VariableBindings;
+  /** 実行時に参照する変数定義のスナップショット(random 候補・fixed 値・input デフォルト)。 */
+  variableDefs?: VariableDefs;
+  /** 解決後プロンプトへ適用する素朴な文字列置換(引き継ぎ時のエスケープハッチ)。 */
+  promptReplacements?: PromptReplacement[];
+  /** 指定時は img2img(この画像を初期latentに使い、denoise はこの値)。 */
+  imageRef?: ImageRef;
+  /** 指定時は img2img。生成バッチごとにこのプールからランダムで1枚を下絵にする(imageRef より優先)。 */
+  imageRefPool?: ImageRefPool;
   /** When true, uses PCLazyTextEncode workflow for COUPLE prompt syntax */
   coupleWorkflow?: boolean;
   /** When true, uses RegionalConditioningColorMask //Inspire + ControlNet workflow */
@@ -99,6 +115,35 @@ export interface SizePreset {
   height: number;
 }
 
+/** img2img の下絵。指定時は EmptyLatentImage の代わりにこの画像を VAEEncode して初期latentに使う。 */
+export interface ImageRef {
+  /** ComfyUI input フォルダ内のファイル名(/api/comfy/upload の戻り値 name) */
+  name: string;
+  /** 参照 denoise。小さいほど元画像に忠実(構図・色が残る)。 */
+  denoise: number;
+  /** UI表示用ラベル(元ファイル名・出力相対パス等) */
+  sourceLabel?: string;
+}
+
+/** 1生成でのランダム抽選1件の記録(ランダム要素ウィンドウ・メタデータ用)。 */
+export interface RandomChoice {
+  /** 抽選元の表示名(例 "その他: 衣装A" / "追加プロンプト" / "ランダム構図" / "%%pose%%") */
+  source: string;
+  /** 実際に採用された行/値 */
+  picked: string;
+  /** 全候補 */
+  options: string[];
+}
+
+/** 構図プール。`.i2i/<group>/` の画像群から、生成ごとにランダムで1枚を下絵に使う。 */
+export interface ImageRefPool {
+  /** .i2i 以下のグループパス(表示・再ステージ用) */
+  group: string;
+  denoise: number;
+  /** ステージ済みの ComfyUI input ファイル名。生成ごとにここからランダムで1枚選ぶ。 */
+  names: string[];
+}
+
 export interface BatchPreset {
   id: string;
   name: string;
@@ -115,6 +160,12 @@ export interface BatchPreset {
   variationEnabled: boolean;
   variationTags: string[];
   batchCount: number;
+  /** `%%name%%` 変数のセット単位の既定値(input モード用)。実行画面での入力が一時的に上書きする。 */
+  variableValues?: VariableBindings;
+  /** このプリセット固有の下絵(単一画像)。セット編集画面で指定する。 */
+  imageRef?: ImageRef;
+  /** このプリセット固有の構図プール(生成ごとにランダムで1枚)。セット編集画面で指定する。imageRef より優先。 */
+  imageRefPool?: ImageRefPool;
 }
 
 /** 一括キュー実行時に手動指定するオーバーライド設定 */
@@ -127,6 +178,16 @@ export interface BatchRunOverrides {
   seedPool?: ReleasedSeed[];
   /** seedPoolの引き継ぎ元フォルダ名(UI表示用) */
   seedSourceFolder?: string;
+  /** 変数入力ステップでユーザーが確定した `%%name%%` の値(全プリセット共通)。 */
+  variableValues?: VariableBindings;
+  /** 解決後プロンプトへ適用する文字列置換(変数化していない箇所の書き換え)。 */
+  promptReplacements?: PromptReplacement[];
+  /** 今回の実行で下絵(imageRef / imageRefPool)を使うプリセットIDの一覧。
+   * 未指定 or 含まれないプリセットは、下絵設定があっても txt2img で生成する(既定オフ)。 */
+  i2iEnabledPresetIds?: string[];
+  /** 過去の良品率(release率)から生成枚数を自動的に切り詰めるか(#58)。
+   * 既定オフ。オンのときのみ /api/gallery/preset-stats を取得する。 */
+  applyReleaseRateAdjustment?: boolean;
 }
 
 /** 販売用選択画像から引き継ぐ、1枚分のseed情報 */
@@ -136,6 +197,8 @@ export interface ReleasedSeed {
   filename: string;
   seed: number;
   upscaleSeed: number | null;
+  /** この画像の生成時に確定していた `%%name%%` の解決値(引き継ぎ時の初期値)。 */
+  bindings?: VariableBindings;
 }
 
 export interface BatchPresetSet {
@@ -160,4 +223,8 @@ export interface GalleryImage {
   appliedAdditional?: string;
   /** BatchPreset.id this image was generated from (一括キュー実行時のみ) */
   batchPresetId?: string;
+  /** この画像の生成時に確定した `%%name%%` 変数の解決値(引き継ぎ再現用)。 */
+  bindings?: VariableBindings;
+  /** この画像の生成で行われたランダム抽選の記録。 */
+  randomChoices?: RandomChoice[];
 }

@@ -16,6 +16,7 @@ import {
   Bookmark,
   BookmarkCheck,
   Grid2x2,
+  Images,
 } from "lucide-react";
 import { useGallery } from "@/hooks/gallery/use-gallery";
 import AppHeader from "@/components/common/app-header";
@@ -30,6 +31,7 @@ import GalleryGeneratingWindow from "@/components/gallery/gallery-generating-win
 import GalleryPoseSummary, { computePoseStats } from "@/components/gallery/gallery-pose-summary";
 import GalleryDeleteConfirmDialog from "@/components/gallery/gallery-delete-confirm-dialog";
 import GalleryMosaicModal from "@/components/gallery/gallery-mosaic-modal";
+import I2iPoolManagerDialog from "@/components/pipeline/prompt/i2i-pool-manager-dialog";
 import { getPoseGroup, type GalleryImageEntry } from "@/lib/gallery";
 
 function imageUrl(path: string) {
@@ -39,6 +41,7 @@ function imageUrl(path: string) {
 export default function GalleryPage() {
   const gallery = useGallery();
   const [deleteTarget, setDeleteTarget] = useState<GalleryImageEntry | null>(null);
+  const [i2iSourcePath, setI2iSourcePath] = useState<string | null>(null);
   const [mosaicModalOpen, setMosaicModalOpen] = useState(false);
   const [selectedMosaicPath, setSelectedMosaicPath] = useState<string | null>(null);
   const [justSavedMosaicPath, setJustSavedMosaicPath] = useState<string | null>(null);
@@ -217,6 +220,16 @@ export default function GalleryPage() {
                       別シードで再生成
                     </Button>
                     <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1 text-xs"
+                      onClick={() => setI2iSourcePath(selected.path)}
+                      title="この構図を .i2i の構図プールへ保存"
+                    >
+                      <Images className="h-3 w-3" />
+                      構図プールへ
+                    </Button>
+                    <Button
                       variant="ghost"
                       size="sm"
                       className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
@@ -364,6 +377,12 @@ export default function GalleryPage() {
           folder={gallery.selectedFolder}
         />
       )}
+
+      <I2iPoolManagerDialog
+        open={i2iSourcePath !== null}
+        onOpenChange={(o) => !o && setI2iSourcePath(null)}
+        addSourcePath={i2iSourcePath ?? undefined}
+      />
     </div>
   );
 }

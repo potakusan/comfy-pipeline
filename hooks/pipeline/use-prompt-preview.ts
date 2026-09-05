@@ -1,7 +1,14 @@
 "use client";
 import { useState, useCallback, useMemo } from "react";
 import { resolveCouplePromptAndRegions } from "@/lib/comfy/couple";
-import { assemblePositivePrompt, type Preset } from "@/lib/comfy";
+import {
+  assemblePositivePrompt,
+  extractVariableNames,
+  getVariableDef,
+  applyVariableBindings,
+  type Preset,
+  type VariableBindings,
+} from "@/lib/comfy";
 import type { PipelineHook } from "@/hooks/pipeline/use-pipeline";
 import type { CoupleHook } from "@/hooks/pipeline/use-couple";
 
@@ -44,6 +51,8 @@ export function usePromptPreview(
     fixedTags,
     variationEnabled,
     variationTags,
+    variableDefs,
+    variableInputValues,
   } = pipeline;
 
   // Destructure individual stable fields from couple to avoid spurious useMemo re-runs
@@ -112,6 +121,27 @@ export function usePromptPreview(
       previewPositive = `${base}\n\n${tag}`;
     }
 
+    // %%name%% 変数は fixed / 入力済み input(またはそのデフォルト) だけ埋める。
+    // random と未入力の input はトークンのまま残し、未解決だと分かるようにする。
+    const varNames = extractVariableNames(previewPositive);
+    let previewHasRandomVar = false;
+    if (varNames.length > 0) {
+      const b: VariableBindings = {};
+      for (const n of varNames) {
+        const d = getVariableDef(variableDefs, n);
+        if (d.mode === "fixed") {
+          b[n] = d.value ?? "";
+        } else if (d.mode === "input") {
+          const v = variableInputValues[n];
+          if (v) b[n] = v;
+          else if (d.value) b[n] = d.value;
+        } else {
+          previewHasRandomVar = true;
+        }
+      }
+      previewPositive = applyVariableBindings(previewPositive, b);
+    }
+
     const allSelected = [
       ...physicalPresets.filter((p) => selectedPhysicalIds.includes(p.id)),
       ...(selScene ? [selScene] : []),
@@ -122,7 +152,8 @@ export function usePromptPreview(
     const hasRandom =
       allSelected.some((p) => p.promptMode === "random") ||
       (additionalPromptMode === "random" && addLines.length > 1) ||
-      variationEnabled;
+      variationEnabled ||
+      previewHasRandomVar;
 
     return { previewPositive, previewNegative: negativePrompt, hasRandom };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -150,6 +181,8 @@ export function usePromptPreview(
     additionalPromptMode,
     variationEnabled,
     variationTags,
+    variableDefs,
+    variableInputValues,
   ]);
 
   return { previewPositive, previewNegative, hasRandom, refreshPreview };

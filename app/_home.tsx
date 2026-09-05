@@ -3,6 +3,7 @@ import { useRef, useState, useMemo, useCallback } from "react";
 import { usePipeline } from "@/hooks/pipeline/use-pipeline";
 import { useCouple } from "@/hooks/pipeline/use-couple";
 import { usePromptPreview } from "@/hooks/pipeline/use-prompt-preview";
+import { useVariableBindings } from "@/hooks/pipeline/use-variable-bindings";
 import { useHomeKeyboardShortcuts } from "@/hooks/pipeline/use-home-keyboard-shortcuts";
 import { useSysMonitor } from "@/hooks/use-sys-monitor";
 import { resolveCouplePromptAndRegions } from "@/lib/comfy/couple";
@@ -20,6 +21,9 @@ import LeftIconNav, {
 import EtaWindow from "@/components/pipeline/eta-window";
 import PromptPreviewWindow from "@/components/pipeline/prompt-preview-window";
 import SeedReferenceWindow from "@/components/pipeline/seed-reference-window";
+import VariableBindingWindow from "@/components/pipeline/prompt/variable-binding-window";
+import ReferenceImageWindow from "@/components/pipeline/prompt/reference-image-window";
+import RandomElementsWindow from "@/components/pipeline/prompt/random-elements-window";
 
 // ---------------------------------------------------------------------------
 // Home page
@@ -58,8 +62,15 @@ export default function Home() {
   const { previewPositive, previewNegative, hasRandom, refreshPreview } =
     usePromptPreview(pipeline, couple, leftTabMode);
 
+  const varBindings = useVariableBindings(pipeline, leftTabMode);
+  const addBlockedReason =
+    varBindings.missingRequired.length > 0
+      ? `値/候補が未設定の変数: ${varBindings.missingRequired.map((n) => `%%${n}%%`).join(", ")}`
+      : undefined;
+
   // Unified "add to queue" that dispatches based on active mode
   const handleAddToQueue = () => {
+    if (addBlockedReason) return;
     if (leftTabMode === "couple") {
       const { activeConfig, selectedNormalCountId, selectedNormalSceneId } =
         couple;
@@ -171,6 +182,7 @@ export default function Home() {
             pipeline={pipeline}
             currentItem={currentItem}
             onAddToQueue={handleAddToQueue}
+            addBlockedReason={addBlockedReason}
           />
 
           <ResizableHandle withHandle />
@@ -201,6 +213,34 @@ export default function Home() {
         queue={pipeline.queue}
         pos={pipeline.seedRefPos}
         onPosChange={pipeline.setSeedRefPos}
+      />
+
+      <VariableBindingWindow
+        names={varBindings.names}
+        usages={varBindings.usages}
+        missingRequired={varBindings.missingRequired}
+        defs={pipeline.variableDefs}
+        onDefsChange={pipeline.setVariableDefs}
+        values={pipeline.variableInputValues}
+        onValueChange={pipeline.setVariableInputValue}
+        pos={pipeline.varBindPos}
+        onPosChange={pipeline.setVarBindPos}
+      />
+
+      <ReferenceImageWindow
+        imageRef={pipeline.imageRef}
+        imageRefPool={pipeline.imageRefPool}
+        currentInitImageName={pipeline.currentBatchInitImageName}
+        isProcessing={pipeline.isProcessing}
+        pos={pipeline.refImgPos}
+        onPosChange={pipeline.setRefImgPos}
+      />
+
+      <RandomElementsWindow
+        queue={pipeline.queue}
+        currentChoices={pipeline.currentBatchRandomChoices}
+        pos={pipeline.randElemPos}
+        onPosChange={pipeline.setRandElemPos}
       />
 
       <CancelGenerationDialog

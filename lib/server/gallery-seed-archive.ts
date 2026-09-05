@@ -20,6 +20,8 @@ export interface SeedArchiveEntry {
   /** 生成元のBatchPreset.id(一括キュープリセットから生成された場合のみ)。
    * どの一括キューセットを実行すればよいか特定するために使う。 */
   batchPresetId?: string;
+  /** 生成時に確定していた `%%name%%` 変数の解決値。引き継ぎ時にランダム要素を再現する初期値。 */
+  bindings?: Record<string, string>;
   archivedAt: number;
 }
 
@@ -50,6 +52,7 @@ export async function archiveSeed(params: {
   fs.mkdirSync(dir, { recursive: true });
   const id = archiveIdFor(params.folder, params.filename);
 
+  const bindings = params.metadata?.bindings;
   const entry: SeedArchiveEntry = {
     id,
     sourceFolder: params.folder,
@@ -57,6 +60,8 @@ export async function archiveSeed(params: {
     seed: settings.seed,
     upscaleSeed: settings.upscaleSeed ?? null,
     batchPresetId: params.metadata?.batchPresetId,
+    bindings:
+      bindings && Object.keys(bindings).length > 0 ? bindings : undefined,
     archivedAt: Date.now(),
   };
   fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(entry, null, 2));

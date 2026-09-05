@@ -4,6 +4,7 @@ import path from "path";
 import { getOutputDir, safePath } from "@/lib/server/output-dir";
 import { releaseFolderName } from "@/lib/gallery";
 import { apiError } from "@/lib/server/api-error";
+import { invalidatePresetStatsCache } from "@/lib/server/gallery-preset-stats";
 
 const THUMB_DIR = ".thumbcache";
 
@@ -42,6 +43,7 @@ export async function DELETE(req: NextRequest) {
       }
     }
 
+    invalidatePresetStatsCache();
     return NextResponse.json({ ok: true });
   } catch (e) {
     return apiError("gallery/delete DELETE", e);

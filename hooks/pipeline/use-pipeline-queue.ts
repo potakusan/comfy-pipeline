@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useCallback, useEffect } from "react";
+import { toast } from "sonner";
 import {
   type LoraEntry,
   type GenerationSettings,
@@ -8,10 +9,16 @@ import {
   type GalleryImage,
   type BatchPreset,
   type BatchRunOverrides,
+  type VariableBindings,
+  type VariableDefs,
+  type ImageRef,
+  type ImageRefPool,
+  type RandomChoice,
   buildWorkflow,
   buildOutputPrefix,
   isCommentLine,
 } from "@/lib/comfy";
+import { slotLabel } from "@/hooks/pipeline/use-variable-bindings";
 import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/comfy/couple";
 import type { CoupleControlNet, CoupleRegion } from "@/lib/comfy/couple";
 import { useComfyWS } from "../use-comfy-ws";
@@ -27,6 +34,7 @@ import { resolveSeedPoolBatchCount } from "@/lib/gallery-seed-pool";
 import {
   resolvePresetPromptAndLoras,
   buildPositivePromptWithAdditional,
+  resolvePromptVariables,
 } from "@/hooks/pipeline/pipeline-prompt-helpers";
 
 const LS_QUEUE = "cp_queue";
@@ -52,6 +60,10 @@ export interface PipelineQueueDeps {
   variationTags: string[];
   settings: GenerationSettings;
   batchCount: number;
+  variableDefs: VariableDefs;
+  variableInputValues: VariableBindings;
+  imageRef: ImageRef | null;
+  imageRefPool: ImageRefPool | null;
   setGallery: (updater: (prev: GalleryImage[]) => GalleryImage[]) => void;
 }
 
@@ -78,6 +90,10 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
     variationTags,
     settings,
     batchCount,
+    variableDefs,
+    variableInputValues,
+    imageRef,
+    imageRefPool,
     setGallery,
   } = deps;
 
@@ -135,6 +151,13 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
 
   // Current batch prompt (for preview display during generation)
   const [currentBatchPrompt, setCurrentBatchPrompt] = useState<string | null>(null);
+  // 実行中バッチで採用されたランダム抽選 / 下絵ファイル名(フローティングウィンドウ用)
+  const [currentBatchRandomChoices, setCurrentBatchRandomChoices] = useState<
+    RandomChoice[]
+  >([]);
+  const [currentBatchInitImageName, setCurrentBatchInitImageName] = useState<
+    string | null
+  >(null);
 
   // WS: progress & preview only
   useComfyWS(clientId, {
@@ -182,13 +205,34 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
     );
     const outputSubfolder = outputPrefix.split("/")[0];
 
-    const resolvePreset = (p: Preset): Preset => {
+    // 構図プールに group はあるが staged names が空(別環境からインポートした
+    // セット、ComfyUI の input を消した後 等)の場合はこの場で再ステージする。
+    let itemPoolNames = pendingItem.imageRefPool?.names ?? [];
+    if (pendingItem.imageRefPool && itemPoolNames.length === 0) {
+      try {
+        const staged = await apiFetch<{ names: string[] }>("/api/i2i/stage", {
+          method: "POST",
+          body: JSON.stringify({ group: pendingItem.imageRefPool.group }),
+        });
+        itemPoolNames = staged.names;
+      } catch {
+        // 再ステージ失敗時は下絵なし(txt2img)として続行する
+      }
+    }
+
+    const resolvePreset = (p: Preset, choices: RandomChoice[]): Preset => {
       if (p.promptMode !== "random") return p;
       const lines = p.prompt
         .split("\n")
         .filter((s) => s.trim() && !isCommentLine(s));
       if (!lines.length) return p;
-      return { ...p, prompt: lines[Math.floor(Math.random() * lines.length)] };
+      const picked = lines[Math.floor(Math.random() * lines.length)];
+      choices.push({
+        source: `${slotLabel(p.type)}: ${p.name}`,
+        picked,
+        options: lines,
+      });
+      return { ...p, prompt: picked };
     };
 
     const bp = pendingItem.batchPresets;
@@ -204,6 +248,11 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
     let lastBatchPrompt: string | null = null;
     let lastPickedAdditional: string | undefined;
     let lastBatchAllLoras: LoraEntry[] | null = null;
+    let lastResolvedBindings: VariableBindings = {};
+    let lastRandomChoices: RandomChoice[] = [];
+    // undefined = 未計算 / null = 計算済みで下絵なし / オブジェクト = 使用中の下絵
+    let lastInitImage: { name: string; denoise: number } | null | undefined =
+      undefined;
 
     for (let batch = 0; batch < pendingItem.batchCount; batch++) {
       if (cancelledItemIdRef.current === pendingItem.id) {
@@ -220,21 +269,28 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
       let batchPrompt: string;
       let pickedAdditional: string | undefined;
       let batchAllLoras: LoraEntry[];
+      let resolvedBindings: VariableBindings = {};
+      let batchInitImage: { name: string; denoise: number } | undefined;
+      let batchChoices: RandomChoice[] = [];
 
       if (redoMode === "samePrompt" && lastBatchPrompt !== null) {
         batchPrompt = lastBatchPrompt;
         pickedAdditional = lastPickedAdditional;
         batchAllLoras = lastBatchAllLoras!;
+        resolvedBindings = lastResolvedBindings;
+        batchChoices = lastRandomChoices;
+        // 「プロンプト固定でやり直し」は下絵も同じ1枚を使い回す。
+        batchInitImage = lastInitImage ?? undefined;
       } else {
         let presetBase: string;
         let batchPresetLoras: LoraEntry[];
 
         if (anyPresetRandom) {
-          const batchPhysicals = bp.selectedPhysicals.map(resolvePreset);
-          const batchCountPreset = bp.selectedCount ? resolvePreset(bp.selectedCount) : null;
-          const batchPose = bp.selectedPose ? resolvePreset(bp.selectedPose) : null;
-          const batchScene = bp.selectedScene ? resolvePreset(bp.selectedScene) : null;
-          const batchOthers = bp.selectedOthers.map(resolvePreset);
+          const batchPhysicals = bp.selectedPhysicals.map((p) => resolvePreset(p, batchChoices));
+          const batchCountPreset = bp.selectedCount ? resolvePreset(bp.selectedCount, batchChoices) : null;
+          const batchPose = bp.selectedPose ? resolvePreset(bp.selectedPose, batchChoices) : null;
+          const batchScene = bp.selectedScene ? resolvePreset(bp.selectedScene, batchChoices) : null;
+          const batchOthers = bp.selectedOthers.map((p) => resolvePreset(p, batchChoices));
 
           const resolved = resolvePresetPromptAndLoras({
             variableLora: pendingItem.variableLora,
@@ -270,6 +326,13 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
             pendingItem.additionalPromptLines[
               Math.floor(Math.random() * pendingItem.additionalPromptLines.length)
             ];
+          if (pendingItem.additionalPromptLines.length > 1) {
+            batchChoices.push({
+              source: "追加プロンプト",
+              picked: pickedAdditional ?? "",
+              options: pendingItem.additionalPromptLines,
+            });
+          }
           promptWithAdditional = pickedAdditional
             ? `${presetBase}\n\n${pickedAdditional}`
             : presetBase;
@@ -286,15 +349,70 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
             pendingItem.variationTags[
               Math.floor(Math.random() * pendingItem.variationTags.length)
             ];
+          if (pendingItem.variationTags.length > 1) {
+            batchChoices.push({
+              source: "ランダム構図",
+              picked: tag,
+              options: pendingItem.variationTags,
+            });
+          }
           batchPrompt = `${promptWithAdditional}\n\n${tag}`;
+        }
+
+        // %%name%% 変数の解決は、プリセット/追加/バリエーションの抽選をすべて
+        // 済ませた最終文字列に対して1回だけ行う。確定した bindings はメタデータへ
+        // 保存し、シード引き継ぎ時のランダム要素再現に使う。
+        // 定義(候補・モード)・入力値ともキュー登録時点でアイテムに焼き込まれた
+        // スナップショットのみを使う(無ければ空 = この機能追加前のアイテム)。
+        // 実行中に変数ウィンドウを編集しても、既にキューに積まれたアイテムの
+        // 結果が変わらないようにするため。
+        const itemVariableDefs = pendingItem.variableDefs ?? {};
+        const varResolved = resolvePromptVariables({
+          prompt: batchPrompt,
+          variableDefs: itemVariableDefs,
+          variableInputValues: pendingItem.variableInputValues ?? {},
+          promptReplacements: pendingItem.promptReplacements,
+        });
+        batchPrompt = varResolved.prompt;
+        resolvedBindings = varResolved.bindings;
+
+        for (const [name, val] of Object.entries(resolvedBindings)) {
+          const def = itemVariableDefs[name];
+          if (def?.mode === "random") {
+            batchChoices.push({
+              source: `%%${name}%%`,
+              picked: val,
+              options: def.candidates ?? [],
+            });
+          }
+        }
+
+        // 下絵: 構図プールがあれば毎バッチ1枚ランダム、なければ単一 imageRef、どちらも
+        // 無ければ txt2img。
+        const poolNames = itemPoolNames;
+        if (poolNames.length > 0) {
+          batchInitImage = {
+            name: poolNames[Math.floor(Math.random() * poolNames.length)],
+            denoise: pendingItem.imageRefPool!.denoise,
+          };
+        } else if (pendingItem.imageRef) {
+          batchInitImage = {
+            name: pendingItem.imageRef.name,
+            denoise: pendingItem.imageRef.denoise,
+          };
         }
 
         lastBatchPrompt = batchPrompt;
         lastPickedAdditional = pickedAdditional;
         lastBatchAllLoras = batchAllLoras;
+        lastResolvedBindings = resolvedBindings;
+        lastRandomChoices = batchChoices;
+        lastInitImage = batchInitImage ?? null;
       }
 
       setCurrentBatchPrompt(batchPrompt);
+      setCurrentBatchRandomChoices(batchChoices);
+      setCurrentBatchInitImageName(batchInitImage?.name ?? null);
 
       // 「やり直し(新しいseedで)」はseedPoolより常に優先する(ユーザーの明示操作のため)。
       // そうでなければ、seedPoolが設定されていればbatch番目のプールseedを固定で使う。
@@ -332,7 +450,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
               })
             : pendingItem.coupleWorkflow
               ? buildCoupleWorkflow(workflowArgs)
-              : buildWorkflow(workflowArgs);
+              : buildWorkflow({ ...workflowArgs, initImage: batchInitImage });
 
         const newFiles = await submitAndAwaitNewFiles(
           workflow,
@@ -361,6 +479,10 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           upscaleSeed: resolvedUpscaleSeed ?? undefined,
         };
 
+        const bindingsForMeta =
+          Object.keys(resolvedBindings).length > 0 ? resolvedBindings : undefined;
+        const choicesForMeta = batchChoices.length > 0 ? batchChoices : undefined;
+
         const newImages: GalleryImage[] = newFiles.map((filename) => ({
           id: crypto.randomUUID(),
           path: `${outputSubfolder}/${filename}`,
@@ -373,6 +495,8 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           createdAt: Date.now(),
           appliedAdditional: pickedAdditional,
           batchPresetId: pendingItem.batchPresetId,
+          bindings: bindingsForMeta,
+          randomChoices: choicesForMeta,
         }));
 
         // Fire-and-forget: persist prompt/seed metadata as a JSON sidecar next
@@ -402,6 +526,8 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
                   createdAt: img.createdAt,
                   appliedAdditional: img.appliedAdditional,
                   batchPresetId: img.batchPresetId,
+                  bindings: img.bindings,
+                  randomChoices: img.randomChoices,
                   ...(mode === "colorMask"
                     ? {
                         colorMaskControlNet: pendingItem.colorMaskControlNet,
@@ -459,6 +585,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
     isProcessingRef.current = false;
     setIsProcessing(false);
     setCurrentBatchPrompt(null);
+    setCurrentBatchInitImageName(null);
 
     if (queueRunningRef.current) {
       nextQueueTimerRef.current = setTimeout(() => processQueueRef.current?.(), 100);
@@ -546,9 +673,14 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
         selectedScene,
         selectedOthers,
       },
+      variableInputValues: { ...variableInputValues },
+      variableDefs: { ...variableDefs },
+      imageRef: imageRef ?? undefined,
+      imageRefPool: imageRefPool ?? undefined,
     };
 
     setQueue((prev) => [...prev, item]);
+    toast.success(`「${label}」をキューに追加しました`);
   }, [
     selectedVariableLora,
     physicalPresets,
@@ -570,6 +702,10 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
     variationTags,
     fixedTags,
     fixedLoras,
+    variableInputValues,
+    variableDefs,
+    imageRef,
+    imageRefPool,
   ]);
 
   const captureCurrentSettings = useCallback(
@@ -607,6 +743,9 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
         variationEnabled,
         variationTags: [...variationTags],
         batchCount,
+        variableValues: { ...variableInputValues },
+        imageRef: imageRef ?? undefined,
+        imageRefPool: imageRefPool ?? undefined,
       };
     },
     [
@@ -623,19 +762,30 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
       variationEnabled,
       variationTags,
       batchCount,
+      variableInputValues,
+      imageRef,
+      imageRefPool,
     ],
   );
 
   const runBatchPresets = useCallback(
     async (presets: BatchPreset[], overrides: BatchRunOverrides) => {
+      // 良品率調整(#58)がONのときだけ preset-stats を取得する。OFF(既定)なら
+      // 重い全走査をスキップして即キュー追加する。
       let presetStats: Record<string, PresetGenerationStats> = {};
-      try {
-        const res = await apiFetch<{ stats: Record<string, PresetGenerationStats> }>(
-          "/api/gallery/preset-stats",
-        );
-        presetStats = res.stats;
-      } catch {
-        // 集計取得に失敗しても、調整せず指定枚数のまま生成を続行する
+      if (overrides.applyReleaseRateAdjustment) {
+        const tid = toast.loading("良品率データを集計中…");
+        try {
+          const res = await apiFetch<{ stats: Record<string, PresetGenerationStats> }>(
+            "/api/gallery/preset-stats",
+          );
+          presetStats = res.stats;
+          toast.dismiss(tid);
+        } catch {
+          // 集計取得に失敗しても、調整せず指定枚数のまま生成を続行する
+          toast.dismiss(tid);
+          toast.warning("良品率データを取得できませんでした。指定枚数のまま追加します");
+        }
       }
 
       const items: QueueItem[] = presets.map((preset) => {
@@ -712,11 +862,30 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
             selectedScene: overrides.scenePreset,
             selectedOthers: resolvedOthers,
           },
+          // 変数入力値: セット単位の既定値(preset.variableValues)を、実行画面で
+          // 確定した値(overrides.variableValues)で一時上書きする。
+          variableInputValues: {
+            ...preset.variableValues,
+            ...overrides.variableValues,
+          },
+          variableDefs: { ...variableDefs },
+          promptReplacements: overrides.promptReplacements,
+          // 下絵はプリセット固有の設定(セット編集で指定)を、実行画面で ON に
+          // したプリセットだけに適用する。既定オフ。
+          imageRef: overrides.i2iEnabledPresetIds?.includes(preset.id)
+            ? preset.imageRef
+            : undefined,
+          imageRefPool: overrides.i2iEnabledPresetIds?.includes(preset.id)
+            ? preset.imageRefPool
+            : undefined,
         };
       });
       setQueue((prev) => [...prev, ...items]);
+      if (items.length > 0) {
+        toast.success(`${items.length}件のタスクをキューに追加しました`);
+      }
     },
-    [countPresets, posePresets, otherPresets, fixedTags, fixedLoras],
+    [countPresets, posePresets, otherPresets, fixedTags, fixedLoras, variableDefs],
   );
 
   const addCoupleToQueue = useCallback(
@@ -771,6 +940,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
         colorMaskRegions: useColorMask ? colorMaskRegions : undefined,
       };
       setQueue((prev) => [...prev, item]);
+      toast.success(`「${label}」をキューに追加しました`);
     },
     [],
   );
@@ -887,5 +1057,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
     previewUrl,
     currentJobImages,
     currentBatchPrompt,
+    currentBatchRandomChoices,
+    currentBatchInitImageName,
   };
 }

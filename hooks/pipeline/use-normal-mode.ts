@@ -5,6 +5,10 @@ import {
   type Preset,
   type PresetCategory,
   type BatchPresetSet,
+  type VariableDefs,
+  type VariableBindings,
+  type ImageRef,
+  type ImageRefPool,
   DEFAULT_PHYSICAL_PRESETS,
   DEFAULT_SCENE_PRESETS,
   DEFAULT_COUNT_PRESETS,
@@ -42,6 +46,10 @@ const LS = {
   variationTags: "cp_variation_tags",
   batchPresetSets: "cp_batch_preset_sets",
   presetCategories: "cp_preset_categories",
+  variableDefs: "cp_variable_defs",
+  variableInputValues: "cp_variable_input_values",
+  imageRef: "cp_image_ref",
+  imageRefPool: "cp_image_ref_pool",
 };
 
 // ---------------------------------------------------------------------------
@@ -113,6 +121,28 @@ export function useNormalMode() {
     [],
   );
 
+  // --- Prompt variables (%%name%%) ---
+  // グローバル名前空間。定義の無い変数は暗黙的に input モード扱い(lib/comfy/prompt-variables.ts)。
+  const [variableDefs, setVariableDefs] = useState<VariableDefs>({});
+  const [variableInputValues, setVariableInputValuesState] =
+    useState<VariableBindings>({});
+  const setVariableInputValue = useCallback((name: string, value: string) => {
+    setVariableInputValuesState((prev) => ({ ...prev, [name]: value }));
+  }, []);
+
+  // --- 参照画像 / 下絵 (img2img) ---
+  // 単一画像(imageRef)と構図プール(imageRefPool)は排他。
+  const [imageRefRaw, setImageRefRaw] = useState<ImageRef | null>(null);
+  const [imageRefPoolRaw, setImageRefPoolRaw] = useState<ImageRefPool | null>(null);
+  const setImageRef = useCallback((v: ImageRef | null) => {
+    setImageRefRaw(v);
+    if (v) setImageRefPoolRaw(null);
+  }, []);
+  const setImageRefPool = useCallback((v: ImageRefPool | null) => {
+    setImageRefPoolRaw(v);
+    if (v) setImageRefRaw(null);
+  }, []);
+
   // --- Load from localStorage after mount (avoids SSR/client hydration mismatch) ---
   useEffect(() => {
     setFixedLoras(lsGet(LS.fixedLoras, FIXED_LORAS));
@@ -136,6 +166,10 @@ export function useNormalMode() {
     setVariationTags(lsGet(LS.variationTags, DEFAULT_COMPOSITION_TAGS));
     setBatchPresetSets(migrateBatchPresetSets(lsGet(LS.batchPresetSets, [])));
     setPresetCategories(lsGet(LS.presetCategories, []));
+    setVariableDefs(lsGet(LS.variableDefs, {}));
+    setVariableInputValuesState(lsGet(LS.variableInputValues, {}));
+    setImageRefRaw(lsGet(LS.imageRef, null));
+    setImageRefPoolRaw(lsGet(LS.imageRefPool, null));
     setLsLoaded(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -201,6 +235,18 @@ export function useNormalMode() {
   useEffect(() => {
     if (lsLoaded) lsSet(LS.presetCategories, presetCategories);
   }, [lsLoaded, presetCategories]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.variableDefs, variableDefs);
+  }, [lsLoaded, variableDefs]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.variableInputValues, variableInputValues);
+  }, [lsLoaded, variableInputValues]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.imageRef, imageRefRaw);
+  }, [lsLoaded, imageRefRaw]);
+  useEffect(() => {
+    if (lsLoaded) lsSet(LS.imageRefPool, imageRefPoolRaw);
+  }, [lsLoaded, imageRefPoolRaw]);
 
   // --- Fixed LoRA management ---
   const addFixedLora = useCallback((lora: LoraEntry) => {
@@ -463,6 +509,17 @@ export function useNormalMode() {
     addCategory,
     renameCategory,
     removeCategory,
+    // Prompt variables
+    variableDefs,
+    setVariableDefs,
+    variableInputValues,
+    setVariableInputValues: setVariableInputValuesState,
+    setVariableInputValue,
+    // 参照画像 / 下絵 (img2img)
+    imageRef: imageRefRaw,
+    setImageRef,
+    imageRefPool: imageRefPoolRaw,
+    setImageRefPool,
   };
 }
 

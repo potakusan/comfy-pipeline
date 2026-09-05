@@ -6,6 +6,7 @@ import {
   type Preset,
   type BatchPresetSet,
   type PresetCategory,
+  type VariableDefs,
   migrateBatchPresetSets,
 } from "@/lib/comfy";
 import { lsGet, lsSet } from "@/hooks/ls";
@@ -37,6 +38,8 @@ export interface PipelineIOState {
   setBatchPresetSets: (v: BatchPresetSet[]) => void;
   presetCategories: PresetCategory[];
   setPresetCategories: (v: PresetCategory[]) => void;
+  variableDefs: VariableDefs;
+  setVariableDefs: (v: VariableDefs) => void;
   panelSizes: Record<string, number>;
   setPanelSizes: (v: Record<string, number>) => void;
   promptPreviewPos: PromptPreviewPos;
@@ -72,6 +75,8 @@ export function usePipelineIO(state: PipelineIOState) {
     setBatchPresetSets,
     presetCategories,
     setPresetCategories,
+    variableDefs,
+    setVariableDefs,
     panelSizes,
     setPanelSizes,
     promptPreviewPos,
@@ -95,6 +100,7 @@ export function usePipelineIO(state: PipelineIOState) {
       variationTags,
       batchPresetSets,
       presetCategories,
+      variableDefs,
       panelSizes,
       promptPreviewPos,
       etaPos,
@@ -124,6 +130,7 @@ export function usePipelineIO(state: PipelineIOState) {
     variationTags,
     batchPresetSets,
     presetCategories,
+    variableDefs,
     panelSizes,
     promptPreviewPos,
     etaPos,
@@ -148,6 +155,7 @@ export function usePipelineIO(state: PipelineIOState) {
           if (Array.isArray(data.variationTags)) setVariationTags(data.variationTags);
           if (Array.isArray(data.batchPresetSets)) setBatchPresetSets(migrateBatchPresetSets(data.batchPresetSets));
           if (Array.isArray(data.presetCategories)) setPresetCategories(data.presetCategories);
+          if (data.variableDefs && typeof data.variableDefs === "object" && !Array.isArray(data.variableDefs)) setVariableDefs(data.variableDefs as VariableDefs);
           if (data.panelSizes && typeof data.panelSizes === "object") setPanelSizes(data.panelSizes);
           if (data.promptPreviewPos && typeof data.promptPreviewPos === "object") setPromptPreviewPos(data.promptPreviewPos as PromptPreviewPos);
           if (data.etaPos && typeof data.etaPos === "object") setEtaPos(data.etaPos as PromptPreviewPos);
@@ -171,6 +179,7 @@ export function usePipelineIO(state: PipelineIOState) {
       setVariationTags,
       setBatchPresetSets,
       setPresetCategories,
+      setVariableDefs,
       setPanelSizes,
       setPromptPreviewPos,
       setEtaPos,

@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ResizablePanel } from "@/components/ui/resizable";
 import LoraPanel from "@/components/pipeline/lora/lora-panel";
 import PromptBuilder from "@/components/pipeline/prompt/prompt-builder";
+import ImageRefSection from "@/components/pipeline/prompt/image-ref-section";
 import SamplerSettings from "@/components/pipeline/sampler-settings";
 import TagSettings from "@/components/pipeline/prompt/tag-settings";
 import CouplePanel from "@/components/pipeline/couple/couple-panel";
@@ -85,6 +86,11 @@ export default function LeftPanel({
     setAdditionalPromptMode,
     panelSizes,
     setPanelSizes,
+    imageRef,
+    setImageRef,
+    imageRefPool,
+    setImageRefPool,
+    gallery,
   } = pipeline;
 
   return (
@@ -190,6 +196,20 @@ export default function LeftPanel({
                 />
               </Section>
             </div>
+
+            <Section
+              title="参照画像 / 下絵"
+              defaultOpen={false}
+              badge={imageRefPool ? "プール" : imageRef ? "ON" : undefined}
+            >
+              <ImageRefSection
+                imageRef={imageRef}
+                onChange={setImageRef}
+                imageRefPool={imageRefPool}
+                onPoolChange={setImageRefPool}
+                lastGeneratedPath={gallery[0]?.path}
+              />
+            </Section>
 
             <div ref={registerSectionRef("variation")}>
               <Section

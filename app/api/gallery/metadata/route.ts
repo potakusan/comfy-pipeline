@@ -3,6 +3,7 @@ import fs from "fs";
 import { getOutputDir, safePath } from "@/lib/server/output-dir";
 import type { ImageMetadata } from "@/lib/gallery";
 import { apiError } from "@/lib/server/api-error";
+import { invalidatePresetStatsCache } from "@/lib/server/gallery-preset-stats";
 
 /** GET /api/gallery/metadata?path=20240101-loraname/out_00001_.png */
 export async function GET(req: NextRequest) {
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
 
   try {
     fs.writeFileSync(`${fullPath}.json`, JSON.stringify(metadata, null, 2));
+    invalidatePresetStatsCache();
     return NextResponse.json({ ok: true });
   } catch (e) {
     return apiError("gallery/metadata POST", e);

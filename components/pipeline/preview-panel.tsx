@@ -22,6 +22,7 @@ interface PreviewPanelProps {
   batchCount: number;
   onBatchCountChange: (n: number) => void;
   onAddToQueue: () => void;
+  addBlockedReason?: string;
   onCancel: () => void;
   onRedoReroll: () => void;
   onRedoSamePrompt: () => void;
@@ -44,6 +45,7 @@ export default function PreviewPanel({
   batchCount,
   onBatchCountChange,
   onAddToQueue,
+  addBlockedReason,
   onCancel,
   onRedoReroll,
   onRedoSamePrompt,
@@ -198,7 +200,13 @@ export default function PreviewPanel({
           />
         </div>
 
-        <Button onClick={onAddToQueue} className="flex-1 gap-2" size="lg">
+        <Button
+          onClick={onAddToQueue}
+          disabled={!!addBlockedReason}
+          title={addBlockedReason}
+          className="flex-1 gap-2"
+          size="lg"
+        >
           <Play className="h-4 w-4" />
           キューに追加
         </Button>

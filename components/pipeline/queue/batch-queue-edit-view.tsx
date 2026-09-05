@@ -1,12 +1,19 @@
 "use client";
 import { useState } from "react";
-import { type BatchPreset, type BatchPresetSet, type Preset } from "@/lib/comfy";
+import {
+  type BatchPreset,
+  type BatchPresetSet,
+  type Preset,
+  type ImageRef,
+  type ImageRefPool,
+} from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, Copy, GripVertical, Play } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy, GripVertical, Play, Images } from "lucide-react";
 import { useDragReorder } from "@/hooks/pipeline/use-drag-reorder";
+import ImageRefSection from "@/components/pipeline/prompt/image-ref-section";
 
 // ---------------------------------------------------------------------------
 // Preset editor (inline within set-edit view)
@@ -33,6 +40,10 @@ function PresetEditor({ preset, countPresets, posePresets, otherPresets, onSave,
   const [selectedCountId, setSelectedCountId] = useState<string | null>(preset.countPresetId);
   const [selectedPoseId, setSelectedPoseId] = useState<string | null>(preset.posePresetId);
   const [selectedOtherIds, setSelectedOtherIds] = useState<string[]>([...preset.otherPresetIds]);
+  const [imageRef, setImageRef] = useState<ImageRef | null>(preset.imageRef ?? null);
+  const [imageRefPool, setImageRefPool] = useState<ImageRefPool | null>(
+    preset.imageRefPool ?? null,
+  );
 
   const toggleOther = (id: string) =>
     setSelectedOtherIds((prev) =>
@@ -73,6 +84,8 @@ function PresetEditor({ preset, countPresets, posePresets, otherPresets, onSave,
                 countPresetId: selectedCountId,
                 posePresetId: selectedPoseId,
                 otherPresetIds: selectedOtherIds,
+                imageRef: imageRef ?? undefined,
+                imageRefPool: imageRefPool ?? undefined,
               })
             }
           >
@@ -169,6 +182,19 @@ function PresetEditor({ preset, countPresets, posePresets, otherPresets, onSave,
           placeholder="追加プロンプト（ランダムモードの場合は1行1タグ）"
         />
       </div>
+
+      <div>
+        <Label className="mb-1 flex items-center gap-1 text-xs">
+          <Images className="h-3 w-3" />
+          参照画像 / 下絵（このプリセット固有）
+        </Label>
+        <ImageRefSection
+          imageRef={imageRef}
+          onChange={setImageRef}
+          imageRefPool={imageRefPool}
+          onPoolChange={setImageRefPool}
+        />
+      </div>
     </div>
   );
 }
@@ -210,7 +236,21 @@ function PresetRow({
       } ${isOver ? "border-blue-400 opacity-60" : ""}`}
     >
       <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-muted-foreground/40 active:cursor-grabbing" />
-      <span className="truncate font-medium">{preset.name}</span>
+      <span className="flex min-w-0 items-center gap-1">
+        <span className="truncate font-medium">{preset.name}</span>
+        {(preset.imageRefPool || preset.imageRef) && (
+          <span
+            className="shrink-0 text-muted-foreground"
+            title={
+              preset.imageRefPool
+                ? `下絵プール: ${preset.imageRefPool.group}`
+                : "下絵: 単一画像"
+            }
+          >
+            <Images className="h-3 w-3" />
+          </span>
+        )}
+      </span>
       <span className="truncate text-muted-foreground">{poseName}</span>
       <span className="truncate text-muted-foreground">{countName}</span>
       <span className="text-right text-muted-foreground">

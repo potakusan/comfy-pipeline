@@ -6,14 +6,19 @@ export interface SeedPoolInfo {
   /** このグループで最も多く登場するBatchPreset.id(一括キューセットの自動特定に使う)。
    * 一括キュー以外(通常/カップルモード)由来のエントリしかない場合はundefined。 */
   batchPresetId?: string;
+  /** このグループを代表する `%%name%%` 変数の解決値(最新のアーカイブエントリのもの)。
+   * 引き継ぎ時、変数入力ステップの初期値として使う。 */
+  bindings?: Record<string, string>;
 }
 
 /**
  * 指定フォルダ名(sourceFolder)でアーカイブされているseed一覧と、そのグループを
- * 代表するBatchPreset.idを返す。出力フォルダ自体が既に削除済みでも、
- * 販売用選択時にアーカイブ済みであれば取得できる(lib/server/gallery-seed-archive.ts参照)。
+ * 代表するBatchPreset.id・変数バインディングを返す。出力フォルダ自体が既に
+ * 削除済みでも、販売用選択時にアーカイブ済みであれば取得できる
+ * (lib/server/gallery-seed-archive.ts参照)。
  */
 export function getSeedPoolInfo(sourceFolder: string): SeedPoolInfo {
+  // listArchivedSeeds() は archivedAt 降順。フィルタしても順序は保たれる。
   const entries = listArchivedSeeds().filter((e) => e.sourceFolder === sourceFolder);
 
   const seeds: ReleasedSeed[] = entries.map((e) => ({
@@ -21,6 +26,7 @@ export function getSeedPoolInfo(sourceFolder: string): SeedPoolInfo {
     filename: e.sourceFilename,
     seed: e.seed,
     upscaleSeed: e.upscaleSeed,
+    bindings: e.bindings,
   }));
 
   const presetIdCounts = new Map<string, number>();
@@ -37,5 +43,9 @@ export function getSeedPoolInfo(sourceFolder: string): SeedPoolInfo {
     }
   }
 
-  return { seeds, batchPresetId };
+  const bindings = entries.find(
+    (e) => e.bindings && Object.keys(e.bindings).length > 0,
+  )?.bindings;
+
+  return { seeds, batchPresetId, bindings };
 }

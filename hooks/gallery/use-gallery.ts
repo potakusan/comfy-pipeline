@@ -200,7 +200,14 @@ export function useGallery() {
   const regenerateImage = useCallback(
     async (
       entry: GalleryImageEntry,
-      overrides?: { positivePrompt?: string; negativePrompt?: string },
+      overrides?: {
+        positivePrompt?: string;
+        negativePrompt?: string;
+        /** false = 指定シードで再生成(同じ画像の再現)。省略時は true(ランダム別シード)。 */
+        randomizeSeed?: boolean;
+        /** randomizeSeed が false のときに使うシード値。省略時は元画像のシード。 */
+        seed?: number;
+      },
     ) => {
       if (regenerating) return;
       const sourceSettings = entry.meta?.settings;
@@ -218,18 +225,27 @@ export function useGallery() {
       );
       const outputPrefix = `${folder}/__regen_${sourceBase}`;
 
+      // 初回は overrides の指定に従う。「リトライ（別シード）」で戻ってきた場合は
+      // 名前どおり常にランダムな別シードにする。
+      const pinSeed = overrides?.randomizeSeed === false;
+      const pinnedSeedValue = overrides?.seed ?? sourceSettings.seed;
+
       setRegenerating(true);
       setError(null);
 
       let attempting = true;
+      let isRedo = false;
       while (attempting) {
         attempting = false;
         redoRequestedRef.current = false;
         setRegenProgress({ value: 0, max: 0 });
         setRegenPreviewUrl(null);
 
-        const newSeed = Math.floor(Math.random() * 2 ** 32);
-        const settings = { ...sourceSettings, randomizeSeed: false, seed: newSeed };
+        const useSeed =
+          pinSeed && !isRedo
+            ? pinnedSeedValue
+            : Math.floor(Math.random() * 2 ** 32);
+        const settings = { ...sourceSettings, randomizeSeed: false, seed: useSeed };
         const workflowArgs = {
           settings,
           loras: meta.loras ?? [],
@@ -314,7 +330,8 @@ export function useGallery() {
         } catch (e) {
           const outcome = classifyCancelError(e, redoRequestedRef.current);
           if (outcome === "retry") {
-            attempting = true; // loop back with a fresh seed
+            attempting = true; // loop back with a fresh (random) seed
+            isRedo = true;
           } else if (outcome === "error") {
             setError((e as Error).message);
           }

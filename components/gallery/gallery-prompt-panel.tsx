@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { Pencil, Sparkles, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import TagAutocompleteTextarea from "@/components/common/tag-autocomplete-textarea";
 import type { GalleryImageEntry } from "@/lib/gallery";
 
@@ -13,11 +16,18 @@ export default function GalleryPromptPanel({
 }: {
   entry: GalleryImageEntry | null;
   regenerating?: boolean;
-  onRegenerate?: (overrides: { positivePrompt: string; negativePrompt: string }) => void;
+  onRegenerate?: (overrides: {
+    positivePrompt: string;
+    negativePrompt: string;
+    randomizeSeed: boolean;
+    seed?: number;
+  }) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [positivePrompt, setPositivePrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
+  const [randomizeSeed, setRandomizeSeed] = useState(true);
+  const [seedInput, setSeedInput] = useState("");
 
   // Reset the draft whenever the selected image changes so edits don't leak
   // across images, and drop out of edit mode.
@@ -25,6 +35,8 @@ export default function GalleryPromptPanel({
     setEditing(false);
     setPositivePrompt(entry?.meta?.positivePrompt ?? "");
     setNegativePrompt(entry?.meta?.negativePrompt ?? "");
+    setRandomizeSeed(true);
+    setSeedInput(String(entry?.meta?.settings?.seed ?? 0));
   }, [entry?.filename]);
 
   if (!entry) {
@@ -50,6 +62,8 @@ export default function GalleryPromptPanel({
   const startEditing = () => {
     setPositivePrompt(meta.positivePrompt);
     setNegativePrompt(meta.negativePrompt ?? "");
+    setRandomizeSeed(true);
+    setSeedInput(String(meta.settings?.seed ?? 0));
     setEditing(true);
   };
 
@@ -59,8 +73,16 @@ export default function GalleryPromptPanel({
     setNegativePrompt(meta.negativePrompt ?? "");
   };
 
+  const parsedSeed = Number.parseInt(seedInput, 10);
+  const seedValid = Number.isFinite(parsedSeed) && parsedSeed >= 0;
+
   const handleRegenerate = () => {
-    onRegenerate?.({ positivePrompt, negativePrompt });
+    onRegenerate?.({
+      positivePrompt,
+      negativePrompt,
+      randomizeSeed,
+      seed: randomizeSeed || !seedValid ? undefined : parsedSeed,
+    });
     setEditing(false);
   };
 
@@ -141,15 +163,40 @@ export default function GalleryPromptPanel({
             />
           </div>
 
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-1">
+            <label className="flex items-center gap-1.5 text-[11px]">
+              <Checkbox
+                checked={randomizeSeed}
+                onCheckedChange={(v) => setRandomizeSeed(v === true)}
+              />
+              ランダムシード
+            </label>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-[10px] text-muted-foreground">シード</Label>
+              <Input
+                value={seedInput}
+                onChange={(e) => setSeedInput(e.target.value.replace(/[^\d]/g, ""))}
+                disabled={randomizeSeed}
+                inputMode="numeric"
+                className="h-7 w-36 font-mono text-[10px]"
+                placeholder={String(meta.settings?.seed ?? 0)}
+              />
+            </div>
+          </div>
+
           <div className="flex items-center gap-1.5 pt-1">
             <Button
               size="sm"
               className="h-7 gap-1 text-xs"
-              disabled={regenerating || !positivePrompt.trim()}
+              disabled={
+                regenerating ||
+                !positivePrompt.trim() ||
+                (!randomizeSeed && !seedValid)
+              }
               onClick={handleRegenerate}
             >
               <Sparkles className="h-3 w-3" />
-              編集内容で別シード再生成
+              再生成
             </Button>
             <Button
               variant="ghost"

@@ -11,6 +11,9 @@ const LS = {
   promptPreview: "cp_prompt_preview",
   etaPos: "cp_eta_pos",
   seedRefPos: "cp_seed_ref_pos",
+  varBindPos: "cp_var_bind_pos",
+  refImgPos: "cp_ref_img_pos",
+  randElemPos: "cp_rand_elem_pos",
 };
 
 export type PromptPreviewPos = { x: number; y: number; collapsed: boolean; width?: number; height?: number };
@@ -25,6 +28,9 @@ export function usePipelineSettings() {
   const [promptPreviewPos, setPromptPreviewPosState] = useState<PromptPreviewPos>(DEFAULT_PROMPT_PREVIEW);
   const [etaPos, setEtaPosState] = useState<PromptPreviewPos>(DEFAULT_PROMPT_PREVIEW);
   const [seedRefPos, setSeedRefPosState] = useState<PromptPreviewPos>(DEFAULT_PROMPT_PREVIEW);
+  const [varBindPos, setVarBindPosState] = useState<PromptPreviewPos>(DEFAULT_PROMPT_PREVIEW);
+  const [refImgPos, setRefImgPosState] = useState<PromptPreviewPos>(DEFAULT_PROMPT_PREVIEW);
+  const [randElemPos, setRandElemPosState] = useState<PromptPreviewPos>(DEFAULT_PROMPT_PREVIEW);
   const [lsLoaded, setLsLoaded] = useState(false);
 
   useEffect(() => {
@@ -34,6 +40,9 @@ export function usePipelineSettings() {
     setPromptPreviewPosState(lsGet(LS.promptPreview, DEFAULT_PROMPT_PREVIEW));
     setEtaPosState(lsGet(LS.etaPos, DEFAULT_PROMPT_PREVIEW));
     setSeedRefPosState(lsGet(LS.seedRefPos, DEFAULT_PROMPT_PREVIEW));
+    setVarBindPosState(lsGet(LS.varBindPos, DEFAULT_PROMPT_PREVIEW));
+    setRefImgPosState(lsGet(LS.refImgPos, DEFAULT_PROMPT_PREVIEW));
+    setRandElemPosState(lsGet(LS.randElemPos, DEFAULT_PROMPT_PREVIEW));
     setLsLoaded(true);
   }, []);
 
@@ -56,6 +65,18 @@ export function usePipelineSettings() {
     setSeedRefPosState(pos);
     lsSet(LS.seedRefPos, pos);
   }, []);
+  const setVarBindPos = useCallback((pos: PromptPreviewPos) => {
+    setVarBindPosState(pos);
+    lsSet(LS.varBindPos, pos);
+  }, []);
+  const setRefImgPos = useCallback((pos: PromptPreviewPos) => {
+    setRefImgPosState(pos);
+    lsSet(LS.refImgPos, pos);
+  }, []);
+  const setRandElemPos = useCallback((pos: PromptPreviewPos) => {
+    setRandElemPosState(pos);
+    lsSet(LS.randElemPos, pos);
+  }, []);
 
   return {
     settings,
@@ -70,6 +91,12 @@ export function usePipelineSettings() {
     setEtaPos,
     seedRefPos,
     setSeedRefPos,
+    varBindPos,
+    setVarBindPos,
+    refImgPos,
+    setRefImgPos,
+    randElemPos,
+    setRandElemPos,
     lsLoaded,
   };
 }

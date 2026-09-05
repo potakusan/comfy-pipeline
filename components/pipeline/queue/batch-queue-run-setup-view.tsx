@@ -2,19 +2,24 @@
 import { useState } from "react";
 import {
   type BatchRunOverrides,
+  type BatchPreset,
   type LoraEntry,
   type Preset,
   type GenerationSettings,
   type ReleasedSeed,
 } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import SamplerSettings from "@/components/pipeline/sampler-settings";
+import PresetI2iToggles from "@/components/pipeline/queue/preset-i2i-toggles";
 import { Play, ChevronUp, ChevronDown, Sprout } from "lucide-react";
 
 interface RunSetupViewProps {
   variableLoras: LoraEntry[];
   physicalPresets: Preset[];
   scenePresets: Preset[];
+  /** 実行対象セットのプリセット(下絵の使用可否をプリセット単位で選ばせる) */
+  presets: BatchPreset[];
   initialSettings: GenerationSettings;
   /** ギャラリーの販売用選択画像から引き継ぐseedプール(選択されている場合のみ) */
   seedSource?: { folder: string; seeds: ReleasedSeed[] } | null;
@@ -26,6 +31,7 @@ export default function RunSetupView({
   variableLoras,
   physicalPresets,
   scenePresets,
+  presets,
   initialSettings,
   seedSource,
   onConfirm,
@@ -36,6 +42,10 @@ export default function RunSetupView({
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [runSettings, setRunSettings] = useState<GenerationSettings>(initialSettings);
   const [samplerOpen, setSamplerOpen] = useState(false);
+  const [i2iEnabledIds, setI2iEnabledIds] = useState<string[]>([]);
+  // 良品率で生成枚数を切り詰める調整(#58)。既定オフ。オンのときだけ実行時に
+  // /api/gallery/preset-stats(全走査)を取得する。
+  const [applyReleaseRateAdjustment, setApplyReleaseRateAdjustment] = useState(false);
 
   const togglePhysical = (id: string) =>
     setSelectedPhysicalIds((prev) =>
@@ -50,6 +60,8 @@ export default function RunSetupView({
       settings: runSettings,
       seedPool: seedSource && seedSource.seeds.length > 0 ? seedSource.seeds : undefined,
       seedSourceFolder: seedSource?.folder,
+      i2iEnabledPresetIds: i2iEnabledIds,
+      applyReleaseRateAdjustment,
     });
   };
 
@@ -168,6 +180,30 @@ export default function RunSetupView({
                 ))}
               </div>
             )}
+          </div>
+
+          <PresetI2iToggles
+            presets={presets}
+            enabledIds={i2iEnabledIds}
+            onChange={setI2iEnabledIds}
+          />
+
+          {/* 良品率調整 */}
+          <div>
+            <label className="flex cursor-pointer items-start gap-2 text-xs">
+              <Checkbox
+                className="mt-0.5"
+                checked={applyReleaseRateAdjustment}
+                onCheckedChange={(v) => setApplyReleaseRateAdjustment(v === true)}
+              />
+              <span>
+                <span className="font-semibold">良品率で生成枚数を自動調整する</span>
+                <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                  過去の販売用選択率から「当たり1枚に必要な試行回数」を見積もり、指定枚数を上限に切り詰めます。
+                  オンにすると実行時に過去実績の集計(やや時間がかかる)を行います。
+                </span>
+              </span>
+            </label>
           </div>
 
           {/* サンプラー設定 (折りたたみ) */}
