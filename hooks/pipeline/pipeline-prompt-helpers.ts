@@ -1,9 +1,12 @@
 import {
   type LoraEntry,
   type Preset,
+  type BatchPresetSet,
+  type BatchRunOverrides,
   type VariableBindings,
   type VariableDefs,
   type PromptReplacement,
+  type VariablePromptSource,
   collectPresetLoras,
   assemblePositivePrompt,
   isCommentLine,
@@ -99,4 +102,78 @@ export function resolvePromptVariables(input: {
   }
   prompt = applyPromptReplacements(prompt, input.promptReplacements);
   return { prompt, bindings };
+}
+
+/**
+ * セット＋実行前オーバーライドが参照する `%%name%%` の走査対象一覧を作る。
+ * 単発実行の変数検知(setUsesVariables)・変数入力ステップ(VariableInputView)・
+ * 一括実行の変数入力ステップ(BulkVariableInputView)の3箇所で同じ組み立てが
+ * 必要だったため共通化した。
+ */
+export function collectSetVariableSources(input: {
+  set: BatchPresetSet;
+  overrides: Pick<BatchRunOverrides, "physicalPresets" | "scenePreset">;
+  fixedTags: string;
+  countPresets: Preset[];
+  posePresets: Preset[];
+  otherPresets: Preset[];
+  /** 複数セットを束ねて扱うとき、使用箇所ラベルの先頭に付けるセット名 */
+  setLabel?: string;
+}): VariablePromptSource[] {
+  const { set, overrides, fixedTags, countPresets, posePresets, otherPresets, setLabel } =
+    input;
+  const prefix = setLabel ? `${setLabel} › ` : "";
+  const sources: VariablePromptSource[] = [];
+  if (fixedTags)
+    sources.push({
+      id: `${set.id}:__fixed__`,
+      label: `${prefix}固定タグ`,
+      slot: "fixed",
+      text: fixedTags,
+    });
+  for (const bp of set.presets) {
+    const ctx = bp.name || "(無名プリセット)";
+    const push = (p: Preset | null | undefined) => {
+      if (p)
+        sources.push({
+          id: `${set.id}:${bp.id}:${p.id}`,
+          label: `${prefix}${ctx} › ${p.name}`,
+          slot: p.type,
+          text: p.prompt,
+        });
+    };
+    push(countPresets.find((p) => p.id === bp.countPresetId));
+    push(posePresets.find((p) => p.id === bp.posePresetId));
+    for (const oid of bp.otherPresetIds)
+      push(otherPresets.find((p) => p.id === oid));
+    if (bp.additionalPrompt)
+      sources.push({
+        id: `${set.id}:${bp.id}:additional`,
+        label: `${prefix}${ctx} › 追加プロンプト`,
+        slot: "additional",
+        text: bp.additionalPrompt,
+      });
+    if (bp.fixedTags)
+      sources.push({
+        id: `${set.id}:${bp.id}:fixed`,
+        label: `${prefix}${ctx} › 固定タグ`,
+        slot: "fixed",
+        text: bp.fixedTags,
+      });
+  }
+  for (const p of overrides.physicalPresets)
+    sources.push({
+      id: `${set.id}:ov:${p.id}`,
+      label: `${prefix}身体的特徴 › ${p.name}`,
+      slot: p.type,
+      text: p.prompt,
+    });
+  if (overrides.scenePreset)
+    sources.push({
+      id: `${set.id}:ov:${overrides.scenePreset.id}`,
+      label: `${prefix}シーン › ${overrides.scenePreset.name}`,
+      slot: overrides.scenePreset.type,
+      text: overrides.scenePreset.prompt,
+    });
+  return sources;
 }

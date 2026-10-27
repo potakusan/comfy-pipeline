@@ -6,12 +6,12 @@ import {
   type Preset,
   type VariableDefs,
   type VariableBindings,
-  type VariablePromptSource,
   type PromptReplacement,
   collectVariableUsages,
   extractVariableNames,
   missingRequiredInputs,
 } from "@/lib/comfy";
+import { collectSetVariableSources } from "@/hooks/pipeline/pipeline-prompt-helpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Play, Plus, Trash2, ChevronDown } from "lucide-react";
@@ -60,53 +60,14 @@ export default function VariableInputView({
   onBack,
 }: VariableInputViewProps) {
   const { names, usages, prefill } = useMemo(() => {
-    const sources: VariablePromptSource[] = [];
-    if (fixedTags)
-      sources.push({
-        id: "__fixed__",
-        label: "固定タグ",
-        slot: "fixed",
-        text: fixedTags,
-      });
-    for (const bp of set.presets) {
-      const ctx = bp.name || "(無名プリセット)";
-      const push = (p: Preset | null | undefined) => {
-        if (p)
-          sources.push({
-            id: `${bp.id}:${p.id}`,
-            label: `${ctx} › ${p.name}`,
-            slot: p.type,
-            text: p.prompt,
-          });
-      };
-      push(countPresets.find((p) => p.id === bp.countPresetId));
-      push(posePresets.find((p) => p.id === bp.posePresetId));
-      for (const oid of bp.otherPresetIds)
-        push(otherPresets.find((p) => p.id === oid));
-      if (bp.additionalPrompt)
-        sources.push({
-          id: `${bp.id}:additional`,
-          label: `${ctx} › 追加プロンプト`,
-          slot: "additional",
-          text: bp.additionalPrompt,
-        });
-      if (bp.fixedTags)
-        sources.push({
-          id: `${bp.id}:fixed`,
-          label: `${ctx} › 固定タグ`,
-          slot: "fixed",
-          text: bp.fixedTags,
-        });
-    }
-    for (const p of overrides.physicalPresets)
-      sources.push({ id: `ov:${p.id}`, label: `身体的特徴 › ${p.name}`, slot: p.type, text: p.prompt });
-    if (overrides.scenePreset)
-      sources.push({
-        id: `ov:${overrides.scenePreset.id}`,
-        label: `シーン › ${overrides.scenePreset.name}`,
-        slot: overrides.scenePreset.type,
-        text: overrides.scenePreset.prompt,
-      });
+    const sources = collectSetVariableSources({
+      set,
+      overrides,
+      fixedTags,
+      countPresets,
+      posePresets,
+      otherPresets,
+    });
 
     const names = extractVariableNames(sources.map((s) => s.text).join("\n"));
     const usages = collectVariableUsages(sources);

@@ -13,6 +13,7 @@ import {
   type PromptReplacement,
   extractVariableNames,
 } from "@/lib/comfy";
+import { collectSetVariableSources } from "@/hooks/pipeline/pipeline-prompt-helpers";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,7 @@ import EditView from "@/components/pipeline/queue/batch-queue-edit-view";
 import RunSetupView from "@/components/pipeline/queue/batch-queue-run-setup-view";
 import BulkRunSetupView from "@/components/pipeline/queue/batch-queue-bulk-run-setup-view";
 import VariableInputView from "@/components/pipeline/queue/batch-queue-variable-input-view";
+import BulkVariableInputView from "@/components/pipeline/queue/batch-queue-bulk-variable-input-view";
 import { findSetByFilenamePresetName } from "@/lib/gallery-preset-name-match";
 
 /** セット＋オーバーライド＋固定タグが参照する `%%name%%` 変数が1つでもあるか。
@@ -39,19 +41,28 @@ function setUsesVariables(
   posePresets: Preset[],
   otherPresets: Preset[],
 ): boolean {
-  const texts: string[] = [fixedTags];
-  for (const bp of set.presets) {
-    texts.push(bp.additionalPrompt, bp.fixedTags);
-    if (bp.countPresetId)
-      texts.push(countPresets.find((p) => p.id === bp.countPresetId)?.prompt ?? "");
-    if (bp.posePresetId)
-      texts.push(posePresets.find((p) => p.id === bp.posePresetId)?.prompt ?? "");
-    for (const oid of bp.otherPresetIds)
-      texts.push(otherPresets.find((p) => p.id === oid)?.prompt ?? "");
-  }
-  for (const p of overrides.physicalPresets) texts.push(p.prompt);
-  if (overrides.scenePreset) texts.push(overrides.scenePreset.prompt);
-  return extractVariableNames(texts.join("\n")).length > 0;
+  const sources = collectSetVariableSources({
+    set,
+    overrides,
+    fixedTags,
+    countPresets,
+    posePresets,
+    otherPresets,
+  });
+  return extractVariableNames(sources.map((s) => s.text).join("\n")).length > 0;
+}
+
+/** 一括実行対象の複数セットのいずれかが `%%name%%` 変数を1つでも参照しているか。 */
+function bulkUsesVariables(
+  entries: { set: BatchPresetSet; overrides: BatchRunOverrides }[],
+  fixedTags: string,
+  countPresets: Preset[],
+  posePresets: Preset[],
+  otherPresets: Preset[],
+): boolean {
+  return entries.some(({ set, overrides }) =>
+    setUsesVariables(set, overrides, fixedTags, countPresets, posePresets, otherPresets),
+  );
 }
 
 interface BatchQueueDialogProps {
@@ -123,13 +134,21 @@ export default function BatchQueueDialog({
   // onConsumeSeedSourceでseedSource自体をクリアすることで反映される)。
   const isOpen = open || !!seedSource;
   const [view, setView] = useState<
-    "list" | "edit" | "run-setup" | "variable-input" | "bulk-run-setup"
+    | "list"
+    | "edit"
+    | "run-setup"
+    | "variable-input"
+    | "bulk-run-setup"
+    | "bulk-variable-input"
   >("list");
   const [pendingEditSet, setPendingEditSet] = useState<BatchPresetSet | null>(null);
   const [pendingRunSet, setPendingRunSet] = useState<BatchPresetSet | null>(null);
   const [pendingRunOverrides, setPendingRunOverrides] =
     useState<BatchRunOverrides | null>(null);
   const [pendingBulkRunSets, setPendingBulkRunSets] = useState<BatchPresetSet[]>([]);
+  const [pendingBulkRunEntries, setPendingBulkRunEntries] = useState<
+    { set: BatchPresetSet; overrides: BatchRunOverrides }[]
+  >([]);
 
   // seedSourceにbatchPresetIdが含まれる場合、それを持つプリセットを含むセットを
   // 自動的に特定してrun-setup画面まで進める(一覧からの手動選択を省略する)。
@@ -176,6 +195,7 @@ export default function BatchQueueDialog({
     setPendingRunSet(null);
     setPendingRunOverrides(null);
     setPendingBulkRunSets([]);
+    setPendingBulkRunEntries([]);
   }
 
   function openRunSetup(set: BatchPresetSet) {
@@ -238,10 +258,32 @@ export default function BatchQueueDialog({
     backToList();
   }
 
-  function handleBulkRunConfirm(
+  function handleBulkRunSetupConfirm(
     entries: { set: BatchPresetSet; overrides: BatchRunOverrides }[],
   ) {
-    entries.forEach(({ set, overrides }) => onRunPresets(set.presets, overrides));
+    // いずれかのセットが `%%name%%` 変数を使うなら、実行前に変数入力ステップを挟む。
+    if (bulkUsesVariables(entries, fixedTags, countPresets, posePresets, otherPresets)) {
+      setPendingBulkRunEntries(entries);
+      setView("bulk-variable-input");
+      return;
+    }
+    entries.forEach(({ set, overrides }) =>
+      onRunPresets(set.presets, {
+        ...overrides,
+        variableValues: variableInputValues,
+      }),
+    );
+    setOpen(false);
+    backToList();
+  }
+
+  function handleBulkVariableInputConfirm(
+    variableValues: VariableBindings,
+    promptReplacements: PromptReplacement[],
+  ) {
+    pendingBulkRunEntries.forEach(({ set, overrides }) =>
+      onRunPresets(set.presets, { ...overrides, variableValues, promptReplacements }),
+    );
     setOpen(false);
     backToList();
   }
@@ -251,7 +293,7 @@ export default function BatchQueueDialog({
       ? "一括キュープリセット"
       : view === "run-setup"
         ? "実行前設定"
-        : view === "variable-input"
+        : view === "variable-input" || view === "bulk-variable-input"
           ? "変数入力"
           : view === "bulk-run-setup"
             ? "一括実行設定"
@@ -281,12 +323,15 @@ export default function BatchQueueDialog({
             {(view === "edit" ||
               view === "run-setup" ||
               view === "variable-input" ||
-              view === "bulk-run-setup") && (
+              view === "bulk-run-setup" ||
+              view === "bulk-variable-input") && (
               <button
                 onClick={
                   view === "variable-input"
                     ? () => setView("run-setup")
-                    : backToList
+                    : view === "bulk-variable-input"
+                      ? () => setView("bulk-run-setup")
+                      : backToList
                 }
                 className="rounded p-0.5 hover:bg-muted"
               >
@@ -365,8 +410,23 @@ export default function BatchQueueDialog({
             physicalPresets={physicalPresets}
             scenePresets={scenePresets}
             initialSettings={currentSettings}
-            onConfirm={handleBulkRunConfirm}
+            onConfirm={handleBulkRunSetupConfirm}
             onCancel={backToList}
+          />
+        )}
+
+        {view === "bulk-variable-input" && pendingBulkRunEntries.length > 0 && (
+          <BulkVariableInputView
+            entries={pendingBulkRunEntries}
+            fixedTags={fixedTags}
+            countPresets={countPresets}
+            posePresets={posePresets}
+            otherPresets={otherPresets}
+            variableDefs={variableDefs}
+            onDefsChange={onVariableDefsChange}
+            baseValues={variableInputValues}
+            onConfirm={handleBulkVariableInputConfirm}
+            onBack={() => setView("bulk-run-setup")}
           />
         )}
       </DialogContent>
