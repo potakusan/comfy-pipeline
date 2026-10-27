@@ -6,6 +6,8 @@ import type {
   Preset,
   PresetType,
   QueueItemBatchPresets,
+  GenerationSettings,
+  ReleasedSeed,
 } from "./comfy-types";
 import { stripCommentLines } from "./prompt-assembly";
 import {
@@ -57,6 +59,18 @@ export interface GenerationRecipe {
   imageRef?: ImageRef;
   /** 構図プールは group と denoise のみ(ステージ済みファイル名は一時的なため保存しない) */
   imageRefPool?: Pick<ImageRefPool, "group" | "denoise">;
+}
+
+/** ギャラリー/保存済みプリセットから引き継ぐ、フォルダ単位のシード引き継ぎ元。 */
+export interface SeedSource {
+  folder: string;
+  seeds: ReleasedSeed[];
+  batchPresetId?: string;
+  bindings?: VariableBindings;
+  /** あれば保存済みレシピからの再現モードになる */
+  recipe?: GenerationRecipe;
+  /** レシピと同じエントリの生成設定(実行前設定の初期値) */
+  settings?: GenerationSettings;
 }
 
 function pushPresetSegments(
@@ -160,4 +174,47 @@ export function buildGenerationRecipe(input: {
       ? { group: input.imageRefPool.group, denoise: input.imageRefPool.denoise }
       : undefined,
   };
+}
+
+/**
+ * 保存済みレシピから実行用の BatchPreset を復元する。元の BatchPreset スナップショットがあれば
+ * それを土台にし(ID・名前・枚数を維持して良品率集計と出力名を揃える)、スロットの選択・追加プロンプト・
+ * 固定タグ等は常にレシピ側の値で上書きする。
+ */
+export function batchPresetFromRecipe(
+  recipe: GenerationRecipe,
+  fallback: { id: string; name: string; batchCount: number },
+): BatchPreset {
+  const base = recipe.batchPreset;
+  return {
+    id: base?.id ?? fallback.id,
+    name: base?.name ?? fallback.name,
+    countPresetId: recipe.presets.selectedCount?.id ?? null,
+    posePresetId: recipe.presets.selectedPose?.id ?? null,
+    otherPresetIds: recipe.presets.selectedOthers.map((p) => p.id),
+    additionalPrompt: recipe.additionalPrompt.lines.join("\n"),
+    additionalPromptMode: recipe.additionalPrompt.mode,
+    fixedTags: recipe.fixedTags,
+    negativePrompt: recipe.negativePrompt,
+    variationEnabled: recipe.variationTags.length > 0,
+    variationTags: [...recipe.variationTags],
+    batchCount: base?.batchCount ?? fallback.batchCount,
+    variableValues: { ...recipe.variableInputValues },
+    imageRef: recipe.imageRef,
+    imageRefPool: recipe.imageRefPool
+      ? { ...recipe.imageRefPool, names: [] }
+      : undefined,
+  };
+}
+
+/**
+ * 選択肢の一覧を「保存時のスナップショット優先 + ライブラリの残り」で作る。
+ * 保存後にライブラリ側でプリセットが編集・削除されていても、保存時の内容を選べる。
+ */
+export function mergePresetsWithSnapshot(
+  library: Preset[],
+  snapshots: Preset[],
+): Preset[] {
+  const snapIds = new Set(snapshots.map((p) => p.id));
+  return [...snapshots, ...library.filter((p) => !snapIds.has(p.id))];
 }

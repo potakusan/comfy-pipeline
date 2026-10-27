@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   type BatchRunOverrides,
   type BatchPreset,
@@ -7,6 +7,8 @@ import {
   type Preset,
   type GenerationSettings,
   type ReleasedSeed,
+  type GenerationRecipe,
+  mergePresetsWithSnapshot,
 } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,8 +25,51 @@ interface RunSetupViewProps {
   initialSettings: GenerationSettings;
   /** ギャラリーの販売用選択画像から引き継ぐseedプール(選択されている場合のみ) */
   seedSource?: { folder: string; seeds: ReleasedSeed[] } | null;
+  /** 保存済みレシピからの再現時のみ。初期選択・差し替えUI・スロット別オーバーライドを有効にする */
+  recipe?: GenerationRecipe;
+  countPresets?: Preset[];
+  posePresets?: Preset[];
+  otherPresets?: Preset[];
   onConfirm: (overrides: BatchRunOverrides) => void;
   onCancel: () => void;
+}
+
+/** レシピ再現時に、人数/ポーズ/その他スロットのプリセットを差し替えるチップ選択 */
+function SlotPicker({
+  title,
+  presets,
+  selectedIds,
+  onToggle,
+}: {
+  title: string;
+  presets: Preset[];
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 text-xs font-semibold">{title}</p>
+      {presets.length === 0 ? (
+        <p className="text-[10px] text-muted-foreground">プリセットなし</p>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          {presets.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => onToggle(p.id)}
+              className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${
+                selectedIds.includes(p.id)
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border text-muted-foreground hover:border-muted-foreground"
+              }`}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function RunSetupView({
@@ -34,12 +79,51 @@ export default function RunSetupView({
   presets,
   initialSettings,
   seedSource,
+  recipe,
+  countPresets = [],
+  posePresets = [],
+  otherPresets = [],
   onConfirm,
   onCancel,
 }: RunSetupViewProps) {
-  const [selectedLoraIdx, setSelectedLoraIdx] = useState<number | null>(null);
-  const [selectedPhysicalIds, setSelectedPhysicalIds] = useState<string[]>([]);
-  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
+  // 保存時のスナップショットを優先して選択肢に含める(ライブラリ側で編集/削除済みでも選べる)
+  const choices = useMemo(() => {
+    const snap = recipe?.presets;
+    return {
+      loras:
+        recipe?.variableLora &&
+        !variableLoras.some((l) => l.name === recipe.variableLora!.name)
+          ? [...variableLoras, recipe.variableLora]
+          : variableLoras,
+      physical: mergePresetsWithSnapshot(physicalPresets, snap?.selectedPhysicals ?? []),
+      scene: mergePresetsWithSnapshot(scenePresets, snap?.selectedScene ? [snap.selectedScene] : []),
+      count: mergePresetsWithSnapshot(countPresets, snap?.selectedCount ? [snap.selectedCount] : []),
+      pose: mergePresetsWithSnapshot(posePresets, snap?.selectedPose ? [snap.selectedPose] : []),
+      other: mergePresetsWithSnapshot(otherPresets, snap?.selectedOthers ?? []),
+    };
+  }, [recipe, variableLoras, physicalPresets, scenePresets, countPresets, posePresets, otherPresets]);
+
+  const [selectedLoraIdx, setSelectedLoraIdx] = useState<number | null>(() => {
+    const name = recipe?.variableLora?.name;
+    if (!name) return null;
+    const idx = choices.loras.findIndex((l) => l.name === name);
+    return idx >= 0 ? idx : null;
+  });
+  const [selectedPhysicalIds, setSelectedPhysicalIds] = useState<string[]>(
+    () => recipe?.presets.selectedPhysicals.map((p) => p.id) ?? [],
+  );
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(
+    () => recipe?.presets.selectedScene?.id ?? null,
+  );
+  const [selectedCountId, setSelectedCountId] = useState<string | null>(
+    () => recipe?.presets.selectedCount?.id ?? null,
+  );
+  const [selectedPoseId, setSelectedPoseId] = useState<string | null>(
+    () => recipe?.presets.selectedPose?.id ?? null,
+  );
+  const [selectedOtherIds, setSelectedOtherIds] = useState<string[]>(
+    () => recipe?.presets.selectedOthers.map((p) => p.id) ?? [],
+  );
   const [runSettings, setRunSettings] = useState<GenerationSettings>(initialSettings);
   const [samplerOpen, setSamplerOpen] = useState(false);
   const [i2iEnabledIds, setI2iEnabledIds] = useState<string[]>([]);
@@ -54,9 +138,18 @@ export default function RunSetupView({
 
   const handleConfirm = () => {
     onConfirm({
-      variableLora: selectedLoraIdx !== null ? variableLoras[selectedLoraIdx] : null,
-      physicalPresets: physicalPresets.filter((p) => selectedPhysicalIds.includes(p.id)),
-      scenePreset: scenePresets.find((p) => p.id === selectedSceneId) ?? null,
+      variableLora: selectedLoraIdx !== null ? choices.loras[selectedLoraIdx] : null,
+      physicalPresets: choices.physical.filter((p) => selectedPhysicalIds.includes(p.id)),
+      scenePreset: choices.scene.find((p) => p.id === selectedSceneId) ?? null,
+      // レシピ再現時はID参照ではなく、選択中のプリセット(スナップショット/差し替え後)を明示する
+      ...(recipe
+        ? {
+            countPreset: choices.count.find((p) => p.id === selectedCountId) ?? null,
+            posePreset: choices.pose.find((p) => p.id === selectedPoseId) ?? null,
+            otherPresets: choices.other.filter((p) => selectedOtherIds.includes(p.id)),
+            fixedTags: recipe.fixedTags,
+          }
+        : {}),
       settings: runSettings,
       seedPool: seedSource && seedSource.seeds.length > 0 ? seedSource.seeds : undefined,
       seedSourceFolder: seedSource?.folder,
@@ -102,7 +195,7 @@ export default function RunSetupView({
               >
                 なし
               </button>
-              {variableLoras.map((lora, idx) => {
+              {choices.loras.map((lora, idx) => {
                 const label =
                   lora.name.split("/").pop()?.replace(".safetensors", "") ?? lora.name;
                 return (
@@ -125,11 +218,11 @@ export default function RunSetupView({
           {/* 身体的特徴 */}
           <div>
             <p className="mb-1.5 text-xs font-semibold">身体的特徴</p>
-            {physicalPresets.length === 0 ? (
+            {choices.physical.length === 0 ? (
               <p className="text-[10px] text-muted-foreground">プリセットなし</p>
             ) : (
               <div className="flex flex-wrap gap-1">
-                {physicalPresets.map((p) => (
+                {choices.physical.map((p) => (
                   <button
                     key={p.id}
                     onClick={() => togglePhysical(p.id)}
@@ -149,7 +242,7 @@ export default function RunSetupView({
           {/* シーン */}
           <div>
             <p className="mb-1.5 text-xs font-semibold">シーン</p>
-            {scenePresets.length === 0 ? (
+            {choices.scene.length === 0 ? (
               <p className="text-[10px] text-muted-foreground">プリセットなし</p>
             ) : (
               <div className="flex flex-wrap gap-1">
@@ -163,7 +256,7 @@ export default function RunSetupView({
                 >
                   なし
                 </button>
-                {scenePresets.map((p) => (
+                {choices.scene.map((p) => (
                   <button
                     key={p.id}
                     onClick={() =>
@@ -181,6 +274,33 @@ export default function RunSetupView({
               </div>
             )}
           </div>
+
+          {recipe && (
+            <>
+              <SlotPicker
+                title="人数"
+                presets={choices.count}
+                selectedIds={selectedCountId ? [selectedCountId] : []}
+                onToggle={(id) => setSelectedCountId((prev) => (prev === id ? null : id))}
+              />
+              <SlotPicker
+                title="ポーズ"
+                presets={choices.pose}
+                selectedIds={selectedPoseId ? [selectedPoseId] : []}
+                onToggle={(id) => setSelectedPoseId((prev) => (prev === id ? null : id))}
+              />
+              <SlotPicker
+                title="その他"
+                presets={choices.other}
+                selectedIds={selectedOtherIds}
+                onToggle={(id) =>
+                  setSelectedOtherIds((prev) =>
+                    prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+                  )
+                }
+              />
+            </>
+          )}
 
           <PresetI2iToggles
             presets={presets}

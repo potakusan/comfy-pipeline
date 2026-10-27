@@ -3,6 +3,8 @@ import {
   assemblePositivePrompt,
   buildGenerationRecipe,
   buildPromptSegments,
+  batchPresetFromRecipe,
+  mergePresetsWithSnapshot,
   type LoraEntry,
   type Preset,
   type QueueItemBatchPresets,
@@ -137,5 +139,73 @@ describe("buildGenerationRecipe", () => {
       imageRefPool: { group: "g", denoise: 0.5, names: ["a.png"] },
     });
     expect(recipe.imageRefPool).toEqual({ group: "g", denoise: 0.5 });
+  });
+});
+
+describe("batchPresetFromRecipe", () => {
+  const recipe = buildGenerationRecipe({
+    variableLora: null,
+    fixedLoras: [],
+    fixedTags: "masterpiece",
+    negativePrompt: "bad",
+    presets,
+    additionalPromptMode: "random",
+    additionalPromptLines: ["a", "b"],
+    variationTags: ["from above"],
+    segments: [],
+    variableInputValues: { x: "1" },
+    batchPreset: {
+      id: "bp-orig",
+      name: "orig",
+      countPresetId: "stale",
+      posePresetId: null,
+      otherPresetIds: ["stale2"],
+      additionalPrompt: "stale",
+      additionalPromptMode: "all",
+      fixedTags: "stale",
+      negativePrompt: "stale",
+      variationEnabled: false,
+      variationTags: [],
+      batchCount: 9,
+    },
+  });
+
+  it("keeps id/name/batchCount from the original but takes slots from the recipe", () => {
+    const bp = batchPresetFromRecipe(recipe, { id: "n", name: "n", batchCount: 1 });
+    expect(bp).toMatchObject({
+      id: "bp-orig",
+      name: "orig",
+      batchCount: 9,
+      countPresetId: "c1",
+      posePresetId: "po1",
+      otherPresetIds: ["o1", "o2"],
+      additionalPrompt: "a\nb",
+      additionalPromptMode: "random",
+      fixedTags: "masterpiece",
+      negativePrompt: "bad",
+      variationEnabled: true,
+      variableValues: { x: "1" },
+    });
+  });
+
+  it("falls back to the given id/name/batchCount without a batch preset snapshot", () => {
+    const bp = batchPresetFromRecipe(
+      { ...recipe, batchPreset: undefined },
+      { id: "n", name: "folder", batchCount: 3 },
+    );
+    expect(bp).toMatchObject({ id: "n", name: "folder", batchCount: 3 });
+  });
+});
+
+describe("mergePresetsWithSnapshot", () => {
+  it("prefers snapshots and appends library presets not in the snapshot", () => {
+    const lib = [preset("a", "other", "new a"), preset("b", "other", "b")];
+    const snap = [preset("a", "other", "old a"), preset("gone", "other", "gone")];
+    const merged = mergePresetsWithSnapshot(lib, snap);
+    expect(merged.map((p) => `${p.id}:${p.prompt}`)).toEqual([
+      "a:old a",
+      "gone:gone",
+      "b:b",
+    ]);
   });
 });

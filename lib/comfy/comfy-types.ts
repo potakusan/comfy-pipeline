@@ -190,6 +190,14 @@ export interface BatchRunOverrides {
   /** 過去の良品率(release率)から生成枚数を自動的に切り詰めるか(#58)。
    * 既定オフ。オンのときのみ /api/gallery/preset-stats を取得する。 */
   applyReleaseRateAdjustment?: boolean;
+  /** 指定時(null含む)は BatchPreset の ID 参照ではなくこのプリセットを使う(保存済みレシピからの再現用)。 */
+  countPreset?: Preset | null;
+  posePreset?: Preset | null;
+  otherPresets?: Preset[];
+  /** 指定時は現在の固定タグではなくこの値を使う。 */
+  fixedTags?: string;
+  /** この実行限りの変数定義(グローバル定義の上に重ねる)。保存済みレシピの定義スナップショットや引き継ぎ値の固定に使う。 */
+  variableDefs?: VariableDefs;
 }
 
 /** 販売用選択画像から引き継ぐ、1枚分のseed情報 */

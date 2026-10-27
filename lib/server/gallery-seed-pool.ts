@@ -1,5 +1,5 @@
 import { listArchivedSeeds } from "./gallery-seed-archive";
-import type { ReleasedSeed } from "@/lib/comfy";
+import type { GenerationRecipe, GenerationSettings, ReleasedSeed } from "@/lib/comfy";
 
 export interface SeedPoolInfo {
   seeds: ReleasedSeed[];
@@ -9,6 +9,10 @@ export interface SeedPoolInfo {
   /** このグループを代表する `%%name%%` 変数の解決値(最新のアーカイブエントリのもの)。
    * 引き継ぎ時、変数入力ステップの初期値として使う。 */
   bindings?: Record<string, string>;
+  /** このグループで最新のレシピ付きエントリのレシピ(保存済みレシピからの部分差し替え再生成の土台)。 */
+  recipe?: GenerationRecipe;
+  /** 同エントリの生成設定(チェックポイント・サイズ等。seed は各 seeds 側を使う)。 */
+  settings?: GenerationSettings;
 }
 
 /**
@@ -47,5 +51,13 @@ export async function getSeedPoolInfo(sourceFolder: string): Promise<SeedPoolInf
     (e) => e.bindings && Object.keys(e.bindings).length > 0,
   )?.bindings;
 
-  return { seeds, batchPresetId, bindings };
+  const withRecipe = entries.find((e) => e.metadata?.recipe);
+
+  return {
+    seeds,
+    batchPresetId,
+    bindings,
+    recipe: withRecipe?.metadata?.recipe,
+    settings: withRecipe?.metadata?.settings,
+  };
 }

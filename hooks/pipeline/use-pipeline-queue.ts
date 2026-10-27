@@ -837,11 +837,20 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
 
       const items: QueueItem[] = presets.map((preset) => {
         // IDから最新のプリセット内容を解決
-        const resolvedCount = countPresets.find((p) => p.id === preset.countPresetId) ?? null;
-        const resolvedPose = posePresets.find((p) => p.id === preset.posePresetId) ?? null;
-        const resolvedOthers = otherPresets.filter((p) => preset.otherPresetIds.includes(p.id));
+        // 保存済みレシピからの再現時は、ID参照ではなく overrides のプリセット(スナップショット/差し替え後)を使う
+        const resolvedCount =
+          overrides.countPreset !== undefined
+            ? overrides.countPreset
+            : (countPresets.find((p) => p.id === preset.countPresetId) ?? null);
+        const resolvedPose =
+          overrides.posePreset !== undefined
+            ? overrides.posePreset
+            : (posePresets.find((p) => p.id === preset.posePresetId) ?? null);
+        const resolvedOthers =
+          overrides.otherPresets ??
+          otherPresets.filter((p) => preset.otherPresetIds.includes(p.id));
 
-        const presetFixedTags = fixedTags;
+        const presetFixedTags = overrides.fixedTags ?? fixedTags;
         const presetNegativePrompt = preset.negativePrompt ?? "";
 
         const { positivePromptBase, presetLoras } = resolvePresetPromptAndLoras({
@@ -916,7 +925,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
             ...preset.variableValues,
             ...overrides.variableValues,
           },
-          variableDefs: { ...variableDefs },
+          variableDefs: { ...variableDefs, ...overrides.variableDefs },
           promptReplacements: overrides.promptReplacements,
           // 下絵はプリセット固有の設定(セット編集で指定)を、実行画面で ON に
           // したプリセットだけに適用する。既定オフ。
