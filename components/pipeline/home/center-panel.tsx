@@ -1,10 +1,12 @@
 "use client";
 import { useMemo, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { ResizablePanel } from "@/components/ui/resizable";
 import PreviewPanel from "@/components/pipeline/preview-panel";
 import BatchQueueDialog from "@/components/pipeline/queue/batch-queue-dialog";
+import SavedPresetsDialog from "@/components/pipeline/queue/saved-presets-dialog";
 import QuickAddToBatch from "@/components/pipeline/queue/quick-add-to-batch";
 import { type QueueItem, type SeedSource } from "@/lib/comfy";
 import { apiFetch } from "@/lib/api-client";
@@ -17,6 +19,14 @@ export interface CenterPanelProps {
   onAddToQueue: () => void;
   /** 未入力の必須 %%変数%% 等でキュー追加を止める理由(あればボタンを無効化) */
   addBlockedReason?: string;
+}
+
+/** フォルダ単位のシード引き継ぎ元(保存済みレシピ・seed一覧)を取得する */
+async function fetchSeedSource(folder: string): Promise<SeedSource> {
+  const res = await apiFetch<Omit<SeedSource, "folder">>(
+    `/api/gallery/seed-pool?folder=${encodeURIComponent(folder)}`,
+  );
+  return { ...res, folder };
 }
 
 export default function CenterPanel({
@@ -76,26 +86,22 @@ export default function CenterPanel({
   useEffect(() => {
     if (!seedSourceFolderParam) return;
     let cancelled = false;
-    apiFetch<Omit<SeedSource, "folder">>(
-      `/api/gallery/seed-pool?folder=${encodeURIComponent(seedSourceFolderParam)}`,
-    )
-      .then((res) => {
-        if (!cancelled) {
-          setSeedSource({
-            folder: seedSourceFolderParam,
-            seeds: res.seeds,
-            batchPresetId: res.batchPresetId,
-            bindings: res.bindings,
-            recipe: res.recipe,
-            settings: res.settings,
-          });
-        }
+    fetchSeedSource(seedSourceFolderParam)
+      .then((src) => {
+        if (!cancelled) setSeedSource(src);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [seedSourceFolderParam]);
+
+  // 作成画面の「保存済みプリセット」モーダルから選ばれたフォルダを一括キューへ引き継ぐ
+  const handleSelectSavedPreset = (folder: string) => {
+    fetchSeedSource(folder)
+      .then(setSeedSource)
+      .catch(() => toast.error("保存済みプリセットを読み込めませんでした"));
+  };
 
   const handleConsumeSeedSource = () => {
     setSeedSource(null);
@@ -171,6 +177,7 @@ export default function CenterPanel({
             fixedTags={fixedTags}
             variableInputValues={variableInputValues}
           />
+          <SavedPresetsDialog onSelect={handleSelectSavedPreset} />
           <QuickAddToBatch
             batchPresetSets={batchPresetSets}
             onCaptureCurrentSettings={captureCurrentSettings}
