@@ -3,6 +3,7 @@ import path from "path";
 import sharp from "sharp";
 import { getOutputDir, safePath } from "./output-dir";
 import type { ImageMetadata } from "@/lib/gallery";
+import { groupEntriesByRecipe } from "./gallery-recipe-groups";
 
 /** 出力フォルダのライフサイクル(ユーザーがアップロード後にフォルダごと削除する運用)
  * とは独立して、販売用に選んだ画像の縮小JPGとレシピ入りメタデータを永続的に残す保管庫。
@@ -13,6 +14,8 @@ export const SEED_ARCHIVE_DIR = ".seed-archive";
 const IMAGE_MAX_EDGE = 768;
 const IMAGE_QUALITY = 80;
 const ENTRY_SUFFIX = ".jpg.json";
+/** フォルダ単位のマニフェスト(どの一括キュー実行・プリセットで作られた画像群か)。画像エントリとは別に保存する。 */
+export const MANIFEST_FILENAME = "_meta.json";
 
 export interface SeedArchiveEntry {
   id: string;
@@ -96,6 +99,93 @@ export async function archiveSeed(params: {
   } catch {
     // 縮小JPGの生成に失敗してもメタデータ(JSON)は保存済みなので致命的ではない
   }
+  writeFolderManifest(params.folder);
+}
+
+/** フォルダ内の全エントリ(`*.jpg.json`)を読む。 */
+function readFolderEntries(folder: string): SeedArchiveEntry[] {
+  const dir = safePath(savedDir(), folder);
+  if (!dir) return [];
+  const files: string[] = [];
+  collectEntryFiles(dir, files);
+  const entries: SeedArchiveEntry[] = [];
+  for (const f of files) {
+    try {
+      entries.push(JSON.parse(fs.readFileSync(f, "utf-8")) as SeedArchiveEntry);
+    } catch {}
+  }
+  return entries.sort((a, b) => b.archivedAt - a.archivedAt);
+}
+
+/**
+ * フォルダ内のエントリから `_meta.json` を作り直す。どの一括キュー(セット・実行)の
+ * どのプリセットで作られた画像群かを、画像JSONを全部開かずに把握できるようにする。
+ */
+export function writeFolderManifest(folder: string): void {
+  const dir = safePath(savedDir(), folder);
+  if (!dir) return;
+  const manifestPath = path.join(dir, MANIFEST_FILENAME);
+  const entries = readFolderEntries(folder);
+  if (entries.length === 0) {
+    try {
+      fs.unlinkSync(manifestPath);
+    } catch {}
+    return;
+  }
+
+  const groups = groupEntriesByRecipe(entries);
+  const runs = new Map<string, { runId: string; setId?: string; setName?: string; startedAt?: number; imageCount: number; presetCount: number }>();
+  for (const g of groups) {
+    const runId = g.batchRun?.runId ?? "unknown";
+    const r = runs.get(runId) ?? {
+      runId,
+      setId: g.batchRun?.setId,
+      setName: g.batchRun?.setName,
+      startedAt: g.batchRun?.startedAt,
+      imageCount: 0,
+      presetCount: 0,
+    };
+    r.imageCount += g.seeds.length;
+    r.presetCount += 1;
+    runs.set(runId, r);
+  }
+
+  const manifest = {
+    schemaVersion: 1,
+    folder,
+    updatedAt: Date.now(),
+    imageCount: entries.length,
+    runs: Array.from(runs.values()),
+    presets: groups.map((g) => ({
+      key: g.key,
+      batchPresetId: g.batchPresetId,
+      name: g.name,
+      queueLabel: g.queueLabel,
+      runId: g.batchRun?.runId,
+      imageCount: g.seeds.length,
+      scene: g.recipe.presets?.selectedScene?.name,
+      pose: g.recipe.presets?.selectedPose?.name,
+      files: g.seeds.map((s) => s.filename),
+    })),
+  };
+  try {
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+  } catch {}
+}
+
+/** マニフェストが無いフォルダ(導入前に保存したもの)へ一度だけ作る。 */
+function backfillManifests(): void {
+  let dirs: fs.Dirent[];
+  try {
+    dirs = fs.readdirSync(savedDir(), { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const d of dirs) {
+    if (!d.isDirectory()) continue;
+    if (fs.existsSync(path.join(savedDir(), d.name, MANIFEST_FILENAME))) continue;
+    writeFolderManifest(d.name);
+  }
 }
 
 /** 販売用選択の取り消し(DELETE /api/gallery/release)に合わせて保管庫(旧保管庫含む)からも取り除く。 */
@@ -107,7 +197,8 @@ export function removeArchivedSeed(folder: string, filename: string): void {
         fs.unlinkSync(p);
       } catch {}
     }
-    // フォルダ内の最後の1枚だった場合に空ディレクトリを残さない
+    // フォルダ内の最後の1枚だった場合はマニフェストごと空ディレクトリを残さない
+    writeFolderManifest(folder);
     try {
       fs.rmdirSync(path.join(savedDir(), folder));
     } catch {}
@@ -175,8 +266,14 @@ function collectEntryFiles(dir: string, out: string[]): void {
   }
 }
 
+let manifestsBackfilled = false;
+
 export async function listArchivedSeeds(): Promise<SeedArchiveEntry[]> {
   await migrateLegacyArchive();
+  if (!manifestsBackfilled) {
+    manifestsBackfilled = true;
+    backfillManifests();
+  }
 
   const files: string[] = [];
   collectEntryFiles(savedDir(), files);

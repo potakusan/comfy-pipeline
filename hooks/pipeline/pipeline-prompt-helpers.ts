@@ -3,6 +3,7 @@ import {
   type Preset,
   type BatchPresetSet,
   type BatchRunOverrides,
+  resolvePresetOverrides,
   type VariableBindings,
   type VariableDefs,
   type PromptReplacement,
@@ -121,6 +122,7 @@ export function collectSetVariableSources(input: {
     | "otherPresets"
     | "fixedTags"
     | "segmentEdits"
+    | "perPreset"
   >;
   fixedTags: string;
   countPresets: Preset[];
@@ -140,8 +142,29 @@ export function collectSetVariableSources(input: {
       slot: "fixed",
       text: fixedTags,
     });
+  // physical/scene は set 全体の上書きに加え、perPreset で別々の値を持つことがある
+  const extraSources: VariablePromptSource[] = [];
+  const seenExtra = new Set<string>();
+  const pushExtra = (id: string, label: string, p: Preset) => {
+    if (seenExtra.has(id)) return;
+    seenExtra.add(id);
+    extraSources.push({ id, label, slot: p.type, text: p.prompt });
+  };
   for (const bp of set.presets) {
+    const ov = resolvePresetOverrides(overrides as BatchRunOverrides, bp.id);
+    for (const p of ov.physicalPresets)
+      pushExtra(`${set.id}:ov:${p.id}`, `${prefix}身体的特徴 › ${p.name}`, p);
+    if (ov.scenePreset)
+      pushExtra(`${set.id}:ov:${ov.scenePreset.id}`, `${prefix}シーン › ${ov.scenePreset.name}`, ov.scenePreset);
     const ctx = bp.name || "(無名プリセット)";
+    const perFixed = overrides.perPreset?.[bp.id]?.fixedTags;
+    if (perFixed)
+      sources.push({
+        id: `${set.id}:${bp.id}:pfixed`,
+        label: `${prefix}${ctx} › 固定タグ`,
+        slot: "fixed",
+        text: perFixed,
+      });
     const push = (p: Preset | null | undefined) => {
       if (p)
         sources.push({
@@ -152,16 +175,16 @@ export function collectSetVariableSources(input: {
         });
     };
     push(
-      overrides.countPreset !== undefined
-        ? overrides.countPreset
+      ov.countPreset !== undefined
+        ? ov.countPreset
         : countPresets.find((p) => p.id === bp.countPresetId),
     );
     push(
-      overrides.posePreset !== undefined
-        ? overrides.posePreset
+      ov.posePreset !== undefined
+        ? ov.posePreset
         : posePresets.find((p) => p.id === bp.posePresetId),
     );
-    for (const p of overrides.otherPresets ??
+    for (const p of ov.otherPresets ??
       bp.otherPresetIds.flatMap((oid) => otherPresets.find((p) => p.id === oid) ?? []))
       push(p);
     if (bp.additionalPrompt)
@@ -179,20 +202,7 @@ export function collectSetVariableSources(input: {
         text: bp.fixedTags,
       });
   }
-  for (const p of overrides.physicalPresets)
-    sources.push({
-      id: `${set.id}:ov:${p.id}`,
-      label: `${prefix}身体的特徴 › ${p.name}`,
-      slot: p.type,
-      text: p.prompt,
-    });
-  if (overrides.scenePreset)
-    sources.push({
-      id: `${set.id}:ov:${overrides.scenePreset.id}`,
-      label: `${prefix}シーン › ${overrides.scenePreset.name}`,
-      slot: overrides.scenePreset.type,
-      text: overrides.scenePreset.prompt,
-    });
+  sources.push(...extraSources);
   for (const [i, e] of (overrides.segmentEdits ?? []).entries())
     if (e.to)
       sources.push({

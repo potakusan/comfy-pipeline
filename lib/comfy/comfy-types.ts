@@ -76,6 +76,8 @@ export interface QueueItem {
   batchPresetId?: string;
   /** 生成時点のBatchPreset全体のスナップショット(レシピ保存用。一括キュー実行時のみ) */
   batchPresetSnapshot?: BatchPreset;
+  /** このタスクを追加した一括キュー実行の識別情報 */
+  batchRun?: BatchRunInfo;
   /** 設定時、batch番目の生成にはこのプールのseed/upscaleSeedを使う(ランダム生成しない) */
   seedPool?: ReleasedSeed[];
   /** seedPoolの引き継ぎ元フォルダ名(UI表示用) */
@@ -209,6 +211,36 @@ export interface BatchRunOverrides {
   segmentEdits?: PromptReplacement[];
   /** この実行限りの変数定義(グローバル定義の上に重ねる)。保存済みレシピの定義スナップショットや引き継ぎ値の固定に使う。 */
   variableDefs?: VariableDefs;
+  /** 実行元の一括キューセット。生成画像のメタデータ(batchRun)に記録する。 */
+  batchSet?: { id: string; name: string };
+  /** BatchPreset.id ごとの上書き。set 全体の値より優先する(保存済みレシピの複数プリセット復元用)。 */
+  perPreset?: Record<string, PerPresetOverrides>;
+}
+
+/** プリセット単位で上書きできる BatchRunOverrides の項目 */
+export type PerPresetOverrides = Partial<
+  Pick<
+    BatchRunOverrides,
+    | "variableLora"
+    | "physicalPresets"
+    | "scenePreset"
+    | "countPreset"
+    | "posePreset"
+    | "otherPresets"
+    | "fixedTags"
+    | "batchCount"
+    | "adetailer"
+    | "variableValues"
+    | "variableDefs"
+  >
+>;
+
+/** 一括キューの1回の実行(runBatchPresets 1呼び出し)を識別する情報。画像のメタデータと保存済みプリセットのマニフェストに残す。 */
+export interface BatchRunInfo {
+  runId: string;
+  setId?: string;
+  setName?: string;
+  startedAt: number;
 }
 
 /** 販売用選択画像から引き継ぐ、1枚分のseed情報 */
@@ -244,6 +276,8 @@ export interface GalleryImage {
   appliedAdditional?: string;
   /** BatchPreset.id this image was generated from (一括キュー実行時のみ) */
   batchPresetId?: string;
+  /** この画像を生成した一括キュー実行(一括キュー実行時のみ) */
+  batchRun?: BatchRunInfo;
   /** この画像の生成時に確定した `%%name%%` 変数の解決値(引き継ぎ再現用)。 */
   bindings?: VariableBindings;
   /** この画像の生成で行われたランダム抽選の記録。 */

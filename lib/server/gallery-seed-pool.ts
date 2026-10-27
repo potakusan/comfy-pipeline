@@ -1,5 +1,6 @@
 import { listArchivedSeeds } from "./gallery-seed-archive";
-import type { GenerationRecipe, GenerationSettings, ReleasedSeed } from "@/lib/comfy";
+import type { GenerationRecipe, GenerationSettings, ReleasedSeed, SeedRecipeGroup } from "@/lib/comfy";
+import { groupEntriesByRecipe } from "./gallery-recipe-groups";
 
 export interface SeedPoolInfo {
   seeds: ReleasedSeed[];
@@ -13,6 +14,8 @@ export interface SeedPoolInfo {
   recipe?: GenerationRecipe;
   /** 同エントリの生成設定(チェックポイント・サイズ等。seed は各 seeds 側を使う)。 */
   settings?: GenerationSettings;
+  /** フォルダ内のレシピを一括キューのプリセット(+実行)単位に分けたもの。 */
+  recipes: SeedRecipeGroup[];
 }
 
 /**
@@ -59,5 +62,6 @@ export async function getSeedPoolInfo(sourceFolder: string): Promise<SeedPoolInf
     bindings,
     recipe: withRecipe?.metadata?.recipe,
     settings: withRecipe?.metadata?.settings,
+    recipes: groupEntriesByRecipe(entries),
   };
 }

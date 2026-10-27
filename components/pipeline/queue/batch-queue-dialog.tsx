@@ -13,6 +13,8 @@ import {
   type PromptReplacement,
   extractVariableNames,
   batchPresetFromRecipe,
+  getVariableDef,
+  type SeedRecipeGroup,
 } from "@/lib/comfy";
 import { collectSetVariableSources } from "@/hooks/pipeline/pipeline-prompt-helpers";
 import {
@@ -28,6 +30,9 @@ import ListView from "@/components/pipeline/queue/batch-queue-list-view";
 import EditView from "@/components/pipeline/queue/batch-queue-edit-view";
 import RunSetupView from "@/components/pipeline/queue/batch-queue-run-setup-view";
 import BulkRunSetupView from "@/components/pipeline/queue/batch-queue-bulk-run-setup-view";
+import SavedSetRunSetupView, {
+  type SavedSetRunSetup,
+} from "@/components/pipeline/queue/batch-queue-saved-set-setup-view";
 import VariableInputView from "@/components/pipeline/queue/batch-queue-variable-input-view";
 import BulkVariableInputView from "@/components/pipeline/queue/batch-queue-bulk-variable-input-view";
 import { findSetByFilenamePresetName } from "@/lib/gallery-preset-name-match";
@@ -64,6 +69,20 @@ function bulkUsesVariables(
   return entries.some(({ set, overrides }) =>
     setUsesVariables(set, overrides, fixedTags, countPresets, posePresets, otherPresets),
   );
+}
+
+/** 複数レシピの変数定義スナップショットを束ねる(最新のグループを優先) */
+function mergeRecipeVariableDefs(groups: SeedRecipeGroup[]): VariableDefs {
+  const out: VariableDefs = {};
+  for (const g of [...groups].reverse()) Object.assign(out, g.recipe.variableDefs);
+  return out;
+}
+
+/** 複数レシピの前回値を束ねる(最新のグループを優先)。変数入力ステップの初期値に使う */
+function mergeRecipeBindings(groups: SeedRecipeGroup[]): VariableBindings {
+  const out: VariableBindings = {};
+  for (const g of [...groups].reverse()) Object.assign(out, g.bindings);
+  return out;
 }
 
 /** 保存済みレシピから復元した実行セットのID接頭辞 */
@@ -139,7 +158,10 @@ export default function BatchQueueDialog({
     | "variable-input"
     | "bulk-run-setup"
     | "bulk-variable-input"
+    | "saved-set-setup"
   >("list");
+  // フォルダに複数プリセットが含まれる保存済みレシピの実行設定(変数入力ステップをまたいで保持)
+  const [savedSetup, setSavedSetup] = useState<SavedSetRunSetup | null>(null);
   const [pendingEditSet, setPendingEditSet] = useState<BatchPresetSet | null>(null);
   const [pendingRunSet, setPendingRunSet] = useState<BatchPresetSet | null>(null);
   const [pendingRunOverrides, setPendingRunOverrides] =
@@ -160,8 +182,11 @@ export default function BatchQueueDialog({
   // レンダー中にstateを調整する(useEffect不使用)ことで、propが変化した
   // タイミングだけ反応させる — https://react.dev/learn/you-might-not-need-an-effect
   const [autoSelectedFolder, setAutoSelectedFolder] = useState<string | null>(null);
+  const multiRecipes =
+    seedSource?.recipes && seedSource.recipes.length > 1 ? seedSource.recipes : null;
   if (seedSource && seedSource.folder !== autoSelectedFolder) {
     setAutoSelectedFolder(seedSource.folder);
+    if (multiRecipes) setView("saved-set-setup");
     // 保存済みレシピがあれば、元セットの有無に関わらずレシピから実行セットを復元する
     // (ライブラリ側でプリセット・セットが編集/削除されていても再現できるようにするため)。
     const recipeSet: BatchPresetSet | null = seedSource.recipe
@@ -184,7 +209,7 @@ export default function BatchQueueDialog({
             set.presets.some((p) => p.id === seedSource.batchPresetId),
           )
         : undefined) ?? findSetByFilenamePresetName(seedSource.seeds, batchPresetSets);
-    if (matchedSet) {
+    if (matchedSet && !multiRecipes) {
       setPendingRunSet(matchedSet);
       setView("run-setup");
     }
@@ -214,6 +239,7 @@ export default function BatchQueueDialog({
     setRunVariableDefs(null);
     setPendingBulkRunSets([]);
     setPendingBulkRunEntries([]);
+    setSavedSetup(null);
   }
 
   function openRunSetup(set: BatchPresetSet) {
@@ -256,10 +282,67 @@ export default function BatchQueueDialog({
     // 変数が検出されなくても、通常モードで入力済みの値は既定として渡しておく。
     onRunPresets(pendingRunSet.presets, {
       ...overrides,
+      batchSet: { id: pendingRunSet.id, name: pendingRunSet.name },
       variableValues: variableInputValues,
     });
     setOpen(false);
     backToList();
+  }
+
+  /** 複数レシピの実行設定に、変数入力の結果と各プリセットの前回値固定を反映して実行する */
+  function runSavedSet(
+    setup: SavedSetRunSetup,
+    variableValues: VariableBindings,
+    promptReplacements: PromptReplacement[],
+    runDefs?: VariableDefs,
+  ) {
+    const baseDefs = runDefs ?? { ...variableDefs, ...mergeRecipeVariableDefs(setup.groups) };
+    const merged = mergeRecipeBindings(setup.groups);
+    const perPreset = { ...setup.overrides.perPreset };
+    if (setup.keepPreviousVariables) {
+      setup.set.presets.forEach((p, i) => {
+        const prev = setup.groups[i].bindings;
+        if (!prev) return;
+        // 変数入力で前回値から変えた変数は、全プリセットで入力値を優先する
+        const kept = Object.fromEntries(
+          Object.entries(prev).filter(
+            ([name]) => (variableValues[name] ?? merged[name]) === merged[name],
+          ),
+        );
+        const pinned: VariableDefs = { ...baseDefs };
+        for (const [name, value] of Object.entries(kept)) {
+          const def = getVariableDef(baseDefs, name);
+          if (def.mode === "random") pinned[name] = { ...def, mode: "fixed", value };
+        }
+        perPreset[p.id] = {
+          ...perPreset[p.id],
+          variableValues: { ...variableValues, ...kept },
+          variableDefs: pinned,
+        };
+      });
+    }
+    onRunPresets(setup.set.presets, {
+      ...setup.overrides,
+      perPreset,
+      variableValues,
+      promptReplacements,
+      variableDefs: baseDefs,
+    });
+    setOpen(false);
+    backToList();
+  }
+
+  function handleSavedSetConfirm(setup: SavedSetRunSetup) {
+    setSavedSetup(setup);
+    setPendingRunSet(setup.set);
+    if (
+      setUsesVariables(setup.set, setup.overrides, fixedTags, countPresets, posePresets, otherPresets)
+    ) {
+      setPendingRunOverrides(setup.overrides);
+      setView("variable-input");
+      return;
+    }
+    runSavedSet(setup, variableInputValues, []);
   }
 
   function handleVariableInputConfirm(
@@ -268,8 +351,13 @@ export default function BatchQueueDialog({
     runDefs?: VariableDefs,
   ) {
     if (!pendingRunSet || !pendingRunOverrides) return;
+    if (savedSetup) {
+      runSavedSet(savedSetup, variableValues, promptReplacements, runVariableDefs ?? undefined);
+      return;
+    }
     onRunPresets(pendingRunSet.presets, {
       ...pendingRunOverrides,
+      batchSet: { id: pendingRunSet.id, name: pendingRunSet.name },
       variableValues,
       promptReplacements,
       variableDefs: runDefs,
@@ -316,7 +404,7 @@ export default function BatchQueueDialog({
   const dialogTitle =
     view === "list"
       ? "一括キュープリセット"
-      : view === "run-setup"
+      : view === "run-setup" || view === "saved-set-setup"
         ? "実行前設定"
         : view === "variable-input" || view === "bulk-variable-input"
           ? "変数入力"
@@ -347,13 +435,14 @@ export default function BatchQueueDialog({
           <DialogTitle className="flex items-center gap-2 text-sm">
             {(view === "edit" ||
               view === "run-setup" ||
+              view === "saved-set-setup" ||
               view === "variable-input" ||
               view === "bulk-run-setup" ||
               view === "bulk-variable-input") && (
               <button
                 onClick={
                   view === "variable-input"
-                    ? () => setView("run-setup")
+                    ? () => setView(savedSetup ? "saved-set-setup" : "run-setup")
                     : view === "bulk-variable-input"
                       ? () => setView("bulk-run-setup")
                       : backToList
@@ -398,6 +487,17 @@ export default function BatchQueueDialog({
           />
         )}
 
+        {view === "saved-set-setup" && seedSource && multiRecipes && (
+          <SavedSetRunSetupView
+            folder={seedSource.folder}
+            groups={multiRecipes}
+            variableLoras={variableLoras}
+            initialSettings={currentSettings}
+            onConfirm={handleSavedSetConfirm}
+            onCancel={backToList}
+          />
+        )}
+
         {view === "run-setup" && pendingRunSet && (
           <RunSetupView
             variableLoras={variableLoras}
@@ -424,13 +524,20 @@ export default function BatchQueueDialog({
             posePresets={posePresets}
             otherPresets={otherPresets}
             variableDefs={
-              activeRecipe
-                ? (runVariableDefs ?? { ...variableDefs, ...activeRecipe.variableDefs })
-                : variableDefs
+              savedSetup
+                ? (runVariableDefs ?? {
+                    ...variableDefs,
+                    ...mergeRecipeVariableDefs(savedSetup.groups),
+                  })
+                : activeRecipe
+                  ? (runVariableDefs ?? { ...variableDefs, ...activeRecipe.variableDefs })
+                  : variableDefs
             }
-            onDefsChange={activeRecipe ? setRunVariableDefs : onVariableDefsChange}
+            onDefsChange={activeRecipe || savedSetup ? setRunVariableDefs : onVariableDefsChange}
             baseValues={variableInputValues}
-            seedBindings={seedSource?.bindings}
+            seedBindings={
+              savedSetup ? mergeRecipeBindings(savedSetup.groups) : seedSource?.bindings
+            }
             recipeMode={!!activeRecipe}
             onConfirm={handleVariableInputConfirm}
             onBack={() => setView("run-setup")}

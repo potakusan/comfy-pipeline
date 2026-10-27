@@ -1,4 +1,4 @@
-import type { GenerationRecipe, GenerationSettings, LoraEntry } from "./comfy";
+import type { BatchRunInfo, GenerationRecipe, GenerationSettings, LoraEntry } from "./comfy";
 import type { CoupleControlNet, CoupleRegion } from "./comfy/couple";
 
 /** Which workflow builder produced this image — needed to regenerate it correctly. */
@@ -26,6 +26,8 @@ export interface ImageMetadata {
   revisionOf?: string;
   /** BatchPreset.id this image was generated from (一括キュー実行時のみ). Used to aggregate per-preset release rate. */
   batchPresetId?: string;
+  /** この画像を生成した一括キュー実行(一括キュー実行時のみ) */
+  batchRun?: BatchRunInfo;
   /** `%%name%%` 変数の解決値。シード引き継ぎ時にランダム要素を再現するために保存する。 */
   bindings?: Record<string, string>;
   /** この画像の生成で行われたランダム抽選の記録(source/picked/options)。 */

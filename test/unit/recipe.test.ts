@@ -7,6 +7,10 @@ import {
   mergePresetsWithSnapshot,
   applySegmentEdits,
   applySegmentEditsToSegments,
+  buildRecipeSet,
+  resolvePresetOverrides,
+  type SeedRecipeGroup,
+  type BatchRunOverrides,
   type LoraEntry,
   type Preset,
   type QueueItemBatchPresets,
@@ -264,5 +268,75 @@ describe("applySegmentEditsToSegments", () => {
       { source: "fixedTags", text: "masterpiece" },
       { source: "preset", text: "dress pull" },
     ]);
+  });
+});
+
+describe("buildRecipeSet / resolvePresetOverrides", () => {
+  const group = (key: string, scene: string, batchPresetId = "bp1"): SeedRecipeGroup => {
+    const p = { ...presets, selectedScene: preset(scene, "scene", `${scene} prompt`) };
+    return {
+      key,
+      batchPresetId,
+      name: `name-${key}`,
+      queueLabel: `q-${key}`,
+      seeds: [
+        { id: "a", filename: "a.png", seed: 1, upscaleSeed: null },
+        { id: "b", filename: "b.png", seed: 2, upscaleSeed: null },
+      ],
+      recipe: buildGenerationRecipe({
+        variableLora: lora("v.safetensors", "chartrig"),
+        fixedLoras: [],
+        fixedTags: "masterpiece",
+        negativePrompt: "",
+        presets: p,
+        additionalPromptMode: "all",
+        additionalPromptLines: [],
+        variationTags: [],
+        batchPreset: {
+          id: batchPresetId,
+          name: `name-${key}`,
+          countPresetId: null,
+          posePresetId: null,
+          otherPresetIds: [],
+          additionalPrompt: "",
+          additionalPromptMode: "all",
+          fixedTags: "",
+          negativePrompt: "",
+          variationEnabled: false,
+          variationTags: [],
+          batchCount: 4,
+        },
+        segments: [],
+      }),
+    };
+  };
+
+  it("keeps each recipe's own scene per preset and disambiguates duplicate ids", () => {
+    const { set, perPreset } = buildRecipeSet("f", [
+      group("k1", "bgA"),
+      group("k2", "bgB"),
+    ]);
+    expect(set.presets).toHaveLength(2);
+    const [a, b] = set.presets;
+    expect(a.id).not.toBe(b.id);
+    expect(perPreset[a.id].scenePreset?.id).toBe("bgA");
+    expect(perPreset[b.id].scenePreset?.id).toBe("bgB");
+    expect(perPreset[a.id].batchCount).toBe(2);
+  });
+
+  it("overlays perPreset values onto the run overrides without undefined keys", () => {
+    const base: BatchRunOverrides = {
+      variableLora: null,
+      physicalPresets: [],
+      scenePreset: null,
+      settings: {} as BatchRunOverrides["settings"],
+      fixedTags: "",
+      perPreset: { x: { scenePreset: preset("bgA", "scene", "x"), batchCount: undefined } },
+    };
+    const merged = resolvePresetOverrides(base, "x");
+    expect(merged.scenePreset?.id).toBe("bgA");
+    expect(merged.fixedTags).toBe("");
+    expect("batchCount" in merged && merged.batchCount !== undefined).toBe(false);
+    expect(resolvePresetOverrides(base, "none")).toBe(base);
   });
 });

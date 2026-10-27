@@ -104,4 +104,47 @@ describe("saved presets storage", () => {
     expect(mod.readArchivedThumbnail(id)).not.toBeNull();
     expect(fs.existsSync(legacy)).toBe(false);
   });
+  it("writes a folder manifest listing runs and presets, and removes it with the last image", async () => {
+    const mod = await import("@/lib/server/gallery-seed-archive");
+    fs.mkdirSync(path.join(tmp, "f2"));
+    const mk = (id: string, name: string, scene: string, runId: string) =>
+      ({
+        ...metadata,
+        queueLabel: `chara / ${name}`,
+        batchPresetId: id,
+        batchRun: { runId, setId: "s1", setName: "標準セット", startedAt: 9 },
+        recipe: { schemaVersion: 1, presets: { selectedScene: { name: scene } }, batchPreset: { name } },
+      }) as unknown as import("@/lib/gallery").ImageMetadata;
+
+    for (const [file, id, name, scene] of [
+      ["a.png", "p1", "手マン", "bgA"],
+      ["b.png", "p1", "手マン", "bgA"],
+      ["c.png", "p2", "騎乗位", "bgB"],
+    ]) {
+      await makePng(path.join(tmp, "f2", file));
+      await mod.archiveSeed({
+        folder: "f2",
+        filename: file,
+        imagePath: path.join(tmp, "f2", file),
+        metadata: mk(id, name, scene, "run1"),
+      });
+    }
+
+    const manifestPath = path.join(tmp, "_savedpresets", "f2", "_meta.json");
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+    expect(manifest.imageCount).toBe(3);
+    expect(manifest.runs).toEqual([
+      expect.objectContaining({ runId: "run1", setName: "標準セット", imageCount: 3, presetCount: 2 }),
+    ]);
+    expect(manifest.presets.map((p: { name: string; imageCount: number }) => [p.name, p.imageCount]).sort()).toEqual([
+      ["手マン", 2],
+      ["騎乗位", 1],
+    ]);
+    // マニフェストは画像エントリとして列挙されない
+    expect(await mod.listArchivedSeeds()).toHaveLength(3);
+
+    for (const f of ["a.png", "b.png", "c.png"]) mod.removeArchivedSeed("f2", f);
+    expect(fs.existsSync(manifestPath)).toBe(false);
+    expect(fs.existsSync(path.join(tmp, "_savedpresets", "f2"))).toBe(false);
+  });
 });

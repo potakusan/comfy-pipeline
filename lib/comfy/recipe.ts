@@ -9,6 +9,10 @@ import type {
   QueueItemBatchPresets,
   GenerationSettings,
   ReleasedSeed,
+  BatchRunOverrides,
+  BatchRunInfo,
+  BatchPresetSet,
+  PerPresetOverrides,
 } from "./comfy-types";
 import { stripCommentLines } from "./prompt-assembly";
 import {
@@ -64,6 +68,21 @@ export interface GenerationRecipe {
   imageRefPool?: Pick<ImageRefPool, "group" | "denoise">;
 }
 
+/** 保存済みフォルダ内の、1つの一括キュープリセット(+実行)に対応するレシピ。 */
+export interface SeedRecipeGroup {
+  /** 同一フォルダ内で一意なキー */
+  key: string;
+  batchPresetId?: string;
+  /** 元の一括キュープリセット名(無ければ queueLabel) */
+  name: string;
+  queueLabel: string;
+  batchRun?: BatchRunInfo;
+  seeds: ReleasedSeed[];
+  recipe: GenerationRecipe;
+  settings?: GenerationSettings;
+  bindings?: VariableBindings;
+}
+
 /** ギャラリー/保存済みプリセットから引き継ぐ、フォルダ単位のシード引き継ぎ元。 */
 export interface SeedSource {
   folder: string;
@@ -74,6 +93,22 @@ export interface SeedSource {
   recipe?: GenerationRecipe;
   /** レシピと同じエントリの生成設定(実行前設定の初期値) */
   settings?: GenerationSettings;
+  /** フォルダ内のレシピをプリセット(+実行)単位に分けたもの。複数プリセットをまとめて復元するときに使う。 */
+  recipes?: SeedRecipeGroup[];
+}
+
+/** perPreset の上書きを set 全体の overrides に重ねる(undefined の項目は重ねない)。 */
+export function resolvePresetOverrides(
+  overrides: BatchRunOverrides,
+  presetId: string,
+): BatchRunOverrides {
+  const per = overrides.perPreset?.[presetId];
+  if (!per) return overrides;
+  const merged: BatchRunOverrides = { ...overrides };
+  for (const [k, v] of Object.entries(per)) {
+    if (v !== undefined) (merged as unknown as Record<string, unknown>)[k] = v;
+  }
+  return merged;
 }
 
 function pushPresetSegments(
@@ -255,4 +290,50 @@ export function applySegmentEditsToSegments(
     const text = applySegmentEdits(s.text, edits);
     return text.trim() ? [{ ...s, text }] : [];
   });
+}
+
+/**
+ * フォルダ内の複数レシピ(プリセット+実行単位)から、1つの実行セットとプリセット別の上書きを作る。
+ * 背景などのスロット構成は各レシピのまま perPreset に持たせ、set 全体の値は空にする。
+ * BatchPreset.id が重複する場合(同じプリセットを別実行で使った場合)は連番を付けて区別する。
+ */
+export function buildRecipeSet(
+  folder: string,
+  groups: SeedRecipeGroup[],
+): {
+  set: BatchPresetSet;
+  perPreset: Record<string, PerPresetOverrides>;
+  /** set.presets と同じ順の元グループ */
+  groups: SeedRecipeGroup[];
+} {
+  const used = new Map<string, number>();
+  const perPreset: Record<string, PerPresetOverrides> = {};
+  const presets = groups.map((g) => {
+    const p = batchPresetFromRecipe(g.recipe, {
+      id: `recipe:${folder}:${g.key}`,
+      name: g.name,
+      batchCount: Math.max(1, g.seeds.length),
+    });
+    const n = (used.get(p.id) ?? 0) + 1;
+    used.set(p.id, n);
+    const id = n === 1 ? p.id : `${p.id}#${n}`;
+    const r = g.recipe;
+    perPreset[id] = {
+      variableLora: r.variableLora,
+      physicalPresets: r.presets.selectedPhysicals,
+      scenePreset: r.presets.selectedScene,
+      countPreset: r.presets.selectedCount,
+      posePreset: r.presets.selectedPose,
+      otherPresets: r.presets.selectedOthers,
+      fixedTags: r.fixedTags,
+      batchCount: Math.max(1, g.seeds.length),
+      ...(r.adetailer ? { adetailer: r.adetailer } : {}),
+    };
+    return { ...p, id };
+  });
+  return {
+    set: { id: `recipe:${folder}`, name: `保存済みレシピ(${folder})`, presets },
+    perPreset,
+    groups,
+  };
 }

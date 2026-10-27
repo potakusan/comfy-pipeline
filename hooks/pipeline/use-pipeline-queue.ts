@@ -9,6 +9,8 @@ import {
   type GalleryImage,
   type BatchPreset,
   type BatchRunOverrides,
+  type BatchRunInfo,
+  resolvePresetOverrides,
   type VariableBindings,
   type VariableDefs,
   type ImageRef,
@@ -558,6 +560,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           createdAt: Date.now(),
           appliedAdditional: pickedAdditional,
           batchPresetId: pendingItem.batchPresetId,
+          batchRun: pendingItem.batchRun,
           bindings: bindingsForMeta,
           randomChoices: choicesForMeta,
         }));
@@ -589,6 +592,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
                   createdAt: img.createdAt,
                   appliedAdditional: img.appliedAdditional,
                   batchPresetId: img.batchPresetId,
+                  batchRun: img.batchRun,
                   bindings: img.bindings,
                   randomChoices: img.randomChoices,
                   recipe: batchRecipe,
@@ -835,11 +839,11 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
   );
 
   const runBatchPresets = useCallback(
-    async (presets: BatchPreset[], overrides: BatchRunOverrides) => {
+    async (presets: BatchPreset[], runOverrides: BatchRunOverrides) => {
       // 良品率調整(#58)がONのときだけ preset-stats を取得する。OFF(既定)なら
       // 重い全走査をスキップして即キュー追加する。
       let presetStats: Record<string, PresetGenerationStats> = {};
-      if (overrides.applyReleaseRateAdjustment) {
+      if (runOverrides.applyReleaseRateAdjustment) {
         const tid = toast.loading("良品率データを集計中…");
         try {
           const res = await apiFetch<{ stats: Record<string, PresetGenerationStats> }>(
@@ -854,7 +858,15 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
         }
       }
 
+      const batchRun: BatchRunInfo = {
+        runId: crypto.randomUUID(),
+        setId: runOverrides.batchSet?.id,
+        setName: runOverrides.batchSet?.name,
+        startedAt: Date.now(),
+      };
+
       const items: QueueItem[] = presets.map((preset) => {
+        const overrides = resolvePresetOverrides(runOverrides, preset.id);
         // IDから最新のプリセット内容を解決
         // 保存済みレシピからの再現時は、ID参照ではなく overrides のプリセット(スナップショット/差し替え後)を使う
         const resolvedCount =
@@ -924,6 +936,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
             seedPoolBatchCount !== requestedCount ? requestedCount : undefined,
           batchPresetId: preset.id,
           batchPresetSnapshot: preset,
+          batchRun,
           seedPool: overrides.seedPool?.slice(0, seedPoolBatchCount),
           seedSourceFolder: overrides.seedPool ? overrides.seedSourceFolder : undefined,
           status: "pending",
