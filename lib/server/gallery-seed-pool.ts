@@ -17,9 +17,9 @@ export interface SeedPoolInfo {
  * 削除済みでも、販売用選択時にアーカイブ済みであれば取得できる
  * (lib/server/gallery-seed-archive.ts参照)。
  */
-export function getSeedPoolInfo(sourceFolder: string): SeedPoolInfo {
+export async function getSeedPoolInfo(sourceFolder: string): Promise<SeedPoolInfo> {
   // listArchivedSeeds() は archivedAt 降順。フィルタしても順序は保たれる。
-  const entries = listArchivedSeeds().filter((e) => e.sourceFolder === sourceFolder);
+  const entries = (await listArchivedSeeds()).filter((e) => e.sourceFolder === sourceFolder);
 
   const seeds: ReleasedSeed[] = entries.map((e) => ({
     id: e.id,
