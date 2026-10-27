@@ -7,4 +7,5 @@ export * from "./comfy-types";
 export * from "./comfy-defaults";
 export * from "./prompt-assembly";
 export * from "./prompt-variables";
+export * from "./recipe";
 export * from "./workflow-builder";

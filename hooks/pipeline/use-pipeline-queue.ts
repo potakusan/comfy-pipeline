@@ -14,9 +14,13 @@ import {
   type ImageRef,
   type ImageRefPool,
   type RandomChoice,
+  type GenerationRecipe,
+  type QueueItemBatchPresets,
   buildWorkflow,
   buildOutputPrefix,
   isCommentLine,
+  buildPromptSegments,
+  buildGenerationRecipe,
 } from "@/lib/comfy";
 import { slotLabel } from "@/hooks/pipeline/use-variable-bindings";
 import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/comfy/couple";
@@ -250,6 +254,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
     let lastBatchAllLoras: LoraEntry[] | null = null;
     let lastResolvedBindings: VariableBindings = {};
     let lastRandomChoices: RandomChoice[] = [];
+    let lastRecipe: GenerationRecipe | undefined;
     // undefined = 未計算 / null = 計算済みで下絵なし / オブジェクト = 使用中の下絵
     let lastInitImage: { name: string; denoise: number } | null | undefined =
       undefined;
@@ -272,6 +277,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
       let resolvedBindings: VariableBindings = {};
       let batchInitImage: { name: string; denoise: number } | undefined;
       let batchChoices: RandomChoice[] = [];
+      let batchRecipe: GenerationRecipe | undefined;
 
       if (redoMode === "samePrompt" && lastBatchPrompt !== null) {
         batchPrompt = lastBatchPrompt;
@@ -279,11 +285,13 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
         batchAllLoras = lastBatchAllLoras!;
         resolvedBindings = lastResolvedBindings;
         batchChoices = lastRandomChoices;
+        batchRecipe = lastRecipe;
         // 「プロンプト固定でやり直し」は下絵も同じ1枚を使い回す。
         batchInitImage = lastInitImage ?? undefined;
       } else {
         let presetBase: string;
         let batchPresetLoras: LoraEntry[];
+        let resolvedPresets: QueueItemBatchPresets = bp;
 
         if (anyPresetRandom) {
           const batchPhysicals = bp.selectedPhysicals.map((p) => resolvePreset(p, batchChoices));
@@ -302,6 +310,13 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
             selectedScenePreset: batchScene,
             selectedOtherPresets: batchOthers,
           });
+          resolvedPresets = {
+            selectedPhysicals: batchPhysicals,
+            selectedCount: batchCountPreset,
+            selectedPose: batchPose,
+            selectedScene: batchScene,
+            selectedOthers: batchOthers,
+          };
           presetBase = resolved.positivePromptBase;
           batchPresetLoras = resolved.presetLoras;
         } else {
@@ -344,6 +359,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
         }
 
         batchPrompt = promptWithAdditional;
+        let pickedVariation: string | undefined;
         if (pendingItem.variationTags.length > 0) {
           const tag =
             pendingItem.variationTags[
@@ -356,7 +372,36 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
               options: pendingItem.variationTags,
             });
           }
+          pickedVariation = tag;
           batchPrompt = `${promptWithAdditional}\n\n${tag}`;
+        }
+
+        // 通常モードのみ、選択項目ごとの構造化レシピを変数解決前の断片で残す
+        if (!pendingItem.colorMaskWorkflow && !pendingItem.coupleWorkflow) {
+          batchRecipe = buildGenerationRecipe({
+            variableLora: pendingItem.variableLora,
+            fixedLoras,
+            fixedTags: pendingItem.fixedTags,
+            negativePrompt: pendingItem.negativePrompt,
+            presets: bp,
+            additionalPromptMode: pendingItem.additionalPromptMode,
+            additionalPromptLines: pendingItem.additionalPromptLines,
+            variationTags: pendingItem.variationTags,
+            batchPreset: pendingItem.batchPresetSnapshot,
+            segments: buildPromptSegments({
+              fixedTags: pendingItem.fixedTags,
+              fixedLoras,
+              variableLora: pendingItem.variableLora,
+              presets: resolvedPresets,
+              additionalText: pickedAdditional,
+              variationTag: pickedVariation,
+            }),
+            variableDefs: pendingItem.variableDefs,
+            variableInputValues: pendingItem.variableInputValues,
+            promptReplacements: pendingItem.promptReplacements,
+            imageRef: pendingItem.imageRef,
+            imageRefPool: pendingItem.imageRefPool,
+          });
         }
 
         // %%name%% 変数の解決は、プリセット/追加/バリエーションの抽選をすべて
@@ -407,6 +452,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
         lastBatchAllLoras = batchAllLoras;
         lastResolvedBindings = resolvedBindings;
         lastRandomChoices = batchChoices;
+        lastRecipe = batchRecipe;
         lastInitImage = batchInitImage ?? null;
       }
 
@@ -528,6 +574,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
                   batchPresetId: img.batchPresetId,
                   bindings: img.bindings,
                   randomChoices: img.randomChoices,
+                  recipe: batchRecipe,
                   ...(mode === "colorMask"
                     ? {
                         colorMaskControlNet: pendingItem.colorMaskControlNet,
@@ -846,6 +893,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           requestedBatchCount:
             seedPoolBatchCount !== preset.batchCount ? preset.batchCount : undefined,
           batchPresetId: preset.id,
+          batchPresetSnapshot: preset,
           seedPool: overrides.seedPool?.slice(0, seedPoolBatchCount),
           seedSourceFolder: overrides.seedPool ? overrides.seedSourceFolder : undefined,
           status: "pending",

@@ -73,6 +73,8 @@ export interface QueueItem {
   requestedBatchCount?: number;
   /** 一括キュープリセットから生成された場合のBatchPreset.id */
   batchPresetId?: string;
+  /** 生成時点のBatchPreset全体のスナップショット(レシピ保存用。一括キュー実行時のみ) */
+  batchPresetSnapshot?: BatchPreset;
   /** 設定時、batch番目の生成にはこのプールのseed/upscaleSeedを使う(ランダム生成しない) */
   seedPool?: ReleasedSeed[];
   /** seedPoolの引き継ぎ元フォルダ名(UI表示用) */
