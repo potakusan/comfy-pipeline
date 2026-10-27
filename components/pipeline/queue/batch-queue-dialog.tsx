@@ -366,7 +366,7 @@ export default function BatchQueueDialog({
             {dialogTitle}
             {seedSource && (
               <span className="text-[10px] font-normal text-muted-foreground">
-                (シード引き継ぎ元: {seedSource.folder})
+                ({seedSource.recipe ? "保存済みレシピ" : "シード引き継ぎ元"}: {seedSource.folder})
               </span>
             )}
           </DialogTitle>

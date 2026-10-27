@@ -1,6 +1,7 @@
 import type { GenerationSettings, LoraEntry } from "./comfy-types";
+import { appendAdetailerChain, type AdetailerTarget, type NodeRef } from "./adetailer";
 
-export type NodeRef = [string, number];
+export type { NodeRef };
 
 /**
  * チェックポイント読み込み+アップスケールモデル+空latent+LoRAチェーンを組み立てる、
@@ -94,12 +95,15 @@ export function buildSamplingAndSaveTail(
     positive,
     negative,
     outputPrefix,
+    adetailer,
   }: {
     settings: GenerationSettings;
     model: NodeRef;
     positive: NodeRef;
     negative: NodeRef;
     outputPrefix: string;
+    /** 指定時、SaveImage の直前に検出→再描画(顔・手など)を挟む。clip はその専用プロンプト用 */
+    adetailer?: { targets: AdetailerTarget[] | undefined; clip: NodeRef };
   },
 ): { seed: number; upscaleSeed: number | null } {
   const seed = settings.randomizeSeed
@@ -162,6 +166,20 @@ export function buildSamplingAndSaveTail(
     saveSource = ["vae3", 0];
   }
 
+  if (adetailer) {
+    saveSource = appendAdetailerChain(wf, {
+      image: saveSource,
+      targets: adetailer.targets,
+      settings,
+      seed,
+      model,
+      clip: adetailer.clip,
+      vae: ["chk", 2],
+      positive,
+      negative,
+    });
+  }
+
   wf["save"] = {
     inputs: { filename_prefix: outputPrefix, images: saveSource },
     class_type: "SaveImage",
@@ -177,6 +195,7 @@ export function buildWorkflow({
   negativePrompt,
   outputPrefix,
   initImage,
+  adetailer,
 }: {
   settings: GenerationSettings;
   loras: LoraEntry[];
@@ -185,6 +204,8 @@ export function buildWorkflow({
   outputPrefix: string;
   /** 指定時は img2img。下絵を初期latentに使い、メインKSamplerの denoise をこの値にする。 */
   initImage?: { name: string; denoise: number };
+  /** 顔・手などの検出再描画の対象。有効な対象が無ければ何も挟まない */
+  adetailer?: AdetailerTarget[];
 }): { workflow: Record<string, unknown>; seed: number; upscaleSeed: number | null } {
   const wf: Record<string, unknown> = {};
 
@@ -215,6 +236,7 @@ export function buildWorkflow({
     positive: ["pos", 0],
     negative: ["neg", 0],
     outputPrefix,
+    adetailer: { targets: adetailer, clip },
   });
 
   return { workflow: wf, seed, upscaleSeed };

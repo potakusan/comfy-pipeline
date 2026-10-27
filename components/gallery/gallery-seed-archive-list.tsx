@@ -30,14 +30,14 @@ export default function GallerySeedArchiveList() {
     <div className="shrink-0 border-t p-2">
       <p className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
         <Sprout className="h-3 w-3" />
-        シードアーカイブ
+        保存済みプリセット
       </p>
       <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
         {groups.map((g) => (
           <a
             key={g.folder}
             href={`/?seedSourceFolder=${encodeURIComponent(g.folder)}`}
-            title="このシードを引き継いで一括キューを実行"
+            title="保存したプロンプト構成(レシピ)を元に一括キューを実行"
             className="flex items-center gap-2 rounded-lg border border-border p-1.5 text-left transition-colors hover:border-muted-foreground/50 hover:bg-muted/30"
           >
             <div className="h-12 w-12 shrink-0 overflow-hidden rounded bg-muted/30">
