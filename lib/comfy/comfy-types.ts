@@ -1,3 +1,4 @@
+import type { AdetailerTarget } from "./adetailer";
 import type {
   VariableBindings,
   VariableDefs,
@@ -97,6 +98,8 @@ export interface QueueItem {
   promptReplacements?: PromptReplacement[];
   /** 変数解決前のプロンプトに適用する断片編集(保存済みレシピからの再現時)。 */
   segmentEdits?: PromptReplacement[];
+  /** 顔・手などの検出再描画の対象(キュー登録時点のスナップショット。通常モードのみ有効) */
+  adetailer?: AdetailerTarget[];
   /** 指定時は img2img(この画像を初期latentに使い、denoise はこの値)。 */
   imageRef?: ImageRef;
   /** 指定時は img2img。生成バッチごとにこのプールからランダムで1枚を下絵にする(imageRef より優先)。 */
@@ -192,6 +195,8 @@ export interface BatchRunOverrides {
   /** 過去の良品率(release率)から生成枚数を自動的に切り詰めるか(#58)。
    * 既定オフ。オンのときのみ /api/gallery/preset-stats を取得する。 */
   applyReleaseRateAdjustment?: boolean;
+  /** 指定時は現在の左カラム設定ではなくこの検出再描画の対象を使う(保存済みレシピの再現用)。 */
+  adetailer?: AdetailerTarget[];
   /** 指定時は BatchPreset.batchCount の代わりにこの枚数を使う(保存済みレシピからの再現用)。 */
   batchCount?: number;
   /** 指定時(null含む)は BatchPreset の ID 参照ではなくこのプリセットを使う(保存済みレシピからの再現用)。 */

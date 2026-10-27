@@ -1,3 +1,4 @@
+import type { AdetailerTarget } from "./adetailer";
 import type {
   BatchPreset,
   ImageRef,
@@ -56,6 +57,8 @@ export interface GenerationRecipe {
   variableDefs: Record<string, VariableDef>;
   variableInputValues: VariableBindings;
   promptReplacements: PromptReplacement[];
+  /** 生成時の検出再描画(顔・手など)の対象。保存済みレシピからの再現で引き継ぐ */
+  adetailer?: AdetailerTarget[];
   imageRef?: ImageRef;
   /** 構図プールは group と denoise のみ(ステージ済みファイル名は一時的なため保存しない) */
   imageRefPool?: Pick<ImageRefPool, "group" | "denoise">;
@@ -151,6 +154,7 @@ export function buildGenerationRecipe(input: {
   promptReplacements?: PromptReplacement[];
   imageRef?: ImageRef;
   imageRefPool?: ImageRefPool;
+  adetailer?: AdetailerTarget[];
 }): GenerationRecipe {
   return {
     schemaVersion: 1,
@@ -169,6 +173,7 @@ export function buildGenerationRecipe(input: {
     variableDefs: snapshotUsedVariableDefs(input.segments, input.variableDefs ?? {}),
     variableInputValues: input.variableInputValues ?? {},
     promptReplacements: input.promptReplacements ?? [],
+    adetailer: input.adetailer?.length ? input.adetailer : undefined,
     imageRef: input.imageRef,
     imageRefPool: input.imageRefPool
       ? { group: input.imageRefPool.group, denoise: input.imageRefPool.denoise }

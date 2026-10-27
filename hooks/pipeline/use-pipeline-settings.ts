@@ -1,11 +1,12 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
-import { type GenerationSettings } from "@/lib/comfy";
+import { type GenerationSettings, type AdetailerTarget } from "@/lib/comfy";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 import { lsGet, lsSet } from "@/hooks/ls";
 
 const LS = {
   settings: "cp_settings",
+  adetailer: "cp_adetailer",
   batchCount: "cp_batch_count",
   panelSizes: "cp_panel_sizes",
   promptPreview: "cp_prompt_preview",
@@ -23,6 +24,7 @@ const DEFAULT_PANEL_SIZES = { left: 28, center: 38, right: 34 };
 /** 生成設定・バッチ数・パネルレイアウト・フローティングウィンドウ位置。 */
 export function usePipelineSettings() {
   const [settings, setSettings] = useState<GenerationSettings>(DEFAULT_SETTINGS);
+  const [adetailer, setAdetailer] = useState<AdetailerTarget[]>([]);
   const [batchCount, setBatchCount] = useState(4);
   const [panelSizes, setPanelSizesState] = useState<Record<string, number>>(DEFAULT_PANEL_SIZES);
   const [promptPreviewPos, setPromptPreviewPosState] = useState<PromptPreviewPos>(DEFAULT_PROMPT_PREVIEW);
@@ -35,6 +37,7 @@ export function usePipelineSettings() {
 
   useEffect(() => {
     setSettings(lsGet(LS.settings, DEFAULT_SETTINGS));
+    setAdetailer(lsGet(LS.adetailer, [] as AdetailerTarget[]));
     setBatchCount(lsGet(LS.batchCount, 4));
     setPanelSizesState(lsGet(LS.panelSizes, DEFAULT_PANEL_SIZES));
     setPromptPreviewPosState(lsGet(LS.promptPreview, DEFAULT_PROMPT_PREVIEW));
@@ -47,6 +50,7 @@ export function usePipelineSettings() {
   }, []);
 
   useEffect(() => { if (lsLoaded) lsSet(LS.settings, settings); }, [lsLoaded, settings]);
+  useEffect(() => { if (lsLoaded) lsSet(LS.adetailer, adetailer); }, [lsLoaded, adetailer]);
   useEffect(() => { if (lsLoaded) lsSet(LS.batchCount, batchCount); }, [lsLoaded, batchCount]);
 
   const setPanelSizes = useCallback((sizes: Record<string, number>) => {
@@ -81,6 +85,8 @@ export function usePipelineSettings() {
   return {
     settings,
     setSettings,
+    adetailer,
+    setAdetailer,
     batchCount,
     setBatchCount,
     panelSizes,

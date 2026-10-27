@@ -55,7 +55,7 @@ export function usePipeline() {
   } = normalMode;
 
   const pipelineSettings = usePipelineSettings();
-  const { settings, setSettings, batchCount, setBatchCount, panelSizes, setPanelSizes, promptPreviewPos, setPromptPreviewPos, etaPos, setEtaPos, seedRefPos, setSeedRefPos, varBindPos, setVarBindPos, refImgPos, setRefImgPos, randElemPos, setRandElemPos } = pipelineSettings;
+  const { settings, setSettings, adetailer, setAdetailer, batchCount, setBatchCount, panelSizes, setPanelSizes, promptPreviewPos, setPromptPreviewPos, etaPos, setEtaPos, seedRefPos, setSeedRefPos, varBindPos, setVarBindPos, refImgPos, setRefImgPos, randElemPos, setRandElemPos } = pipelineSettings;
 
   const sessionGallery = usePipelineSessionGallery();
   const { gallery, setGallery, clearGallery, refreshGalleryFromFs } = sessionGallery;
@@ -80,6 +80,7 @@ export function usePipeline() {
     variationEnabled,
     variationTags,
     settings,
+    adetailer,
     batchCount,
     variableDefs,
     variableInputValues,
@@ -103,6 +104,8 @@ export function usePipeline() {
     setOtherPresets,
     settings,
     setSettings,
+    adetailer,
+    setAdetailer,
     negativePrompt,
     setNegativePrompt,
     fixedTags,
@@ -128,6 +131,8 @@ export function usePipeline() {
     // Settings
     settings,
     setSettings,
+    adetailer,
+    setAdetailer,
     batchCount,
     setBatchCount,
     // Queue
