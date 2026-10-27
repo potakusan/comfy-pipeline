@@ -120,6 +120,7 @@ export function collectSetVariableSources(input: {
     | "posePreset"
     | "otherPresets"
     | "fixedTags"
+    | "segmentEdits"
   >;
   fixedTags: string;
   countPresets: Preset[];
@@ -192,5 +193,13 @@ export function collectSetVariableSources(input: {
       slot: overrides.scenePreset.type,
       text: overrides.scenePreset.prompt,
     });
+  for (const [i, e] of (overrides.segmentEdits ?? []).entries())
+    if (e.to)
+      sources.push({
+        id: `${set.id}:edit:${i}`,
+        label: `${prefix}断片の編集`,
+        slot: "edit",
+        text: e.to,
+      });
   return sources;
 }

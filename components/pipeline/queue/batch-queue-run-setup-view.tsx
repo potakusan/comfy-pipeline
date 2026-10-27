@@ -8,13 +8,16 @@ import {
   type GenerationSettings,
   type ReleasedSeed,
   type GenerationRecipe,
+  type RecipeSegment,
+  type PromptReplacement,
   mergePresetsWithSnapshot,
 } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import SamplerSettings from "@/components/pipeline/sampler-settings";
 import PresetI2iToggles from "@/components/pipeline/queue/preset-i2i-toggles";
-import { Play, ChevronUp, ChevronDown, Sprout } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Play, ChevronUp, ChevronDown, Sprout, Trash2, Undo2 } from "lucide-react";
 
 interface RunSetupViewProps {
   variableLoras: LoraEntry[];
@@ -72,6 +75,34 @@ function SlotPicker({
   );
 }
 
+const SEGMENT_SOURCE_LABEL: Record<RecipeSegment["source"], string> = {
+  fixedTags: "固定タグ",
+  fixedLora: "固定LoRA",
+  variableLora: "可変LoRA",
+  preset: "プリセット",
+  presetLora: "プリセットLoRA",
+  additional: "追加プロンプト",
+  variation: "バリエーション",
+};
+
+/** 断片1つの表示名。プリセット由来はスロット名とプリセット名を添える */
+function segmentLabel(s: RecipeSegment): string {
+  const base = SEGMENT_SOURCE_LABEL[s.source];
+  return s.presetName ? `${base}: ${s.presetName}` : base;
+}
+
+/** 断片の編集状態 → 変数解決前プロンプトへ適用する置換ルール。変更の無い断片は含めない。 */
+function toSegmentEdits(
+  segments: RecipeSegment[],
+  edited: Record<number, string | null>,
+): PromptReplacement[] {
+  return segments.flatMap((s, i) => {
+    if (!(i in edited)) return [];
+    const to = edited[i] ?? "";
+    return to === s.text ? [] : [{ from: s.text, to }];
+  });
+}
+
 export default function RunSetupView({
   variableLoras,
   physicalPresets,
@@ -124,6 +155,9 @@ export default function RunSetupView({
   const [selectedOtherIds, setSelectedOtherIds] = useState<string[]>(
     () => recipe?.presets.selectedOthers.map((p) => p.id) ?? [],
   );
+  // 断片編集: index → 編集後テキスト(null=削除)。未編集の断片はキー無し
+  const [editedSegments, setEditedSegments] = useState<Record<number, string | null>>({});
+  const [segmentsOpen, setSegmentsOpen] = useState(false);
   const [runSettings, setRunSettings] = useState<GenerationSettings>(initialSettings);
   const [samplerOpen, setSamplerOpen] = useState(false);
   const [i2iEnabledIds, setI2iEnabledIds] = useState<string[]>([]);
@@ -148,6 +182,7 @@ export default function RunSetupView({
             posePreset: choices.pose.find((p) => p.id === selectedPoseId) ?? null,
             otherPresets: choices.other.filter((p) => selectedOtherIds.includes(p.id)),
             fixedTags: recipe.fixedTags,
+            segmentEdits: toSegmentEdits(recipe.segments, editedSegments),
           }
         : {}),
       settings: runSettings,
@@ -300,6 +335,95 @@ export default function RunSetupView({
                 }
               />
             </>
+          )}
+
+          {recipe && recipe.segments.length > 0 && (
+            <div>
+              <button
+                onClick={() => setSegmentsOpen((v) => !v)}
+                className="flex w-full items-center gap-1.5 text-xs font-semibold"
+              >
+                {segmentsOpen ? (
+                  <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                プロンプト断片の編集
+                {Object.keys(editedSegments).length > 0 && (
+                  <span className="text-[10px] font-normal text-muted-foreground">
+                    · {Object.keys(editedSegments).length}件変更
+                  </span>
+                )}
+              </button>
+              {segmentsOpen && (
+                <div className="mt-2 space-y-2">
+                  <p className="text-[10px] text-muted-foreground">
+                    保存時のプロンプトを出どころ別に分けたものです。テキストを書き換える/削除すると、その文言が生成プロンプトの該当箇所で置換されます。
+                    ランダム抽選のプリセット行は実行ごとに引き直されるため、保存時と別の行が当たると置換が効きません。
+                    プリセット自体の差し替えは上のスロット選択で行ってください。
+                  </p>
+                  {recipe.segments.map((s, i) => {
+                    const deleted = editedSegments[i] === null;
+                    const value = i in editedSegments ? (editedSegments[i] ?? "") : s.text;
+                    const changed = i in editedSegments;
+                    return (
+                      <div key={i} className="rounded-lg border bg-card p-2">
+                        <div className="mb-1 flex items-center gap-1.5">
+                          <span className="truncate text-[10px] font-semibold text-muted-foreground">
+                            {segmentLabel(s)}
+                          </span>
+                          {changed && (
+                            <span className="text-[10px] text-primary">変更あり</span>
+                          )}
+                          <div className="ml-auto flex shrink-0 gap-0.5">
+                            {changed && (
+                              <button
+                                onClick={() =>
+                                  setEditedSegments((prev) => {
+                                    const next = { ...prev };
+                                    delete next[i];
+                                    return next;
+                                  })
+                                }
+                                className="rounded p-1 text-muted-foreground hover:bg-muted"
+                                title="元に戻す"
+                              >
+                                <Undo2 className="h-3 w-3" />
+                              </button>
+                            )}
+                            {!deleted && (
+                              <button
+                                onClick={() =>
+                                  setEditedSegments((prev) => ({ ...prev, [i]: null }))
+                                }
+                                className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                title="この断片を削除"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {deleted ? (
+                          <p className="font-mono text-[11px] text-muted-foreground line-through">
+                            {s.text}
+                          </p>
+                        ) : (
+                          <Textarea
+                            value={value}
+                            onChange={(e) =>
+                              setEditedSegments((prev) => ({ ...prev, [i]: e.target.value }))
+                            }
+                            rows={Math.min(6, value.split("\n").length + 1)}
+                            className="font-mono text-[11px]"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
 
           <PresetI2iToggles

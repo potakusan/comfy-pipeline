@@ -21,6 +21,8 @@ import {
   isCommentLine,
   buildPromptSegments,
   buildGenerationRecipe,
+  applySegmentEdits,
+  applySegmentEditsToSegments,
 } from "@/lib/comfy";
 import { slotLabel } from "@/hooks/pipeline/use-variable-bindings";
 import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/comfy/couple";
@@ -376,6 +378,9 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           batchPrompt = `${promptWithAdditional}\n\n${tag}`;
         }
 
+        // 保存済みレシピの断片編集は、変数解決前のプロンプトとレシピ断片の両方へ反映する
+        batchPrompt = applySegmentEdits(batchPrompt, pendingItem.segmentEdits);
+
         // 通常モードのみ、選択項目ごとの構造化レシピを変数解決前の断片で残す
         if (!pendingItem.colorMaskWorkflow && !pendingItem.coupleWorkflow) {
           batchRecipe = buildGenerationRecipe({
@@ -388,14 +393,17 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
             additionalPromptLines: pendingItem.additionalPromptLines,
             variationTags: pendingItem.variationTags,
             batchPreset: pendingItem.batchPresetSnapshot,
-            segments: buildPromptSegments({
-              fixedTags: pendingItem.fixedTags,
-              fixedLoras,
-              variableLora: pendingItem.variableLora,
-              presets: resolvedPresets,
-              additionalText: pickedAdditional,
-              variationTag: pickedVariation,
-            }),
+            segments: applySegmentEditsToSegments(
+              buildPromptSegments({
+                fixedTags: pendingItem.fixedTags,
+                fixedLoras,
+                variableLora: pendingItem.variableLora,
+                presets: resolvedPresets,
+                additionalText: pickedAdditional,
+                variationTag: pickedVariation,
+              }),
+              pendingItem.segmentEdits,
+            ),
             variableDefs: pendingItem.variableDefs,
             variableInputValues: pendingItem.variableInputValues,
             promptReplacements: pendingItem.promptReplacements,
@@ -927,6 +935,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           },
           variableDefs: { ...variableDefs, ...overrides.variableDefs },
           promptReplacements: overrides.promptReplacements,
+          segmentEdits: overrides.segmentEdits,
           // 下絵はプリセット固有の設定(セット編集で指定)を、実行画面で ON に
           // したプリセットだけに適用する。既定オフ。
           imageRef: overrides.i2iEnabledPresetIds?.includes(preset.id)

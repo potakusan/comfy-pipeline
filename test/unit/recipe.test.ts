@@ -5,6 +5,8 @@ import {
   buildPromptSegments,
   batchPresetFromRecipe,
   mergePresetsWithSnapshot,
+  applySegmentEdits,
+  applySegmentEditsToSegments,
   type LoraEntry,
   type Preset,
   type QueueItemBatchPresets,
@@ -206,6 +208,61 @@ describe("mergePresetsWithSnapshot", () => {
       "a:old a",
       "gone:gone",
       "b:b",
+    ]);
+  });
+});
+
+describe("applySegmentEdits", () => {
+  const prompt = "masterpiece\n\nlong hair, dress lift\n\nstanding\n\nclassroom";
+
+  it("replaces a substring inside a segment", () => {
+    expect(
+      applySegmentEdits(prompt, [{ from: "dress lift", to: "dress pull" }]),
+    ).toBe("masterpiece\n\nlong hair, dress pull\n\nstanding\n\nclassroom");
+  });
+
+  it("deletes a whole segment and collapses the blank lines it leaves", () => {
+    expect(applySegmentEdits(prompt, [{ from: "standing", to: "" }])).toBe(
+      "masterpiece\n\nlong hair, dress lift\n\nclassroom",
+    );
+  });
+
+  it("deleting the first/last segment leaves no leading/trailing blank lines", () => {
+    expect(
+      applySegmentEdits(prompt, [
+        { from: "masterpiece", to: "" },
+        { from: "classroom", to: "" },
+      ]),
+    ).toBe("long hair, dress lift\n\nstanding");
+  });
+
+  it("ignores empty `from` and returns the text unchanged without edits", () => {
+    expect(applySegmentEdits(prompt, [{ from: "", to: "x" }])).toBe(prompt);
+    expect(applySegmentEdits(prompt, undefined)).toBe(prompt);
+  });
+
+  it("keeps %%variables%% in replacement text for the later resolve step", () => {
+    expect(
+      applySegmentEdits("a\n\nstanding", [{ from: "standing", to: "%%pose%%" }]),
+    ).toBe("a\n\n%%pose%%");
+  });
+});
+
+describe("applySegmentEditsToSegments", () => {
+  it("applies edits per segment and drops segments that become empty", () => {
+    const segs = [
+      { source: "fixedTags" as const, text: "masterpiece" },
+      { source: "preset" as const, text: "standing" },
+      { source: "preset" as const, text: "dress lift" },
+    ];
+    expect(
+      applySegmentEditsToSegments(segs, [
+        { from: "standing", to: "" },
+        { from: "dress lift", to: "dress pull" },
+      ]),
+    ).toEqual([
+      { source: "fixedTags", text: "masterpiece" },
+      { source: "preset", text: "dress pull" },
     ]);
   });
 });

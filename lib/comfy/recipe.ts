@@ -218,3 +218,39 @@ export function mergePresetsWithSnapshot(
   const snapIds = new Set(snapshots.map((p) => p.id));
   return [...snapshots, ...library.filter((p) => !snapIds.has(p.id))];
 }
+
+/** 削除で生じた空行の連続(3つ以上の改行)を詰め、前後の空白行を除く。 */
+function tidyAfterDeletion(text: string): string {
+  return text.replace(/\n{3,}/g, "\n\n").replace(/^\n+|\n+$/g, "");
+}
+
+/**
+ * 断片編集(置換前→置換後、置換後が空なら削除)を変数解決前のプロンプトへ順に適用する。
+ * from が空の編集は無視する。
+ */
+export function applySegmentEdits(
+  text: string,
+  edits: PromptReplacement[] | undefined,
+): string {
+  if (!text || !edits?.length) return text;
+  let out = text;
+  let deleted = false;
+  for (const { from, to } of edits) {
+    if (!from) continue;
+    if (!to) deleted = true;
+    out = out.split(from).join(to);
+  }
+  return deleted ? tidyAfterDeletion(out) : out;
+}
+
+/** 断片リストへ編集を反映する(編集後に空になった断片は除く)。レシピを再保存するときに使う。 */
+export function applySegmentEditsToSegments(
+  segments: RecipeSegment[],
+  edits: PromptReplacement[] | undefined,
+): RecipeSegment[] {
+  if (!edits?.length) return segments;
+  return segments.flatMap((s) => {
+    const text = applySegmentEdits(s.text, edits);
+    return text.trim() ? [{ ...s, text }] : [];
+  });
+}

@@ -17,6 +17,7 @@ const SLOT_LABEL: Record<string, string> = {
   other: "その他",
   additional: "追加プロンプト",
   fixed: "固定タグ",
+  edit: "断片の編集",
 };
 
 export function slotLabel(slot: string): string {

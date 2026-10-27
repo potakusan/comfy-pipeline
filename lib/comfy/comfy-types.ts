@@ -95,6 +95,8 @@ export interface QueueItem {
   variableDefs?: VariableDefs;
   /** 解決後プロンプトへ適用する素朴な文字列置換(引き継ぎ時のエスケープハッチ)。 */
   promptReplacements?: PromptReplacement[];
+  /** 変数解決前のプロンプトに適用する断片編集(保存済みレシピからの再現時)。 */
+  segmentEdits?: PromptReplacement[];
   /** 指定時は img2img(この画像を初期latentに使い、denoise はこの値)。 */
   imageRef?: ImageRef;
   /** 指定時は img2img。生成バッチごとにこのプールからランダムで1枚を下絵にする(imageRef より優先)。 */
@@ -196,6 +198,8 @@ export interface BatchRunOverrides {
   otherPresets?: Preset[];
   /** 指定時は現在の固定タグではなくこの値を使う。 */
   fixedTags?: string;
+  /** 保存済みレシピの断片への編集(置換前→置換後。to が空なら削除)。変数解決前のプロンプトに適用する。 */
+  segmentEdits?: PromptReplacement[];
   /** この実行限りの変数定義(グローバル定義の上に重ねる)。保存済みレシピの定義スナップショットや引き継ぎ値の固定に使う。 */
   variableDefs?: VariableDefs;
 }
