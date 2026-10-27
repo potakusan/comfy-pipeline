@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { buildWorkflow } from "@/lib/comfy";
+import { buildWorkflow, type AdetailerTarget } from "@/lib/comfy";
 import { buildCoupleWorkflow, buildColorMaskWorkflow } from "@/lib/comfy/couple";
 import { submitAndAwaitNewFiles, classifyCancelError } from "@/lib/comfy/comfy-client";
 import { useComfyWS } from "@/hooks/use-comfy-ws";
@@ -254,6 +254,10 @@ export function useGallery() {
           outputPrefix,
         };
 
+        // 元画像のレシピに残した設定を優先し、無ければ左カラムの現在設定を使う
+        const adetailer =
+          meta.recipe?.adetailer ?? lsGet("cp_adetailer", [] as AdetailerTarget[]);
+
         const abortController = new AbortController();
         abortRef.current = abortController;
 
@@ -270,7 +274,7 @@ export function useGallery() {
                 })
               : meta.mode === "couple"
                 ? buildCoupleWorkflow(workflowArgs)
-                : buildWorkflow(workflowArgs);
+                : buildWorkflow({ ...workflowArgs, adetailer });
           // アップスケール2段目のseedは呼び出し前には決まらないため、
           // 実際に使われた値(resolvedUpscaleSeed)をメタデータへ反映する
           const finalSettings = { ...settings, upscaleSeed: resolvedUpscaleSeed ?? undefined };
@@ -295,6 +299,10 @@ export function useGallery() {
           const newMetadata: ImageMetadata = {
             ...meta,
             settings: finalSettings,
+            recipe: meta.recipe && {
+              ...meta.recipe,
+              adetailer: adetailer.length ? adetailer : undefined,
+            },
             positivePrompt,
             negativePrompt,
             createdAt: Date.now(),
