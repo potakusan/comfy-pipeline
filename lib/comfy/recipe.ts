@@ -252,8 +252,11 @@ export function mergePresetsWithSnapshot(
   library: Preset[],
   snapshots: Preset[],
 ): Preset[] {
-  const snapIds = new Set(snapshots.map((p) => p.id));
-  return [...snapshots, ...library.filter((p) => !snapIds.has(p.id))];
+  const uniqueSnapshots = snapshots.filter(
+    (p, i) => snapshots.findIndex((q) => q.id === p.id) === i,
+  );
+  const snapIds = new Set(uniqueSnapshots.map((p) => p.id));
+  return [...uniqueSnapshots, ...library.filter((p) => !snapIds.has(p.id))];
 }
 
 /** 削除で生じた空行の連続(3つ以上の改行)を詰め、前後の空白行を除く。 */

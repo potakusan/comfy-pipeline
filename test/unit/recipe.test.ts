@@ -271,6 +271,14 @@ describe("applySegmentEditsToSegments", () => {
   });
 });
 
+describe("mergePresetsWithSnapshot duplicates", () => {
+  it("collapses repeated snapshots of the same preset id", () => {
+    const ph = preset("ph1", "physical", "loli");
+    const merged = mergePresetsWithSnapshot([ph], [ph, { ...ph }, ph]);
+    expect(merged.map((p) => p.id)).toEqual(["ph1"]);
+  });
+});
+
 describe("buildRecipeSet / resolvePresetOverrides", () => {
   const group = (key: string, scene: string, batchPresetId = "bp1"): SeedRecipeGroup => {
     const p = { ...presets, selectedScene: preset(scene, "scene", `${scene} prompt`) };
