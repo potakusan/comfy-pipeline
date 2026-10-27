@@ -540,6 +540,7 @@ export default function BatchQueueDialog({
               savedSetup ? mergeRecipeBindings(savedSetup.groups) : seedSource?.bindings
             }
             recipeMode={!!activeRecipe}
+            baseValuesFirst={!!savedSetup}
             onConfirm={handleVariableInputConfirm}
             onBack={() => setView("run-setup")}
           />

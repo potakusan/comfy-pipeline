@@ -35,6 +35,8 @@ interface VariableInputViewProps {
   seedBindings?: VariableBindings;
   /** 保存済みレシピからの再現モード。seedBindings の各変数について「前回値を引き継ぐ/再抽選・再入力」を選べる */
   recipeMode?: boolean;
+  /** true のとき、baseValues(フローティングウィンドウの入力値)を seedBindings(保存時の値)より優先して初期値にする */
+  baseValuesFirst?: boolean;
   onConfirm: (
     variableValues: VariableBindings,
     promptReplacements: PromptReplacement[],
@@ -62,6 +64,7 @@ export default function VariableInputView({
   baseValues,
   seedBindings,
   recipeMode = false,
+  baseValuesFirst = false,
   onConfirm,
   onBack,
 }: VariableInputViewProps) {
@@ -79,10 +82,16 @@ export default function VariableInputView({
     const usages = collectVariableUsages(sources);
 
     // 優先度(後勝ち): プリセット既定値 < 通常モードで入力済みの値 < シード引き継ぎ由来
+    // (baseValuesFirst のときは シード引き継ぎ由来 < 通常モードで入力済みの値)
     const prefill: VariableBindings = {};
     for (const bp of set.presets) Object.assign(prefill, bp.variableValues);
-    Object.assign(prefill, baseValues);
-    Object.assign(prefill, seedBindings);
+    if (baseValuesFirst) {
+      Object.assign(prefill, seedBindings);
+      Object.assign(prefill, baseValues);
+    } else {
+      Object.assign(prefill, baseValues);
+      Object.assign(prefill, seedBindings);
+    }
 
     return { names, usages, prefill };
   }, [
@@ -94,6 +103,7 @@ export default function VariableInputView({
     otherPresets,
     baseValues,
     seedBindings,
+    baseValuesFirst,
   ]);
 
   const [values, setValues] = useState<VariableBindings>(() => {
