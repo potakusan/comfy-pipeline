@@ -7,6 +7,7 @@ import {
   type BatchPresetSet,
   type PresetCategory,
   type VariableDefs,
+  type AdetailerTarget,
   migrateBatchPresetSets,
 } from "@/lib/comfy";
 import { lsGet, lsSet } from "@/hooks/ls";
@@ -28,6 +29,8 @@ export interface PipelineIOState {
   setOtherPresets: (v: Preset[]) => void;
   settings: GenerationSettings;
   setSettings: (v: GenerationSettings) => void;
+  adetailer: AdetailerTarget[];
+  setAdetailer: (v: AdetailerTarget[]) => void;
   negativePrompt: string;
   setNegativePrompt: (v: string) => void;
   fixedTags: string;
@@ -65,6 +68,8 @@ export function usePipelineIO(state: PipelineIOState) {
     setOtherPresets,
     settings,
     setSettings,
+    adetailer,
+    setAdetailer,
     negativePrompt,
     setNegativePrompt,
     fixedTags,
@@ -95,6 +100,7 @@ export function usePipelineIO(state: PipelineIOState) {
       posePresets,
       otherPresets,
       settings,
+      adetailer,
       negativePrompt,
       fixedTags,
       variationTags,
@@ -125,6 +131,7 @@ export function usePipelineIO(state: PipelineIOState) {
     posePresets,
     otherPresets,
     settings,
+    adetailer,
     negativePrompt,
     fixedTags,
     variationTags,
@@ -150,6 +157,7 @@ export function usePipelineIO(state: PipelineIOState) {
           if (Array.isArray(data.posePresets)) setPosePresets(data.posePresets);
           if (Array.isArray(data.otherPresets)) setOtherPresets(data.otherPresets);
           if (data.settings && typeof data.settings === "object") setSettings(data.settings);
+          if (Array.isArray(data.adetailer)) setAdetailer(data.adetailer as AdetailerTarget[]);
           if (typeof data.negativePrompt === "string") setNegativePrompt(data.negativePrompt);
           if (typeof data.fixedTags === "string") setFixedTags(data.fixedTags);
           if (Array.isArray(data.variationTags)) setVariationTags(data.variationTags);
@@ -174,6 +182,7 @@ export function usePipelineIO(state: PipelineIOState) {
       setPosePresets,
       setOtherPresets,
       setSettings,
+      setAdetailer,
       setNegativePrompt,
       setFixedTags,
       setVariationTags,

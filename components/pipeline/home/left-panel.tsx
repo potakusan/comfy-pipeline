@@ -8,6 +8,8 @@ import LoraPanel from "@/components/pipeline/lora/lora-panel";
 import PromptBuilder from "@/components/pipeline/prompt/prompt-builder";
 import ImageRefSection from "@/components/pipeline/prompt/image-ref-section";
 import SamplerSettings from "@/components/pipeline/sampler-settings";
+import AdetailerSection from "@/components/pipeline/adetailer-section";
+import { activeAdetailerTargets } from "@/lib/comfy";
 import TagSettings from "@/components/pipeline/prompt/tag-settings";
 import CouplePanel from "@/components/pipeline/couple/couple-panel";
 import Section from "@/components/pipeline/section";
@@ -78,6 +80,8 @@ export default function LeftPanel({
     removeCategory,
     settings,
     setSettings,
+    adetailer,
+    setAdetailer,
     variationEnabled,
     setVariationEnabled,
     variationTags,
@@ -196,6 +200,18 @@ export default function LeftPanel({
                 />
               </Section>
             </div>
+
+            <Section
+              title="ADetailer(顔・手)"
+              defaultOpen={false}
+              badge={
+                activeAdetailerTargets(adetailer).length > 0
+                  ? `ON ${activeAdetailerTargets(adetailer).length}`
+                  : undefined
+              }
+            >
+              <AdetailerSection targets={adetailer} onChange={setAdetailer} />
+            </Section>
 
             <Section
               title="参照画像 / 下絵"

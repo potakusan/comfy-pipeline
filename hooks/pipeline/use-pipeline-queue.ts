@@ -13,6 +13,7 @@ import {
   type VariableDefs,
   type ImageRef,
   type ImageRefPool,
+  type AdetailerTarget,
   type RandomChoice,
   type GenerationRecipe,
   type QueueItemBatchPresets,
@@ -65,6 +66,8 @@ export interface PipelineQueueDeps {
   variationEnabled: boolean;
   variationTags: string[];
   settings: GenerationSettings;
+  /** 左カラムの検出再描画(顔・手など)の対象。キュー登録時点のスナップショットを各アイテムに持たせる */
+  adetailer: AdetailerTarget[];
   batchCount: number;
   variableDefs: VariableDefs;
   variableInputValues: VariableBindings;
@@ -95,6 +98,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
     variationEnabled,
     variationTags,
     settings,
+    adetailer,
     batchCount,
     variableDefs,
     variableInputValues,
@@ -409,6 +413,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
             promptReplacements: pendingItem.promptReplacements,
             imageRef: pendingItem.imageRef,
             imageRefPool: pendingItem.imageRefPool,
+            adetailer: pendingItem.adetailer,
           });
         }
 
@@ -504,7 +509,11 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
               })
             : pendingItem.coupleWorkflow
               ? buildCoupleWorkflow(workflowArgs)
-              : buildWorkflow({ ...workflowArgs, initImage: batchInitImage });
+              : buildWorkflow({
+                  ...workflowArgs,
+                  initImage: batchInitImage,
+                  adetailer: pendingItem.adetailer,
+                });
 
         const newFiles = await submitAndAwaitNewFiles(
           workflow,
@@ -712,6 +721,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
       positivePromptBase,
       negativePrompt,
       settings: { ...settings },
+      adetailer: adetailer.map((t) => ({ ...t })),
       batchCount,
       status: "pending",
       currentBatch: 0,
@@ -761,6 +771,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
     variableDefs,
     imageRef,
     imageRefPool,
+    adetailer,
   ]);
 
   const captureCurrentSettings = useCallback(
@@ -906,6 +917,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           positivePromptBase,
           negativePrompt: presetNegativePrompt,
           settings: { ...overrides.settings },
+          adetailer: (overrides.adetailer ?? adetailer).map((t) => ({ ...t })),
           fixedTags: presetFixedTags,
           batchCount: seedPoolBatchCount,
           requestedBatchCount:
@@ -952,7 +964,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
         toast.success(`${items.length}件のタスクをキューに追加しました`);
       }
     },
-    [countPresets, posePresets, otherPresets, fixedTags, fixedLoras, variableDefs],
+    [countPresets, posePresets, otherPresets, fixedTags, fixedLoras, variableDefs, adetailer],
   );
 
   const addCoupleToQueue = useCallback(

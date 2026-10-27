@@ -191,6 +191,7 @@ export default function RunSetupView({
             posePreset: choices.pose.find((p) => p.id === selectedPoseId) ?? null,
             otherPresets: choices.other.filter((p) => selectedOtherIds.includes(p.id)),
             fixedTags: recipe.fixedTags,
+            ...(recipe.adetailer ? { adetailer: recipe.adetailer } : {}),
             segmentEdits: toSegmentEdits(recipe.segments, editedSegments),
           }
         : {}),
