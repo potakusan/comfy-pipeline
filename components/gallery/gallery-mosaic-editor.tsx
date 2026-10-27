@@ -1,11 +1,21 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Undo2, Redo2, Save, Loader2 } from "lucide-react";
+import { Undo2, Redo2, Save, Loader2, ImageDown } from "lucide-react";
 import { computeAutoMosaicSize, applyMosaicToPath, mimeFromExt } from "@/lib/mosaic-canvas";
 
 const MIN_MOSAIC_SIZE = 2;
@@ -20,10 +30,16 @@ function imageUrl(path: string) {
 export default function GalleryMosaicEditor({
   path,
   onSaved,
+  onReplaced,
 }: {
   path: string;
   onSaved: (path: string) => void;
+  onReplaced: (newPath: string) => void;
 }) {
+  const [replacing, setReplacing] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [replaceScale, setReplaceScale] = useState(40);
+  const [replaceQuality, setReplaceQuality] = useState(100);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -180,6 +196,26 @@ export default function GalleryMosaicEditor({
     }
   }, [filename, path, loading, onSaved]);
 
+  const handleReplaceOriginal = async () => {
+    setConfirmOpen(false);
+    setReplacing(true);
+    try {
+      const res = await fetch("/api/gallery/mosaic/replace-original", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, scalePercent: replaceScale, quality: replaceQuality }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "置き換えに失敗しました");
+      toast.success("元画像で置き換えました", { description: data.path, duration: 2000 });
+      onReplaced(data.path);
+    } catch (e) {
+      toast.error("置き換えに失敗しました", { description: (e as Error).message });
+    } finally {
+      setReplacing(false);
+    }
+  };
+
   // Ctrl+Z / Ctrl+Y / Ctrl+S — このエディタがマウントされている間だけ有効
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -311,6 +347,21 @@ export default function GalleryMosaicEditor({
           <Redo2 className="h-3.5 w-3.5" />
         </Button>
         <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1 text-xs"
+          disabled={replacing || saving}
+          onClick={() => setConfirmOpen(true)}
+          title="モザイク前の元画像をJPEG変換・縮小して置き換える"
+        >
+          {replacing ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <ImageDown className="h-3.5 w-3.5" />
+          )}
+          元画像に差し替え
+        </Button>
+        <Button
           size="sm"
           className="h-7 gap-1 text-xs"
           disabled={saving || loading}
@@ -382,7 +433,49 @@ export default function GalleryMosaicEditor({
           className="h-7 w-16 text-xs"
         />
         <span className="text-[10px] text-muted-foreground">px</span>
+        <Label className="shrink-0 pl-2 text-xs text-muted-foreground">差替縮小率</Label>
+        <Input
+          type="number"
+          min={10}
+          max={100}
+          value={replaceScale}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            if (!Number.isNaN(v)) setReplaceScale(Math.min(100, Math.max(1, v)));
+          }}
+          className="h-7 w-16 text-xs"
+        />
+        <span className="text-[10px] text-muted-foreground">%</span>
+        <Label className="shrink-0 text-xs text-muted-foreground">JPEG品質</Label>
+        <Input
+          type="number"
+          min={1}
+          max={100}
+          value={replaceQuality}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            if (!Number.isNaN(v)) setReplaceQuality(Math.min(100, Math.max(1, v)));
+          }}
+          className="h-7 w-16 text-xs"
+        />
       </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>元画像に差し替えますか?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="block font-mono text-xs break-all">{filename}</span>
+              モザイク前の元画像を{replaceScale}%に縮小しJPEG(品質{replaceQuality})へ変換して置き換えます。
+              現在のモザイク画像は削除され、この操作は取り消せません。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReplaceOriginal}>差し替える</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

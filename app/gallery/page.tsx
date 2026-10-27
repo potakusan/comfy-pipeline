@@ -45,6 +45,8 @@ export default function GalleryPage() {
   const [mosaicModalOpen, setMosaicModalOpen] = useState(false);
   const [selectedMosaicPath, setSelectedMosaicPath] = useState<string | null>(null);
   const [justSavedMosaicPath, setJustSavedMosaicPath] = useState<string | null>(null);
+  // 差し替え後にパスが変わらない(jpg→jpg)場合でもエディタを再ロードさせるためのキー
+  const [mosaicEditorKey, setMosaicEditorKey] = useState(0);
 
   // フォルダを切り替えたら、そのフォルダに存在しないモザイク編集対象の選択は解除する
   const handleSelectFolder = (folder: string) => {
@@ -174,8 +176,15 @@ export default function GalleryPage() {
         >
           {selectedMosaicPath ? (
             <GalleryMosaicEditor
+              key={mosaicEditorKey}
               path={selectedMosaicPath}
               onSaved={(p) => setJustSavedMosaicPath(p)}
+              onReplaced={async (newPath) => {
+                if (gallery.selectedFolder) await gallery.refreshMosaicImages(gallery.selectedFolder);
+                setJustSavedMosaicPath(newPath);
+                setSelectedMosaicPath(newPath);
+                setMosaicEditorKey((k) => k + 1);
+              }}
             />
           ) : (
             <>
