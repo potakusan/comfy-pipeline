@@ -47,16 +47,17 @@ describe("buildWorkflow with adetailer", () => {
   it("leaves the graph untouched without active targets", () => {
     const wf = build([{ ...newAdetailerTarget("face"), enabled: false }]);
     expect(Object.keys(wf).some((k) => k.startsWith("adet"))).toBe(false);
+    expect(wf.upi.inputs.image).toEqual(["vae", 0]);
     expect(wf.save.inputs.images).toEqual(["upi", 0]);
   });
 
-  it("chains one FaceDetailer per target between the upscale and SaveImage", () => {
+  it("chains one FaceDetailer per target between the decode and the upscale", () => {
     const face = newAdetailerTarget("face");
     const hand = { ...newAdetailerTarget("hand"), denoise: 0.3 };
     const wf = build([face, hand]);
 
     expect(wf.adet0.class_type).toBe("FaceDetailer");
-    expect(wf.adet0.inputs.image).toEqual(["upi", 0]);
+    expect(wf.adet0.inputs.image).toEqual(["vae", 0]);
     expect(wf.adet0.inputs.bbox_detector).toEqual(["adet0_det", 0]);
     expect(wf.adet0_det.inputs.model_name).toBe(face.model);
 
@@ -64,12 +65,15 @@ describe("buildWorkflow with adetailer", () => {
     expect(wf.adet1.inputs.denoise).toBe(0.3);
     expect(wf.adet1_det.inputs.model_name).toBe(hand.model);
 
-    expect(wf.save.inputs.images).toEqual(["adet1", 0]);
+    // アップスケールは検出再描画の後。巨大画像を検出対象にしない
+    expect(wf.upi.inputs.image).toEqual(["adet1", 0]);
+    expect(wf.save.inputs.images).toEqual(["upi", 0]);
   });
 
-  it("feeds the refined (post upscale-refine) image and reuses the main seed and sampler", () => {
+  it("runs on the generation-resolution image even with the upscale refine pass, reusing seed and sampler", () => {
     const wf = build([newAdetailerTarget("face")], { ...settings, upscaleSteps: 10 });
-    expect(wf.adet0.inputs.image).toEqual(["vae3", 0]);
+    expect(wf.adet0.inputs.image).toEqual(["vae", 0]);
+    expect(wf.save.inputs.images).toEqual(["vae3", 0]);
     expect(wf.adet0.inputs.seed).toBe(42);
     expect(wf.adet0.inputs.cfg).toBe(7);
     expect(wf.adet0.inputs.sampler_name).toBe("euler");

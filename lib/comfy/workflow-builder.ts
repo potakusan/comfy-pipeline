@@ -102,7 +102,7 @@ export function buildSamplingAndSaveTail(
     positive: NodeRef;
     negative: NodeRef;
     outputPrefix: string;
-    /** 指定時、SaveImage の直前に検出→再描画(顔・手など)を挟む。clip はその専用プロンプト用 */
+    /** 指定時、アップスケール前に検出→再描画(顔・手など)を挟む。clip はその専用プロンプト用 */
     adetailer?: { targets: AdetailerTarget[] | undefined; clip: NodeRef };
   },
 ): { seed: number; upscaleSeed: number | null } {
@@ -131,8 +131,24 @@ export function buildSamplingAndSaveTail(
     class_type: "VAEDecode",
   };
 
+  // 検出再描画(顔・手など)は生成解像度の画像に対して、アップスケール前に行う。
+  // アップスケール後(例 4x)の巨大画像で検出・貼り戻しすると極端に重くなるため。
+  const detailed: NodeRef = adetailer
+    ? appendAdetailerChain(wf, {
+        image: ["vae", 0],
+        targets: adetailer.targets,
+        settings,
+        seed,
+        model,
+        clip: adetailer.clip,
+        vae: ["chk", 2],
+        positive,
+        negative,
+      })
+    : ["vae", 0];
+
   wf["upi"] = {
-    inputs: { upscale_model: ["upm", 0], image: ["vae", 0] },
+    inputs: { upscale_model: ["upm", 0], image: detailed },
     class_type: "ImageUpscaleWithModel",
   };
 
@@ -164,20 +180,6 @@ export function buildSamplingAndSaveTail(
       class_type: "VAEDecode",
     };
     saveSource = ["vae3", 0];
-  }
-
-  if (adetailer) {
-    saveSource = appendAdetailerChain(wf, {
-      image: saveSource,
-      targets: adetailer.targets,
-      settings,
-      seed,
-      model,
-      clip: adetailer.clip,
-      vae: ["chk", 2],
-      positive,
-      negative,
-    });
   }
 
   wf["save"] = {
