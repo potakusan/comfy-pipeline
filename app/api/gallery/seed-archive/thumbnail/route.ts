@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
-      "Content-Type": "image/webp",
+      "Content-Type": "image/jpeg",
       "Cache-Control": "public, max-age=3600, immutable",
     },
   });

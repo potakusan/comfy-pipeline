@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { getOutputDir, IMAGE_EXT } from "./output-dir";
 import { releaseFolderName, type ImageMetadata } from "@/lib/gallery";
-import { SEED_ARCHIVE_DIR } from "./gallery-seed-archive";
+import { SAVED_PRESETS_DIR, SEED_ARCHIVE_DIR } from "./gallery-seed-archive";
 import { I2I_DIR } from "./i2i-pool";
 import type { PresetGenerationStats } from "@/lib/gallery-preset-stats";
 
@@ -45,6 +45,7 @@ function scanPresetStats(): Record<string, PresetGenerationStats> {
           e.isDirectory() &&
           e.name !== THUMB_DIR &&
           e.name !== SEED_ARCHIVE_DIR &&
+          e.name !== SAVED_PRESETS_DIR &&
           e.name !== I2I_DIR &&
           !e.name.endsWith("_release"),
       )

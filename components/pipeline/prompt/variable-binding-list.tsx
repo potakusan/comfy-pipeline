@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   type VariableDef,
   type VariableDefs,
@@ -29,6 +29,8 @@ interface VariableBindingListProps {
   missingRequired: string[];
   /** true = 引き継ぎ由来などで初期値が入っている変数に印を付ける */
   prefilledNames?: string[];
+  /** 各変数行の末尾に差し込む追加UI(保存済みレシピの引き継ぎ/再抽選切り替え等) */
+  renderExtra?: (name: string) => ReactNode;
 }
 
 const MODE_LABEL: Record<VariableMode, string> = {
@@ -104,6 +106,7 @@ export default function VariableBindingList({
   onValueChange,
   missingRequired,
   prefilledNames = [],
+  renderExtra,
 }: VariableBindingListProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -219,6 +222,8 @@ export default function VariableBindingList({
                   : "候補未設定 (空になります)"}
               </p>
             )}
+
+            {renderExtra?.(name)}
 
             {isOpen && (
               <div className="space-y-1.5 rounded-md border bg-muted/30 p-2">

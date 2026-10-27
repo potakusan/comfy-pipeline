@@ -112,7 +112,16 @@ export function resolvePromptVariables(input: {
  */
 export function collectSetVariableSources(input: {
   set: BatchPresetSet;
-  overrides: Pick<BatchRunOverrides, "physicalPresets" | "scenePreset">;
+  overrides: Pick<
+    BatchRunOverrides,
+    | "physicalPresets"
+    | "scenePreset"
+    | "countPreset"
+    | "posePreset"
+    | "otherPresets"
+    | "fixedTags"
+    | "segmentEdits"
+  >;
   fixedTags: string;
   countPresets: Preset[];
   posePresets: Preset[];
@@ -120,8 +129,8 @@ export function collectSetVariableSources(input: {
   /** 複数セットを束ねて扱うとき、使用箇所ラベルの先頭に付けるセット名 */
   setLabel?: string;
 }): VariablePromptSource[] {
-  const { set, overrides, fixedTags, countPresets, posePresets, otherPresets, setLabel } =
-    input;
+  const { set, overrides, countPresets, posePresets, otherPresets, setLabel } = input;
+  const fixedTags = overrides.fixedTags ?? input.fixedTags;
   const prefix = setLabel ? `${setLabel} › ` : "";
   const sources: VariablePromptSource[] = [];
   if (fixedTags)
@@ -142,10 +151,19 @@ export function collectSetVariableSources(input: {
           text: p.prompt,
         });
     };
-    push(countPresets.find((p) => p.id === bp.countPresetId));
-    push(posePresets.find((p) => p.id === bp.posePresetId));
-    for (const oid of bp.otherPresetIds)
-      push(otherPresets.find((p) => p.id === oid));
+    push(
+      overrides.countPreset !== undefined
+        ? overrides.countPreset
+        : countPresets.find((p) => p.id === bp.countPresetId),
+    );
+    push(
+      overrides.posePreset !== undefined
+        ? overrides.posePreset
+        : posePresets.find((p) => p.id === bp.posePresetId),
+    );
+    for (const p of overrides.otherPresets ??
+      bp.otherPresetIds.flatMap((oid) => otherPresets.find((p) => p.id === oid) ?? []))
+      push(p);
     if (bp.additionalPrompt)
       sources.push({
         id: `${set.id}:${bp.id}:additional`,
@@ -175,5 +193,13 @@ export function collectSetVariableSources(input: {
       slot: overrides.scenePreset.type,
       text: overrides.scenePreset.prompt,
     });
+  for (const [i, e] of (overrides.segmentEdits ?? []).entries())
+    if (e.to)
+      sources.push({
+        id: `${set.id}:edit:${i}`,
+        label: `${prefix}断片の編集`,
+        slot: "edit",
+        text: e.to,
+      });
   return sources;
 }

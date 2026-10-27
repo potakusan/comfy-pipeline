@@ -10,5 +10,5 @@ export async function GET(req: NextRequest) {
   const folder = req.nextUrl.searchParams.get("folder") ?? "";
   if (!folder) return NextResponse.json({ error: "Missing folder" }, { status: 400 });
 
-  return NextResponse.json(getSeedPoolInfo(folder));
+  return NextResponse.json(await getSeedPoolInfo(folder));
 }

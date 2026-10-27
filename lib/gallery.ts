@@ -1,4 +1,4 @@
-import type { GenerationSettings, LoraEntry } from "./comfy";
+import type { GenerationRecipe, GenerationSettings, LoraEntry } from "./comfy";
 import type { CoupleControlNet, CoupleRegion } from "./comfy/couple";
 
 /** Which workflow builder produced this image — needed to regenerate it correctly. */
@@ -30,6 +30,8 @@ export interface ImageMetadata {
   bindings?: Record<string, string>;
   /** この画像の生成で行われたランダム抽選の記録(source/picked/options)。 */
   randomChoices?: { source: string; picked: string; options: string[] }[];
+  /** 選択項目ごとの構造化スナップショット(通常モードのみ)。保存済みプリセットからの部分差し替え再生成に使う。 */
+  recipe?: GenerationRecipe;
 }
 
 export interface GalleryFolderInfo {

@@ -9,6 +9,7 @@ import {
   type PromptReplacement,
   collectVariableUsages,
   extractVariableNames,
+  getVariableDef,
   missingRequiredInputs,
 } from "@/lib/comfy";
 import { collectSetVariableSources } from "@/hooks/pipeline/pipeline-prompt-helpers";
@@ -32,9 +33,13 @@ interface VariableInputViewProps {
   baseValues?: VariableBindings;
   /** シード引き継ぎ元の代表バインディング(初期値) */
   seedBindings?: VariableBindings;
+  /** 保存済みレシピからの再現モード。seedBindings の各変数について「前回値を引き継ぐ/再抽選・再入力」を選べる */
+  recipeMode?: boolean;
   onConfirm: (
     variableValues: VariableBindings,
     promptReplacements: PromptReplacement[],
+    /** recipeMode のとき、前回値の固定を反映したこの実行限りの変数定義 */
+    runDefs?: VariableDefs,
   ) => void;
   onBack: () => void;
 }
@@ -56,6 +61,7 @@ export default function VariableInputView({
   onDefsChange,
   baseValues,
   seedBindings,
+  recipeMode = false,
   onConfirm,
   onBack,
 }: VariableInputViewProps) {
@@ -95,6 +101,9 @@ export default function VariableInputView({
     for (const n of names) if (prefill[n] != null) v[n] = prefill[n];
     return v;
   });
+  // recipeMode: 変数ごとに前回値を引き継ぐ(true)か、再抽選/再入力する(false)か
+  const [keep, setKeep] = useState<Record<string, boolean>>({});
+  const isKept = (name: string) => keep[name] ?? true;
   const [replacements, setReplacements] = useState<PromptReplacement[]>([]);
   const [replaceOpen, setReplaceOpen] = useState(false);
 
@@ -104,12 +113,26 @@ export default function VariableInputView({
     inputValues: values,
   });
 
-  const prefilledNames = names.filter((n) => prefill[n] != null);
+  const prefilledNames = names.filter(
+    (n) => prefill[n] != null && (!recipeMode || seedBindings?.[n] == null || isKept(n)),
+  );
 
   const handleConfirm = () => {
     if (missingRequired.length > 0) return;
     const cleaned = replacements.filter((r) => r.from.trim());
-    onConfirm(values, cleaned);
+    if (!recipeMode) {
+      onConfirm(values, cleaned);
+      return;
+    }
+    // random は入力値を無視して毎回抽選されるため、前回値を引き継ぐ変数は fixed に固定する
+    const runDefs: VariableDefs = { ...variableDefs };
+    for (const name of names) {
+      const def = getVariableDef(variableDefs, name);
+      if (def.mode === "random" && seedBindings?.[name] != null && isKept(name)) {
+        runDefs[name] = { ...def, mode: "fixed", value: values[name] ?? seedBindings[name] };
+      }
+    }
+    onConfirm(values, cleaned, runDefs);
   };
 
   if (names.length === 0) {
@@ -150,6 +173,59 @@ export default function VariableInputView({
           }
           missingRequired={missingRequired}
           prefilledNames={prefilledNames}
+          renderExtra={
+            recipeMode
+              ? (name) => {
+                  const prev = seedBindings?.[name];
+                  if (prev == null) return null;
+                  const def = getVariableDef(variableDefs, name);
+                  if (def.mode === "fixed") return null;
+                  const kept = isKept(name);
+                  const toggle = (next: boolean) => {
+                    setKeep((p) => ({ ...p, [name]: next }));
+                    setValues((p) => {
+                      const v = { ...p };
+                      if (next) v[name] = prev;
+                      else delete v[name];
+                      return v;
+                    });
+                  };
+                  return (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1 text-[10px]">
+                        {([true, false] as const).map((k) => (
+                          <button
+                            key={String(k)}
+                            type="button"
+                            onClick={() => toggle(k)}
+                            className={`rounded border px-1.5 py-0.5 transition-colors ${
+                              kept === k
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-border text-muted-foreground hover:border-muted-foreground"
+                            }`}
+                          >
+                            {k ? "前回値を引き継ぐ" : def.mode === "random" ? "再抽選" : "再入力"}
+                          </button>
+                        ))}
+                        <span className="truncate font-mono text-muted-foreground" title={prev}>
+                          前回: {prev || "(空)"}
+                        </span>
+                      </div>
+                      {kept && def.mode === "random" && (
+                        <Input
+                          value={values[name] ?? prev}
+                          onChange={(e) =>
+                            setValues((p) => ({ ...p, [name]: e.target.value }))
+                          }
+                          className="h-7 font-mono text-xs"
+                          title="前回値(編集すると上書き)"
+                        />
+                      )}
+                    </div>
+                  );
+                }
+              : undefined
+          }
         />
 
         <div className="border-t px-3 py-2">

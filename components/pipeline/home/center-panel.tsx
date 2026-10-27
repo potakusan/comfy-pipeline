@@ -6,7 +6,7 @@ import { ResizablePanel } from "@/components/ui/resizable";
 import PreviewPanel from "@/components/pipeline/preview-panel";
 import BatchQueueDialog from "@/components/pipeline/queue/batch-queue-dialog";
 import QuickAddToBatch from "@/components/pipeline/queue/quick-add-to-batch";
-import { type QueueItem, type ReleasedSeed } from "@/lib/comfy";
+import { type QueueItem, type SeedSource } from "@/lib/comfy";
 import { apiFetch } from "@/lib/api-client";
 import { uploadImageToComfyInput } from "@/lib/comfy-upload";
 import type { PipelineHook } from "@/hooks/pipeline/use-pipeline";
@@ -71,21 +71,12 @@ export default function CenterPanel({
   const router = useRouter();
   const searchParams = useSearchParams();
   const seedSourceFolderParam = searchParams.get("seedSourceFolder");
-  const [seedSource, setSeedSource] = useState<{
-    folder: string;
-    seeds: ReleasedSeed[];
-    batchPresetId?: string;
-    bindings?: Record<string, string>;
-  } | null>(null);
+  const [seedSource, setSeedSource] = useState<SeedSource | null>(null);
 
   useEffect(() => {
     if (!seedSourceFolderParam) return;
     let cancelled = false;
-    apiFetch<{
-      seeds: ReleasedSeed[];
-      batchPresetId?: string;
-      bindings?: Record<string, string>;
-    }>(
+    apiFetch<Omit<SeedSource, "folder">>(
       `/api/gallery/seed-pool?folder=${encodeURIComponent(seedSourceFolderParam)}`,
     )
       .then((res) => {
@@ -95,6 +86,8 @@ export default function CenterPanel({
             seeds: res.seeds,
             batchPresetId: res.batchPresetId,
             bindings: res.bindings,
+            recipe: res.recipe,
+            settings: res.settings,
           });
         }
       })

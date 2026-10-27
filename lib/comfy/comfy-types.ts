@@ -73,6 +73,8 @@ export interface QueueItem {
   requestedBatchCount?: number;
   /** 一括キュープリセットから生成された場合のBatchPreset.id */
   batchPresetId?: string;
+  /** 生成時点のBatchPreset全体のスナップショット(レシピ保存用。一括キュー実行時のみ) */
+  batchPresetSnapshot?: BatchPreset;
   /** 設定時、batch番目の生成にはこのプールのseed/upscaleSeedを使う(ランダム生成しない) */
   seedPool?: ReleasedSeed[];
   /** seedPoolの引き継ぎ元フォルダ名(UI表示用) */
@@ -93,6 +95,8 @@ export interface QueueItem {
   variableDefs?: VariableDefs;
   /** 解決後プロンプトへ適用する素朴な文字列置換(引き継ぎ時のエスケープハッチ)。 */
   promptReplacements?: PromptReplacement[];
+  /** 変数解決前のプロンプトに適用する断片編集(保存済みレシピからの再現時)。 */
+  segmentEdits?: PromptReplacement[];
   /** 指定時は img2img(この画像を初期latentに使い、denoise はこの値)。 */
   imageRef?: ImageRef;
   /** 指定時は img2img。生成バッチごとにこのプールからランダムで1枚を下絵にする(imageRef より優先)。 */
@@ -188,6 +192,16 @@ export interface BatchRunOverrides {
   /** 過去の良品率(release率)から生成枚数を自動的に切り詰めるか(#58)。
    * 既定オフ。オンのときのみ /api/gallery/preset-stats を取得する。 */
   applyReleaseRateAdjustment?: boolean;
+  /** 指定時(null含む)は BatchPreset の ID 参照ではなくこのプリセットを使う(保存済みレシピからの再現用)。 */
+  countPreset?: Preset | null;
+  posePreset?: Preset | null;
+  otherPresets?: Preset[];
+  /** 指定時は現在の固定タグではなくこの値を使う。 */
+  fixedTags?: string;
+  /** 保存済みレシピの断片への編集(置換前→置換後。to が空なら削除)。変数解決前のプロンプトに適用する。 */
+  segmentEdits?: PromptReplacement[];
+  /** この実行限りの変数定義(グローバル定義の上に重ねる)。保存済みレシピの定義スナップショットや引き継ぎ値の固定に使う。 */
+  variableDefs?: VariableDefs;
 }
 
 /** 販売用選択画像から引き継ぐ、1枚分のseed情報 */

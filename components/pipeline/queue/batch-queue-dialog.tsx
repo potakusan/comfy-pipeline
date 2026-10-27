@@ -7,11 +7,12 @@ import {
   type LoraEntry,
   type Preset,
   type GenerationSettings,
-  type ReleasedSeed,
+  type SeedSource,
   type VariableDefs,
   type VariableBindings,
   type PromptReplacement,
   extractVariableNames,
+  batchPresetFromRecipe,
 } from "@/lib/comfy";
 import { collectSetVariableSources } from "@/hooks/pipeline/pipeline-prompt-helpers";
 import {
@@ -65,6 +66,9 @@ function bulkUsesVariables(
   );
 }
 
+/** 保存済みレシピから復元した実行セットのID接頭辞 */
+const RECIPE_SET_PREFIX = "recipe:";
+
 interface BatchQueueDialogProps {
   batchPresetSets: BatchPresetSet[];
   onSaveSet: (set: BatchPresetSet) => void;
@@ -89,12 +93,7 @@ interface BatchQueueDialogProps {
   currentSettings: GenerationSettings;
   /** ギャラリーから「シード引き継ぎ元フォルダ」付きで遷移してきた場合に設定される。
    * 設定されるとダイアログを自動的に開く。 */
-  seedSource?: {
-    folder: string;
-    seeds: ReleasedSeed[];
-    batchPresetId?: string;
-    bindings?: VariableBindings;
-  } | null;
+  seedSource?: SeedSource | null;
   /** seedSourceを読み取り終えたことを親に伝える(URLクエリパラメータのクリア用) */
   onConsumeSeedSource?: () => void;
   /** `%%name%%` 変数の定義(グローバル)。変数入力ステップで参照・編集する。 */
@@ -145,6 +144,8 @@ export default function BatchQueueDialog({
   const [pendingRunSet, setPendingRunSet] = useState<BatchPresetSet | null>(null);
   const [pendingRunOverrides, setPendingRunOverrides] =
     useState<BatchRunOverrides | null>(null);
+  // 保存済みレシピからの再現時だけ使う、この実行限りの変数定義(グローバル定義は書き換えない)
+  const [runVariableDefs, setRunVariableDefs] = useState<VariableDefs | null>(null);
   const [pendingBulkRunSets, setPendingBulkRunSets] = useState<BatchPresetSet[]>([]);
   const [pendingBulkRunEntries, setPendingBulkRunEntries] = useState<
     { set: BatchPresetSet; overrides: BatchRunOverrides }[]
@@ -161,7 +162,23 @@ export default function BatchQueueDialog({
   const [autoSelectedFolder, setAutoSelectedFolder] = useState<string | null>(null);
   if (seedSource && seedSource.folder !== autoSelectedFolder) {
     setAutoSelectedFolder(seedSource.folder);
+    // 保存済みレシピがあれば、元セットの有無に関わらずレシピから実行セットを復元する
+    // (ライブラリ側でプリセット・セットが編集/削除されていても再現できるようにするため)。
+    const recipeSet: BatchPresetSet | null = seedSource.recipe
+      ? {
+          id: `${RECIPE_SET_PREFIX}${seedSource.folder}`,
+          name: `保存済みレシピ(${seedSource.folder})`,
+          presets: [
+            batchPresetFromRecipe(seedSource.recipe, {
+              id: `${RECIPE_SET_PREFIX}${seedSource.folder}`,
+              name: seedSource.folder,
+              batchCount: Math.max(1, seedSource.seeds.length),
+            }),
+          ],
+        }
+      : null;
     const matchedSet =
+      recipeSet ??
       (seedSource.batchPresetId
         ? batchPresetSets.find((set) =>
             set.presets.some((p) => p.id === seedSource.batchPresetId),
@@ -194,6 +211,7 @@ export default function BatchQueueDialog({
     setPendingEditSet(null);
     setPendingRunSet(null);
     setPendingRunOverrides(null);
+    setRunVariableDefs(null);
     setPendingBulkRunSets([]);
     setPendingBulkRunEntries([]);
   }
@@ -247,12 +265,14 @@ export default function BatchQueueDialog({
   function handleVariableInputConfirm(
     variableValues: VariableBindings,
     promptReplacements: PromptReplacement[],
+    runDefs?: VariableDefs,
   ) {
     if (!pendingRunSet || !pendingRunOverrides) return;
     onRunPresets(pendingRunSet.presets, {
       ...pendingRunOverrides,
       variableValues,
       promptReplacements,
+      variableDefs: runDefs,
     });
     setOpen(false);
     backToList();
@@ -287,6 +307,11 @@ export default function BatchQueueDialog({
     setOpen(false);
     backToList();
   }
+
+  // 保存済みレシピからの再現モード(run-setup / variable-input でレシピ由来の初期値・差し替えUIを出す)
+  const activeRecipe = pendingRunSet?.id.startsWith(RECIPE_SET_PREFIX)
+    ? seedSource?.recipe
+    : undefined;
 
   const dialogTitle =
     view === "list"
@@ -379,7 +404,11 @@ export default function BatchQueueDialog({
             physicalPresets={physicalPresets}
             scenePresets={scenePresets}
             presets={pendingRunSet.presets}
-            initialSettings={currentSettings}
+            initialSettings={activeRecipe && seedSource?.settings ? seedSource.settings : currentSettings}
+            recipe={activeRecipe}
+            countPresets={countPresets}
+            posePresets={posePresets}
+            otherPresets={otherPresets}
             seedSource={seedSource}
             onConfirm={handleRunConfirm}
             onCancel={backToList}
@@ -394,10 +423,15 @@ export default function BatchQueueDialog({
             countPresets={countPresets}
             posePresets={posePresets}
             otherPresets={otherPresets}
-            variableDefs={variableDefs}
-            onDefsChange={onVariableDefsChange}
+            variableDefs={
+              activeRecipe
+                ? (runVariableDefs ?? { ...variableDefs, ...activeRecipe.variableDefs })
+                : variableDefs
+            }
+            onDefsChange={activeRecipe ? setRunVariableDefs : onVariableDefsChange}
             baseValues={variableInputValues}
             seedBindings={seedSource?.bindings}
+            recipeMode={!!activeRecipe}
             onConfirm={handleVariableInputConfirm}
             onBack={() => setView("run-setup")}
           />

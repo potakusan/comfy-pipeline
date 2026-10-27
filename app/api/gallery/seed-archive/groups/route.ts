@@ -13,7 +13,7 @@ export interface SeedArchiveGroup {
  *  元フォルダが既に削除済みでも一覧に残り続ける。
  */
 export async function GET() {
-  const entries = listArchivedSeeds();
+  const entries = await listArchivedSeeds();
   const groups = new Map<string, SeedArchiveGroup>();
 
   for (const e of entries) {

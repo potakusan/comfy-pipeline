@@ -1,5 +1,5 @@
 import { listArchivedSeeds } from "./gallery-seed-archive";
-import type { ReleasedSeed } from "@/lib/comfy";
+import type { GenerationRecipe, GenerationSettings, ReleasedSeed } from "@/lib/comfy";
 
 export interface SeedPoolInfo {
   seeds: ReleasedSeed[];
@@ -9,6 +9,10 @@ export interface SeedPoolInfo {
   /** このグループを代表する `%%name%%` 変数の解決値(最新のアーカイブエントリのもの)。
    * 引き継ぎ時、変数入力ステップの初期値として使う。 */
   bindings?: Record<string, string>;
+  /** このグループで最新のレシピ付きエントリのレシピ(保存済みレシピからの部分差し替え再生成の土台)。 */
+  recipe?: GenerationRecipe;
+  /** 同エントリの生成設定(チェックポイント・サイズ等。seed は各 seeds 側を使う)。 */
+  settings?: GenerationSettings;
 }
 
 /**
@@ -17,9 +21,9 @@ export interface SeedPoolInfo {
  * 削除済みでも、販売用選択時にアーカイブ済みであれば取得できる
  * (lib/server/gallery-seed-archive.ts参照)。
  */
-export function getSeedPoolInfo(sourceFolder: string): SeedPoolInfo {
+export async function getSeedPoolInfo(sourceFolder: string): Promise<SeedPoolInfo> {
   // listArchivedSeeds() は archivedAt 降順。フィルタしても順序は保たれる。
-  const entries = listArchivedSeeds().filter((e) => e.sourceFolder === sourceFolder);
+  const entries = (await listArchivedSeeds()).filter((e) => e.sourceFolder === sourceFolder);
 
   const seeds: ReleasedSeed[] = entries.map((e) => ({
     id: e.id,
@@ -47,5 +51,13 @@ export function getSeedPoolInfo(sourceFolder: string): SeedPoolInfo {
     (e) => e.bindings && Object.keys(e.bindings).length > 0,
   )?.bindings;
 
-  return { seeds, batchPresetId, bindings };
+  const withRecipe = entries.find((e) => e.metadata?.recipe);
+
+  return {
+    seeds,
+    batchPresetId,
+    bindings,
+    recipe: withRecipe?.metadata?.recipe,
+    settings: withRecipe?.metadata?.settings,
+  };
 }
