@@ -14,6 +14,7 @@ import {
 } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import SamplerSettings from "@/components/pipeline/sampler-settings";
 import PresetI2iToggles from "@/components/pipeline/queue/preset-i2i-toggles";
 import { Textarea } from "@/components/ui/textarea";
@@ -158,6 +159,11 @@ export default function RunSetupView({
   // 断片編集: index → 編集後テキスト(null=削除)。未編集の断片はキー無し
   const [editedSegments, setEditedSegments] = useState<Record<number, string | null>>({});
   const [segmentsOpen, setSegmentsOpen] = useState(false);
+  // レシピ再現はプロンプトのみを使うt2iが基本。元画像のseed固定は任意(既定オフ)
+  const [inheritSeeds, setInheritSeeds] = useState(false);
+  const [batchCount, setBatchCount] = useState(
+    () => recipe?.batchPreset?.batchCount ?? (seedSource?.seeds.length || 1),
+  );
   const [runSettings, setRunSettings] = useState<GenerationSettings>(initialSettings);
   const [samplerOpen, setSamplerOpen] = useState(false);
   const [i2iEnabledIds, setI2iEnabledIds] = useState<string[]>([]);
@@ -169,6 +175,9 @@ export default function RunSetupView({
     setSelectedPhysicalIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
+
+  const usesSeedPool =
+    !!seedSource && seedSource.seeds.length > 0 && (!recipe || inheritSeeds);
 
   const handleConfirm = () => {
     onConfirm({
@@ -186,8 +195,9 @@ export default function RunSetupView({
           }
         : {}),
       settings: runSettings,
-      seedPool: seedSource && seedSource.seeds.length > 0 ? seedSource.seeds : undefined,
-      seedSourceFolder: seedSource?.folder,
+      seedPool: usesSeedPool ? seedSource.seeds : undefined,
+      seedSourceFolder: usesSeedPool ? seedSource.folder : undefined,
+      ...(recipe ? { batchCount: Math.max(1, Math.floor(batchCount) || 1) } : {}),
       i2iEnabledPresetIds: i2iEnabledIds,
       applyReleaseRateAdjustment,
     });
@@ -199,7 +209,40 @@ export default function RunSetupView({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <div className="space-y-4">
-          {seedSource && (
+          {recipe && seedSource && (
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-2">
+              <p className="text-[10px] text-muted-foreground">
+                保存済みレシピ「{seedSource.folder}」のプロンプト構成を使って、新しいseedで生成します。
+              </p>
+              <label className="flex items-center gap-2 text-xs">
+                <span className="font-semibold">生成枚数</span>
+                <Input
+                  type="number"
+                  min={1}
+                  value={batchCount}
+                  onChange={(e) => setBatchCount(Number(e.target.value))}
+                  className="h-7 w-20 text-xs"
+                />
+                <span className="text-[10px] text-muted-foreground">(プリセットごと)</span>
+              </label>
+              {seedSource.seeds.length > 0 && (
+                <label className="flex cursor-pointer items-start gap-2 text-xs">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={inheritSeeds}
+                    onCheckedChange={(v) => setInheritSeeds(v === true)}
+                  />
+                  <span>
+                    <span className="font-semibold">元画像のseedも引き継ぐ</span>
+                    <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                      オンにすると最大{seedSource.seeds.length}枚に切り詰め、元画像と同じseedで生成します(構図の傾向が似ます)。
+                    </span>
+                  </span>
+                </label>
+              )}
+            </div>
+          )}
+          {!recipe && seedSource && (
             <div className="flex items-start gap-1.5 rounded-lg border bg-muted/30 p-2 text-[10px] text-muted-foreground">
               <Sprout className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               {seedPoolEmpty ? (

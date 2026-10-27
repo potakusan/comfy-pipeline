@@ -884,8 +884,9 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
         // 良品率による調整(#58)とシード引き継ぎのプールサイズ切り詰め(#59)は独立した
         // 機能だが、両方指定されている場合は良品率調整後の枚数をさらにプールサイズで
         // 上限クランプする(どちらの上限も守るため)。
+        const requestedCount = overrides.batchCount ?? preset.batchCount;
         const adjustedBatchCount = computeAdjustedBatchCount(
-          preset.batchCount,
+          requestedCount,
           presetStats[preset.id],
         );
         // シード引き継ぎ元が指定されている場合、生成枚数をプールサイズに切り詰め、
@@ -908,7 +909,7 @@ export function usePipelineQueue(deps: PipelineQueueDeps) {
           fixedTags: presetFixedTags,
           batchCount: seedPoolBatchCount,
           requestedBatchCount:
-            seedPoolBatchCount !== preset.batchCount ? preset.batchCount : undefined,
+            seedPoolBatchCount !== requestedCount ? requestedCount : undefined,
           batchPresetId: preset.id,
           batchPresetSnapshot: preset,
           seedPool: overrides.seedPool?.slice(0, seedPoolBatchCount),

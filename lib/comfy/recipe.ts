@@ -177,7 +177,7 @@ export function buildGenerationRecipe(input: {
 }
 
 /**
- * 保存済みレシピから実行用の BatchPreset を復元する。元の BatchPreset スナップショットがあれば
+ * 保存済みレシピから実行用の BatchPreset を復元する(下絵は含めない)。元の BatchPreset スナップショットがあれば
  * それを土台にし(ID・名前・枚数を維持して良品率集計と出力名を揃える)、スロットの選択・追加プロンプト・
  * 固定タグ等は常にレシピ側の値で上書きする。
  */
@@ -200,10 +200,7 @@ export function batchPresetFromRecipe(
     variationTags: [...recipe.variationTags],
     batchCount: base?.batchCount ?? fallback.batchCount,
     variableValues: { ...recipe.variableInputValues },
-    imageRef: recipe.imageRef,
-    imageRefPool: recipe.imageRefPool
-      ? { ...recipe.imageRefPool, names: [] }
-      : undefined,
+    // 再現はプロンプトのみ(t2i)。下絵(imageRef / 構図プール)は復元しない
   };
 }
 

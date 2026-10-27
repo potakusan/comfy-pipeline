@@ -192,6 +192,8 @@ export interface BatchRunOverrides {
   /** 過去の良品率(release率)から生成枚数を自動的に切り詰めるか(#58)。
    * 既定オフ。オンのときのみ /api/gallery/preset-stats を取得する。 */
   applyReleaseRateAdjustment?: boolean;
+  /** 指定時は BatchPreset.batchCount の代わりにこの枚数を使う(保存済みレシピからの再現用)。 */
+  batchCount?: number;
   /** 指定時(null含む)は BatchPreset の ID 参照ではなくこのプリセットを使う(保存済みレシピからの再現用)。 */
   countPreset?: Preset | null;
   posePreset?: Preset | null;
