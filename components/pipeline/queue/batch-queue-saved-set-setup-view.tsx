@@ -5,9 +5,11 @@ import {
   type BatchRunOverrides,
   type GenerationSettings,
   type LoraEntry,
+  type Preset,
   type PromptReplacement,
   type SeedRecipeGroup,
   buildRecipeSet,
+  mergePresetsWithSnapshot,
 } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -28,6 +30,7 @@ interface SavedSetRunSetupViewProps {
   folder: string;
   groups: SeedRecipeGroup[];
   variableLoras: LoraEntry[];
+  physicalPresets: Preset[];
   initialSettings: GenerationSettings;
   onConfirm: (setup: SavedSetRunSetup) => void;
   onCancel: () => void;
@@ -66,6 +69,7 @@ export default function SavedSetRunSetupView({
   folder,
   groups,
   variableLoras,
+  physicalPresets,
   initialSettings,
   onConfirm,
   onCancel,
@@ -92,6 +96,22 @@ export default function SavedSetRunSetupView({
   }, [variableLoras, originalLoras]);
   // null=元のまま / number=loraChoices の index / "none"=可変LoRAなし
   const [loraChoice, setLoraChoice] = useState<number | "none" | null>(null);
+
+  // 身体的特徴: null=各レシピのまま / 配列=選んだものを全プリセットへ共通適用
+  const physicalChoices = useMemo(
+    () =>
+      mergePresetsWithSnapshot(
+        physicalPresets,
+        groups.flatMap((g) => g.recipe.presets?.selectedPhysicals ?? []),
+      ),
+    [physicalPresets, groups],
+  );
+  const [physicalIds, setPhysicalIds] = useState<string[] | null>(null);
+  const togglePhysical = (id: string) =>
+    setPhysicalIds((prev) => {
+      const cur = prev ?? [];
+      return cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    });
 
   const [countText, setCountText] = useState("");
   const [keepVars, setKeepVars] = useState(true);
@@ -140,6 +160,8 @@ export default function SavedSetRunSetupView({
     for (const id of Object.keys(perPreset)) {
       if (loraChoice === "none") perPreset[id].variableLora = null;
       else if (loraChoice !== null) perPreset[id].variableLora = loraChoices[loraChoice];
+      if (physicalIds !== null)
+        perPreset[id].physicalPresets = physicalChoices.filter((p) => physicalIds.includes(p.id));
       if (countText.trim() && count >= 1) perPreset[id].batchCount = count;
     }
     onConfirm({
@@ -235,6 +257,28 @@ export default function SavedSetRunSetupView({
             </div>
             <p className="mt-1 text-[10px] text-muted-foreground">
               差し替えるとトリガーワードも新しいLoRAのものに置き換わります。キャラ固有の特徴を別プロンプトで書いている場合は下の断片編集で直してください。
+            </p>
+          </div>
+
+          {/* 身体的特徴 */}
+          <div>
+            <p className="mb-1.5 text-xs font-semibold">身体的特徴</p>
+            <div className="flex flex-wrap gap-1">
+              <button onClick={() => setPhysicalIds(null)} className={chip(physicalIds === null)}>
+                元のまま
+              </button>
+              {physicalChoices.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => togglePhysical(p.id)}
+                  className={chip(physicalIds?.includes(p.id) ?? false)}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              選ぶと全プリセットで共通に差し替わります(複数選択可。選択を全て外すと身体的特徴なし)。
             </p>
           </div>
 

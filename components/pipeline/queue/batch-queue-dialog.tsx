@@ -492,6 +492,7 @@ export default function BatchQueueDialog({
             folder={seedSource.folder}
             groups={multiRecipes}
             variableLoras={variableLoras}
+            physicalPresets={physicalPresets}
             initialSettings={currentSettings}
             onConfirm={handleSavedSetConfirm}
             onCancel={backToList}
