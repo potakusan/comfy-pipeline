@@ -8,6 +8,7 @@ import {
   applySegmentEdits,
   applySegmentEditsToSegments,
   buildRecipeSet,
+  buildMoreGenerationRun,
   resolvePresetOverrides,
   type SeedRecipeGroup,
   type BatchRunOverrides,
@@ -346,5 +347,18 @@ describe("buildRecipeSet / resolvePresetOverrides", () => {
     expect(merged.fixedTags).toBe("");
     expect("batchCount" in merged && merged.batchCount !== undefined).toBe(false);
     expect(resolvePresetOverrides(base, "none")).toBe(base);
+  });
+  it("builds an extra-generation run that rerolls seeds and keeps the recipe's slots", () => {
+    const g = group("k1", "bgA");
+    g.settings = { seed: 5, randomizeSeed: false } as SeedRecipeGroup["settings"];
+    g.bindings = { outfit: "dress" };
+    const run = buildMoreGenerationRun(g, 6)!;
+    const id = run.presets[0].id;
+    expect(run.overrides.settings.randomizeSeed).toBe(true);
+    expect(run.overrides.perPreset?.[id].batchCount).toBe(6);
+    expect(run.overrides.perPreset?.[id].scenePreset?.id).toBe("bgA");
+    expect(run.overrides.variableValues).toEqual({ outfit: "dress" });
+    expect(run.overrides.seedPool).toBeUndefined();
+    expect(buildMoreGenerationRun({ ...g, settings: undefined }, 3)).toBeNull();
   });
 });

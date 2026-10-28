@@ -340,3 +340,38 @@ export function buildRecipeSet(
     groups,
   };
 }
+
+/** ギャラリーの「あとn枚」がパイプライン画面へ渡す、レシピ1件分の追加生成リクエスト */
+export interface MoreGenerationRequest {
+  count: number;
+  group: SeedRecipeGroup;
+}
+
+/**
+ * 保存済みレシピと同じプリセット構成で、ランダム部分(seed・ランダム抽選プリセット・追加プロンプトのランダム行・
+ * ランダム変数)を引き直して count 枚追加生成するための実行内容を作る。入力モードの変数は前回値を引き継ぐ。
+ */
+export function buildMoreGenerationRun(
+  group: SeedRecipeGroup,
+  count: number,
+): { presets: BatchPreset[]; overrides: BatchRunOverrides } | null {
+  if (!group.settings) return null;
+  const { set, perPreset } = buildRecipeSet(group.key, [group]);
+  const id = set.presets[0].id;
+  perPreset[id].batchCount = Math.max(1, Math.floor(count) || 1);
+  return {
+    presets: set.presets,
+    overrides: {
+      variableLora: null,
+      physicalPresets: [],
+      scenePreset: null,
+      fixedTags: "",
+      settings: { ...group.settings, randomizeSeed: true },
+      perPreset,
+      variableValues: group.bindings,
+      variableDefs: group.recipe.variableDefs,
+      batchSet: { id: set.id, name: group.name },
+      i2iEnabledPresetIds: [],
+    },
+  };
+}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -33,6 +35,8 @@ import GalleryDeleteConfirmDialog from "@/components/gallery/gallery-delete-conf
 import GalleryMosaicModal from "@/components/gallery/gallery-mosaic-modal";
 import I2iPoolManagerDialog from "@/components/pipeline/prompt/i2i-pool-manager-dialog";
 import { getPoseGroup, type GalleryImageEntry } from "@/lib/gallery";
+import type { MoreGenerationRequest } from "@/lib/comfy";
+import { MORE_GENERATION_STORAGE_KEY } from "@/lib/gallery-more-generation";
 
 function imageUrl(path: string) {
   return `/api/comfy/output/image?path=${encodeURIComponent(path)}`;
@@ -40,6 +44,7 @@ function imageUrl(path: string) {
 
 export default function GalleryPage() {
   const gallery = useGallery();
+  const router = useRouter();
   const [deleteTarget, setDeleteTarget] = useState<GalleryImageEntry | null>(null);
   const [i2iSourcePath, setI2iSourcePath] = useState<string | null>(null);
   const [mosaicModalOpen, setMosaicModalOpen] = useState(false);
@@ -71,6 +76,39 @@ export default function GalleryPage() {
   const handleSelectPose = (pose: string) => {
     const idx = gallery.visibleImages.findIndex((i) => getPoseGroup(i.filename) === pose);
     if (idx >= 0) gallery.setSelectedIndex(idx);
+  };
+
+  // そのポーズ(プリセット)の最新レシピを使い、ランダム部分を引き直して追加生成する(キューはパイプライン画面側)
+  const handleGenerateMore = (pose: string, count: number) => {
+    const latest = gallery.images
+      .filter((i) => getPoseGroup(i.filename) === pose && i.meta?.recipe)
+      .sort((a, b) => (b.meta?.createdAt ?? 0) - (a.meta?.createdAt ?? 0))[0];
+    const meta = latest?.meta;
+    if (!meta?.recipe || !meta.settings) {
+      toast.error("このポーズにはレシピが保存された画像がありません");
+      return;
+    }
+    const request: MoreGenerationRequest = {
+      count,
+      group: {
+        key: pose,
+        batchPresetId: meta.batchPresetId,
+        name: meta.recipe.batchPreset?.name || pose,
+        queueLabel: meta.queueLabel,
+        batchRun: meta.batchRun,
+        seeds: [],
+        recipe: meta.recipe,
+        settings: meta.settings,
+        bindings: meta.bindings,
+      },
+    };
+    try {
+      sessionStorage.setItem(MORE_GENERATION_STORAGE_KEY, JSON.stringify(request));
+    } catch {
+      toast.error("追加生成の情報を引き継げませんでした");
+      return;
+    }
+    router.push("/?runMore=1");
   };
 
   // Arrow keys = prev/next image in the current (possibly filtered) set.
@@ -342,6 +380,7 @@ export default function GalleryPage() {
                   stats={poseStats}
                   activePose={activePose}
                   onSelectPose={handleSelectPose}
+                  onGenerateMore={handleGenerateMore}
                 />
               </div>
             </ResizablePanel>
