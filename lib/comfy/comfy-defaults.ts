@@ -100,14 +100,24 @@ export const SCHEDULER_OPTIONS = [
   "ddim_uniform",
 ];
 
-/** Anima(Cosmos-Predict2系)の推奨設定。「既定値を適用」で現在の設定へ上書きする。 */
+/** SDXL系のサンプラー既定値。サイズは系統によらず変えない。 */
+export const SDXL_DEFAULTS: Partial<GenerationSettings> = {
+  modelFamily: "sdxl",
+  steps: 20,
+  cfg: 6,
+  sampler: "euler_ancestral",
+  scheduler: "karras",
+  denoise: 0.66,
+};
+
+/** Anima(Cosmos-Predict2系)の推奨設定。系統を切り替えたときと「既定値を適用」で現在の設定へ上書きする。 */
 export const ANIMA_DEFAULTS: Partial<GenerationSettings> = {
   modelFamily: "anima",
   unet: "anima-base-v1.0.safetensors",
   textEncoder: "qwen_3_06b_base.safetensors",
   vae: "qwen_image_vae.safetensors",
-  width: 1024,
-  height: 1024,
+  width: 960,
+  height: 1600,
   steps: 16,
   cfg: 4,
   sampler: "er_sde",

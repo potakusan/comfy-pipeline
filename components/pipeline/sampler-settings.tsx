@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   ANIMA_DEFAULTS,
+  SDXL_DEFAULTS,
   type GenerationSettings,
   SAMPLER_OPTIONS,
   SCHEDULER_OPTIONS,
@@ -20,7 +21,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RefreshCw, Wand2 } from "lucide-react";
-import { DEFAULT_SETTINGS } from "@/lib/config";
 
 interface CheckpointItem {
   model_name: string;
@@ -47,6 +47,21 @@ function useCheckpoints() {
   }, []);
 
   return { checkpoints, loading };
+}
+
+/** 系統の既定値(サンプラー等)を適用する。Animaのモデルファイル名は未設定のときだけ補う。 */
+function applyFamilyDefaults(
+  settings: GenerationSettings,
+  family: "sdxl" | "anima",
+): GenerationSettings {
+  if (family === "sdxl") return { ...settings, ...SDXL_DEFAULTS };
+  return {
+    ...settings,
+    ...ANIMA_DEFAULTS,
+    unet: settings.unet || ANIMA_DEFAULTS.unet,
+    textEncoder: settings.textEncoder || ANIMA_DEFAULTS.textEncoder,
+    vae: settings.vae || ANIMA_DEFAULTS.vae,
+  };
 }
 
 interface LoaderModels {
@@ -214,15 +229,7 @@ export default function SamplerSettings({
             <button
               key={f}
               type="button"
-              onClick={() =>
-                onChange({
-                  ...settings,
-                  modelFamily: f,
-                  unet: settings.unet || ANIMA_DEFAULTS.unet,
-                  textEncoder: settings.textEncoder || ANIMA_DEFAULTS.textEncoder,
-                  vae: settings.vae || ANIMA_DEFAULTS.vae,
-                })
-              }
+              onClick={() => f !== (settings.modelFamily ?? "sdxl") && onChange(applyFamilyDefaults(settings, f))}
               className={`rounded px-2 py-0.5 text-[10px] border transition-colors ${
                 (settings.modelFamily ?? "sdxl") === f
                   ? "border-primary bg-primary text-primary-foreground"
@@ -236,22 +243,7 @@ export default function SamplerSettings({
             variant="outline"
             size="sm"
             className="ml-auto h-6 px-2 text-[10px]"
-            onClick={() =>
-              onChange(
-                isAnima
-                  ? { ...settings, ...ANIMA_DEFAULTS }
-                  : {
-                      ...settings,
-                      width: DEFAULT_SETTINGS.width,
-                      height: DEFAULT_SETTINGS.height,
-                      steps: DEFAULT_SETTINGS.steps,
-                      cfg: DEFAULT_SETTINGS.cfg,
-                      sampler: DEFAULT_SETTINGS.sampler,
-                      scheduler: DEFAULT_SETTINGS.scheduler,
-                      denoise: DEFAULT_SETTINGS.denoise,
-                    },
-              )
-            }
+            onClick={() => onChange(applyFamilyDefaults(settings, isAnima ? "anima" : "sdxl"))}
             title="この系統の推奨サイズ・ステップ・CFG・サンプラーに設定を上書きする"
           >
             既定値を適用
