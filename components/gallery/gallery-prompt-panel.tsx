@@ -122,7 +122,9 @@ export default function GalleryPromptPanel({
           <p className="mb-1 font-medium text-muted-foreground">サンプラー設定</p>
           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 rounded bg-muted/30 p-2 font-mono text-[10px]">
             {[
-              ["チェックポイント", meta.settings.checkpoint],
+              meta.settings.modelFamily === "anima"
+                ? ["UNet", meta.settings.unet]
+                : ["チェックポイント", meta.settings.checkpoint],
               ["サイズ", `${meta.settings.width}×${meta.settings.height}`],
               ["ステップ", meta.settings.steps],
               ["CFG", meta.settings.cfg],
