@@ -1,7 +1,7 @@
 "use client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type TagFilterState = "include" | "exclude";
@@ -14,11 +14,25 @@ interface Props {
   onClear: () => void;
   /** 指定時、各タグに「全画像から削除」の×ボタンを出す */
   onRemove?: (tag: string, count: number) => void;
+  /** 指定時、選択中(include)のタグが1つ以上あると「選択中のタグを全画像から削除」ボタンを出す */
+  onRemoveSelected?: (tags: string[]) => void;
 }
 
 /** クリックで neutral -> include -> exclude -> neutral と3状態を巡回するタグ一覧。 */
-export default function DatasetTagFilter({ tagCounts, filters, onToggle, onHover, onClear, onRemove }: Props) {
+export default function DatasetTagFilter({
+  tagCounts,
+  filters,
+  onToggle,
+  onHover,
+  onClear,
+  onRemove,
+  onRemoveSelected,
+}: Props) {
   const hasFilters = Object.keys(filters).length > 0;
+  const existing = new Set(tagCounts.map((t) => t.tag));
+  const selectedTags = Object.entries(filters)
+    .filter(([tag, state]) => state === "include" && existing.has(tag))
+    .map(([tag]) => tag);
   if (tagCounts.length === 0 && !hasFilters) return null;
 
   return (
@@ -54,6 +68,17 @@ export default function DatasetTagFilter({ tagCounts, filters, onToggle, onHover
           </Badge>
         );
       })}
+      {onRemoveSelected && selectedTags.length > 0 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-5 gap-1 px-1.5 text-[10px] text-destructive hover:text-destructive"
+          onClick={() => onRemoveSelected(selectedTags)}
+        >
+          <Trash2 className="h-2.5 w-2.5" />
+          選択中の{selectedTags.length}個を全画像から削除
+        </Button>
+      )}
       {hasFilters && (
         <Button
           variant="ghost"
