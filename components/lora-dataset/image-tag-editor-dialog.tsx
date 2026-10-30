@@ -103,8 +103,9 @@ export default function ImageTagEditorDialog({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <img
-            src={`/api/lora-dataset/raw?folder=${encodeURIComponent(folder)}&id=${image.id}`}
+            src={`/api/lora-dataset/raw?folder=${encodeURIComponent(folder)}&id=${image.id}&w=800`}
             alt={`#${image.id}`}
+            decoding="async"
             className="w-full rounded-md border object-contain"
           />
 

@@ -51,8 +51,10 @@ export default function DatasetImageGrid({
               title={selectionMode ? `#${image.id} を選択` : `#${image.id} を編集`}
             >
               <img
-                src={`/api/lora-dataset/raw?folder=${encodeURIComponent(folder)}&id=${image.id}`}
+                src={`/api/lora-dataset/raw?folder=${encodeURIComponent(folder)}&id=${image.id}&w=320`}
                 alt={`#${image.id}`}
+                loading="lazy"
+                decoding="async"
                 className={cn("h-full w-full object-cover", selectionMode && selected && "opacity-80")}
               />
             </button>
