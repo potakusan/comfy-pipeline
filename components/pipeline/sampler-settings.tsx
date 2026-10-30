@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import {
+  ANIMA_DEFAULTS,
   type GenerationSettings,
   SAMPLER_OPTIONS,
   SCHEDULER_OPTIONS,
@@ -19,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RefreshCw, Wand2 } from "lucide-react";
+import { DEFAULT_SETTINGS } from "@/lib/config";
 
 interface CheckpointItem {
   model_name: string;
@@ -45,6 +47,60 @@ function useCheckpoints() {
   }, []);
 
   return { checkpoints, loading };
+}
+
+interface LoaderModels {
+  unets: string[];
+  textEncoders: string[];
+  vaes: string[];
+}
+
+function useLoaderModels(enabled: boolean) {
+  const [models, setModels] = useState<LoaderModels>({ unets: [], textEncoders: [], vaes: [] });
+
+  useEffect(() => {
+    if (!enabled) return;
+    fetch("/api/comfy/loader-models")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.unets) setModels(data);
+      })
+      .catch(() => {});
+  }, [enabled]);
+
+  return models;
+}
+
+/** 候補が取れればセレクト、取れなければ手入力にする */
+function ModelField({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+}) {
+  const list = value && !options.includes(value) ? [value, ...options] : options;
+  if (options.length === 0) {
+    return (
+      <Input value={value} onChange={(e) => onChange(e.target.value)} className="h-7 text-xs" />
+    );
+  }
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="h-7 text-xs">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {list.map((m) => (
+          <SelectItem key={m} value={m} className="text-xs">
+            {m}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
 
 interface UpscalerItem {
@@ -141,7 +197,9 @@ export default function SamplerSettings({
     value: GenerationSettings[K],
   ) => onChange({ ...settings, [key]: value });
 
+  const isAnima = settings.modelFamily === "anima";
   const { checkpoints, loading: ckptLoading } = useCheckpoints();
+  const loaderModels = useLoaderModels(isAnima);
   const {
     upscalers,
     loading: upscaleLoading,
@@ -150,6 +208,84 @@ export default function SamplerSettings({
 
   return (
     <div className="space-y-2.5 text-sm">
+      <Row label="モデル系統">
+        <div className="flex gap-1">
+          {(["sdxl", "anima"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() =>
+                onChange({
+                  ...settings,
+                  modelFamily: f,
+                  unet: settings.unet || ANIMA_DEFAULTS.unet,
+                  textEncoder: settings.textEncoder || ANIMA_DEFAULTS.textEncoder,
+                  vae: settings.vae || ANIMA_DEFAULTS.vae,
+                })
+              }
+              className={`rounded px-2 py-0.5 text-[10px] border transition-colors ${
+                (settings.modelFamily ?? "sdxl") === f
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border hover:border-muted-foreground"
+              }`}
+            >
+              {f === "sdxl" ? "SDXL" : "Anima"}
+            </button>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto h-6 px-2 text-[10px]"
+            onClick={() =>
+              onChange(
+                isAnima
+                  ? { ...settings, ...ANIMA_DEFAULTS }
+                  : {
+                      ...settings,
+                      width: DEFAULT_SETTINGS.width,
+                      height: DEFAULT_SETTINGS.height,
+                      steps: DEFAULT_SETTINGS.steps,
+                      cfg: DEFAULT_SETTINGS.cfg,
+                      sampler: DEFAULT_SETTINGS.sampler,
+                      scheduler: DEFAULT_SETTINGS.scheduler,
+                      denoise: DEFAULT_SETTINGS.denoise,
+                    },
+              )
+            }
+            title="この系統の推奨サイズ・ステップ・CFG・サンプラーに設定を上書きする"
+          >
+            既定値を適用
+          </Button>
+        </div>
+      </Row>
+
+      {isAnima && (
+        <>
+          <Row label="UNet">
+            <ModelField
+              value={settings.unet ?? ""}
+              options={loaderModels.unets}
+              onChange={(v) => set("unet", v)}
+            />
+          </Row>
+          <Row label="テキストエンコーダ">
+            <ModelField
+              value={settings.textEncoder ?? ""}
+              options={loaderModels.textEncoders}
+              onChange={(v) => set("textEncoder", v)}
+            />
+          </Row>
+          <Row label="VAE">
+            <ModelField
+              value={settings.vae ?? ""}
+              options={loaderModels.vaes}
+              onChange={(v) => set("vae", v)}
+            />
+          </Row>
+        </>
+      )}
+
+      {!isAnima && (
       <Row label="チェックポイント">
         <div className="flex gap-1">
           {checkpoints.length > 0 ? (
@@ -203,6 +339,7 @@ export default function SamplerSettings({
           )}
         </div>
       </Row>
+      )}
 
       <Row label="アップスケール">
         <div className="flex gap-1">

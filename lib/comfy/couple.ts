@@ -1,5 +1,6 @@
 import type { LoraEntry, GenerationSettings, Preset } from "./comfy-types";
 import type { NodeRef } from "./workflow-builder";
+import { resolveLoraName } from "./lora-family";
 import { buildBasePipeline, buildSamplingAndSaveTail } from "./workflow-builder";
 
 /** カップルモードで同時に配置できるリージョンの上限数。
@@ -183,7 +184,7 @@ export function buildCoupleWorkflow({
 }): { workflow: Record<string, unknown>; seed: number; upscaleSeed: number | null } {
   const wf: Record<string, unknown> = {};
 
-  const { model, clip } = buildBasePipeline(wf, settings, loras);
+  const { model, clip, vae } = buildBasePipeline(wf, settings, loras);
 
   // PCLazyTextEncode understands COUPLE() syntax
   wf["pos"] = {
@@ -197,6 +198,7 @@ export function buildCoupleWorkflow({
 
   const { seed, upscaleSeed } = buildSamplingAndSaveTail(wf, {
     settings,
+    vae,
     model,
     positive: ["pos", 0],
     negative: ["neg", 0],
@@ -295,7 +297,7 @@ export function buildColorMaskWorkflow({
 
   const wf: Record<string, unknown> = {};
 
-  const { model, clip } = buildBasePipeline(wf, settings, loras);
+  const { model, clip, vae } = buildBasePipeline(wf, settings, loras);
 
   // Color map image (shared across all regions)
   const colorMapFile = controlNet.colorMapImageName ?? "color_map.png";
@@ -326,9 +328,7 @@ export function buildColorMaskWorkflow({
     if (region.lora) {
       const hookId = `hookLora${i}`;
       const setClipId = `setClip${i}`;
-      const loraName = region.lora.name.endsWith(".safetensors")
-        ? region.lora.name
-        : `${region.lora.name}.safetensors`;
+      const loraName = `${resolveLoraName(region.lora.name, settings.modelFamily)}.safetensors`;
       wf[hookId] = {
         inputs: {
           lora_name: loraName,
@@ -402,7 +402,7 @@ export function buildColorMaskWorkflow({
         negative: finalNeg,
         control_net: ["cnloader", 0],
         image: ["poseimg", 0],
-        vae: ["chk", 2],
+        vae,
         strength: controlNet.strength,
         start_percent: controlNet.startPercent,
         end_percent: controlNet.endPercent,
@@ -415,6 +415,7 @@ export function buildColorMaskWorkflow({
 
   const { seed, upscaleSeed } = buildSamplingAndSaveTail(wf, {
     settings,
+    vae,
     model,
     positive: finalPos,
     negative: finalNeg,

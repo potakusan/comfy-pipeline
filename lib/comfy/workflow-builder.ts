@@ -1,4 +1,5 @@
 import type { GenerationSettings, LoraEntry } from "./comfy-types";
+import { resolveLoraName } from "./lora-family";
 import { appendAdetailerChain, type AdetailerTarget, type NodeRef } from "./adetailer";
 
 export type { NodeRef };
@@ -12,11 +13,35 @@ export function buildBasePipeline(
   settings: GenerationSettings,
   loras: LoraEntry[],
   initImage?: { name: string },
-): { model: NodeRef; clip: NodeRef } {
-  wf["chk"] = {
-    inputs: { ckpt_name: settings.checkpoint },
-    class_type: "CheckpointLoaderSimple",
-  };
+): { model: NodeRef; clip: NodeRef; vae: NodeRef } {
+  let model: NodeRef;
+  let clip: NodeRef;
+  let vae: NodeRef;
+  if (settings.modelFamily === "anima") {
+    wf["unet"] = {
+      inputs: { unet_name: settings.unet ?? "", weight_dtype: "default" },
+      class_type: "UNETLoader",
+    };
+    wf["clipl"] = {
+      inputs: { clip_name: settings.textEncoder ?? "", type: "stable_diffusion", device: "default" },
+      class_type: "CLIPLoader",
+    };
+    wf["vael"] = {
+      inputs: { vae_name: settings.vae ?? "" },
+      class_type: "VAELoader",
+    };
+    model = ["unet", 0];
+    clip = ["clipl", 0];
+    vae = ["vael", 0];
+  } else {
+    wf["chk"] = {
+      inputs: { ckpt_name: settings.checkpoint },
+      class_type: "CheckpointLoaderSimple",
+    };
+    model = ["chk", 0];
+    clip = ["chk", 1];
+    vae = ["chk", 2];
+  }
 
   wf["upm"] = {
     inputs: { model_name: settings.upscaleModel },
@@ -42,7 +67,7 @@ export function buildBasePipeline(
       class_type: "ImageScale",
     };
     wf["lat"] = {
-      inputs: { pixels: ["initscale", 0], vae: ["chk", 2] },
+      inputs: { pixels: ["initscale", 0], vae },
       class_type: "VAEEncode",
     };
   } else {
@@ -52,14 +77,9 @@ export function buildBasePipeline(
     };
   }
 
-  let model: NodeRef = ["chk", 0];
-  let clip: NodeRef = ["chk", 1];
-
   loras.forEach((lora, i) => {
     const id = `lora${i}`;
-    const loraName = lora.name.endsWith(".safetensors")
-      ? lora.name
-      : `${lora.name}.safetensors`;
+    const loraName = `${resolveLoraName(lora.name, settings.modelFamily)}.safetensors`;
     wf[id] = {
       inputs: {
         lora_name: loraName,
@@ -74,7 +94,7 @@ export function buildBasePipeline(
     clip = [id, 1];
   });
 
-  return { model, clip };
+  return { model, clip, vae };
 }
 
 /**
@@ -96,8 +116,11 @@ export function buildSamplingAndSaveTail(
     negative,
     outputPrefix,
     adetailer,
+    vae = ["chk", 2],
   }: {
     settings: GenerationSettings;
+    /** VAEの参照。省略時はチェックポイント一体型の VAE */
+    vae?: NodeRef;
     model: NodeRef;
     positive: NodeRef;
     negative: NodeRef;
@@ -127,7 +150,7 @@ export function buildSamplingAndSaveTail(
   };
 
   wf["vae"] = {
-    inputs: { samples: ["ksamp", 0], vae: ["chk", 2] },
+    inputs: { samples: ["ksamp", 0], vae },
     class_type: "VAEDecode",
   };
 
@@ -141,7 +164,7 @@ export function buildSamplingAndSaveTail(
         seed,
         model,
         clip: adetailer.clip,
-        vae: ["chk", 2],
+        vae,
         positive,
         negative,
       })
@@ -157,7 +180,7 @@ export function buildSamplingAndSaveTail(
   if (settings.upscaleSteps > 0) {
     upscaleSeed = settings.upscaleSeed ?? Math.floor(Math.random() * 2 ** 32);
     wf["vae2"] = {
-      inputs: { pixels: ["upi", 0], vae: ["chk", 2] },
+      inputs: { pixels: ["upi", 0], vae },
       class_type: "VAEEncode",
     };
     wf["ksamp2"] = {
@@ -176,7 +199,7 @@ export function buildSamplingAndSaveTail(
       class_type: "KSampler",
     };
     wf["vae3"] = {
-      inputs: { samples: ["ksamp2", 0], vae: ["chk", 2] },
+      inputs: { samples: ["ksamp2", 0], vae },
       class_type: "VAEDecode",
     };
     saveSource = ["vae3", 0];
@@ -215,7 +238,7 @@ export function buildWorkflow({
     ? { ...settings, denoise: initImage.denoise }
     : settings;
 
-  const { model, clip } = buildBasePipeline(
+  const { model, clip, vae } = buildBasePipeline(
     wf,
     effSettings,
     loras,
@@ -234,6 +257,7 @@ export function buildWorkflow({
 
   const { seed, upscaleSeed } = buildSamplingAndSaveTail(wf, {
     settings: effSettings,
+    vae,
     model,
     positive: ["pos", 0],
     negative: ["neg", 0],

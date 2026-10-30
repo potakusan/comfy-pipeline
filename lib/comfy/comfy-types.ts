@@ -21,8 +21,19 @@ export interface LoraEntry {
   isArchived?: boolean;
 }
 
+/** sdxl = CheckpointLoaderSimple 一体型。anima = UNet / テキストエンコーダ / VAE を個別に読み込む。 */
+export type ModelFamily = "sdxl" | "anima";
+
 export interface GenerationSettings {
   checkpoint: string;
+  /** 省略時は "sdxl" として扱う(既存の保存データ互換) */
+  modelFamily?: ModelFamily;
+  /** anima 用: diffusion_models 内の本体ファイル名 */
+  unet?: string;
+  /** anima 用: text_encoders 内のテキストエンコーダ(Qwen3)ファイル名 */
+  textEncoder?: string;
+  /** anima 用: VAEファイル名 */
+  vae?: string;
   upscaleModel: string;
   upscaleSteps: number;
   width: number;

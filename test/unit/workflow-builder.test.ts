@@ -280,3 +280,74 @@ describe("buildWorkflow", () => {
     expect((wf["ksamp2"] as { inputs: { denoise: number } }).inputs.denoise).toBe(0.5);
   });
 });
+
+describe("Anima (modelFamily: anima)", () => {
+  const anima = () =>
+    makeSettings({
+      modelFamily: "anima",
+      unet: "anima-base-v1.0.safetensors",
+      textEncoder: "qwen_3_06b_base.safetensors",
+      vae: "qwen_image_vae.safetensors",
+    });
+
+  it("UNETLoader/CLIPLoader/VAELoader を個別に読み込み、CheckpointLoaderSimple は使わない", () => {
+    const wf: Record<string, unknown> = {};
+    const { model, clip, vae } = buildBasePipeline(wf, anima(), []);
+    expect(model).toEqual(["unet", 0]);
+    expect(clip).toEqual(["clipl", 0]);
+    expect(vae).toEqual(["vael", 0]);
+    expect(wf["unet"]).toEqual({
+      inputs: { unet_name: "anima-base-v1.0.safetensors", weight_dtype: "default" },
+      class_type: "UNETLoader",
+    });
+    expect(wf["clipl"]).toEqual({
+      inputs: { clip_name: "qwen_3_06b_base.safetensors", type: "stable_diffusion", device: "default" },
+      class_type: "CLIPLoader",
+    });
+    expect(wf["vael"]).toEqual({
+      inputs: { vae_name: "qwen_image_vae.safetensors" },
+      class_type: "VAELoader",
+    });
+    expect(wf["chk"]).toBeUndefined();
+  });
+
+  it("LoRAはUNet/CLIPの出力に連結され、デコード・アップスケール再エンコード・ADetailer が個別VAEを参照する", () => {
+    const { workflow } = buildWorkflow({
+      settings: { ...anima(), upscaleSteps: 10 },
+      loras: [makeLora()],
+      positivePrompt: "1girl",
+      negativePrompt: "bad",
+      outputPrefix: "o/x",
+      adetailer: [{ id: "a", label: "顔", enabled: true, model: "bbox/face.pt", prompt: "", denoise: 0.4, steps: 20, bboxThreshold: 0.5, dilation: 10, cropFactor: 3, guideSize: 512, maxSize: 1024, feather: 5 }],
+    });
+    const wf = workflow as Record<string, { inputs: Record<string, unknown> }>;
+    expect(wf["lora0"].inputs.model).toEqual(["unet", 0]);
+    expect(wf["lora0"].inputs.clip).toEqual(["clipl", 0]);
+    expect(wf["vae"].inputs.vae).toEqual(["vael", 0]);
+    expect(wf["vae2"].inputs.vae).toEqual(["vael", 0]);
+    expect(wf["vae3"].inputs.vae).toEqual(["vael", 0]);
+    expect(wf["adet0"].inputs.vae).toEqual(["vael", 0]);
+    expect(JSON.stringify(workflow)).not.toContain('"chk"');
+  });
+});
+
+describe("系統別LoRAペア (ai-styles-dump)", () => {
+  const sdxlFile = "best_of_ai_styles_noob-eps-0.5_v2.217-edm2-pass";
+  const animaFile = "mixed_styles_anima-base1_v6";
+  const loraFile = (family: "sdxl" | "anima", name: string) => {
+    const wf: Record<string, unknown> = {};
+    buildBasePipeline(wf, makeSettings({ modelFamily: family }), [makeLora({ name })]);
+    return (wf["lora0"] as { inputs: { lora_name: string } }).inputs.lora_name;
+  };
+
+  it("保存済みの名前がどちらの系統のファイルでも、現在の系統のファイルに差し替える", () => {
+    expect(loraFile("anima", sdxlFile)).toBe(`${animaFile}.safetensors`);
+    expect(loraFile("anima", `${sdxlFile}.safetensors`)).toBe(`${animaFile}.safetensors`);
+    expect(loraFile("sdxl", animaFile)).toBe(`${sdxlFile}.safetensors`);
+    expect(loraFile("sdxl", sdxlFile)).toBe(`${sdxlFile}.safetensors`);
+  });
+
+  it("ペア定義の無いLoRAはそのまま使う", () => {
+    expect(loraFile("anima", "sexy_details_v5")).toBe("sexy_details_v5.safetensors");
+  });
+});

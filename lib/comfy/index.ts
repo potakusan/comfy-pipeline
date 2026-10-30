@@ -9,4 +9,5 @@ export * from "./prompt-assembly";
 export * from "./prompt-variables";
 export * from "./adetailer";
 export * from "./recipe";
+export * from "./lora-family";
 export * from "./workflow-builder";

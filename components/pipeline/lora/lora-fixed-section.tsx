@@ -1,14 +1,17 @@
-import { type LoraEntry } from "@/lib/comfy";
+import { type LoraEntry, type ModelFamily, describeLoraForFamily } from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil } from "lucide-react";
 
 export default function LoraFixedSection({
   fixedLoras,
+  modelFamily = "sdxl",
   onAdd,
   onEdit,
 }: {
   fixedLoras: LoraEntry[];
+  /** 系統別ペアのLoRAは、この系統のファイルが使われる */
+  modelFamily?: ModelFamily;
   onAdd: () => void;
   onEdit: (lora: LoraEntry, index: number) => void;
 }) {
@@ -36,7 +39,9 @@ export default function LoraFixedSection({
         </button>
       ) : (
         <div className="space-y-1">
-          {fixedLoras.map((lora, i) => (
+          {fixedLoras.map((lora, i) => {
+            const paired = describeLoraForFamily(lora.name, modelFamily);
+            return (
             <div
               key={i}
               className="flex min-w-0 items-center gap-1.5 overflow-hidden rounded-md border bg-muted/30 px-2 py-1.5"
@@ -51,6 +56,16 @@ export default function LoraFixedSection({
                 >
                   {lora.name || "(名前未設定)"}
                 </p>
+                {paired && (
+                  <p className="flex items-center gap-1 text-[10px]">
+                    <Badge variant="outline" className="h-4 px-1 text-[9px]">
+                      {modelFamily === "anima" ? "Anima版を使用" : "SDXL版を使用"}
+                    </Badge>
+                    <span className="truncate font-mono text-muted-foreground" title={paired.file}>
+                      {paired.file}
+                    </span>
+                  </p>
+                )}
                 <p className="text-[10px] text-muted-foreground">
                   str: {lora.strength} / clip: {lora.clipStrength}
                   {lora.triggerWords && (
@@ -70,7 +85,8 @@ export default function LoraFixedSection({
                 <Pencil className="h-3 w-3" />
               </Button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

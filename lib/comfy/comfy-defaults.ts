@@ -1,4 +1,4 @@
-import type { Preset, SizePreset } from "./comfy-types";
+import type { GenerationSettings, Preset, SizePreset } from "./comfy-types";
 
 export const SIZE_PRESETS: SizePreset[] = [
   { label: "横長", width: 1536, height: 1136 },
@@ -85,6 +85,7 @@ export const SAMPLER_OPTIONS = [
   "dpmpp_2m_sde_gpu",
   "dpmpp_3m_sde",
   "dpmpp_3m_sde_gpu",
+  "er_sde",
   "ddim",
   "uni_pc",
   "uni_pc_bh2",
@@ -98,3 +99,18 @@ export const SCHEDULER_OPTIONS = [
   "simple",
   "ddim_uniform",
 ];
+
+/** Anima(Cosmos-Predict2系)の推奨設定。「既定値を適用」で現在の設定へ上書きする。 */
+export const ANIMA_DEFAULTS: Partial<GenerationSettings> = {
+  modelFamily: "anima",
+  unet: "anima-base-v1.0.safetensors",
+  textEncoder: "qwen_3_06b_base.safetensors",
+  vae: "qwen_image_vae.safetensors",
+  width: 1024,
+  height: 1024,
+  steps: 16,
+  cfg: 4,
+  sampler: "er_sde",
+  scheduler: "simple",
+  denoise: 1,
+};

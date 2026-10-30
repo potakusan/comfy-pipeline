@@ -133,6 +133,7 @@ export default function LeftPanel({
                 badge={selectedVariableLora ? "1選択中" : undefined}
               >
                 <LoraPanel
+                  modelFamily={settings.modelFamily}
                   fixedLoras={fixedLoras}
                   onAddFixedLora={addFixedLora}
                   onUpdateFixedLora={updateFixedLora}

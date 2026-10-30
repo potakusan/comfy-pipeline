@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
-import { type LoraEntry } from "@/lib/comfy";
+import { type LoraEntry, type ModelFamily } from "@/lib/comfy";
 import { Separator } from "@/components/ui/separator";
 import LoraModal from "@/components/pipeline/lora/lora-modal";
 import LoraFixedSection from "@/components/pipeline/lora/lora-fixed-section";
 import LoraVariableSection from "@/components/pipeline/lora/lora-variable-section";
 
 interface LoraPanelProps {
+  modelFamily?: ModelFamily;
   // Fixed LoRAs (editable)
   fixedLoras: LoraEntry[];
   onAddFixedLora: (lora: LoraEntry) => void;
@@ -23,6 +24,7 @@ interface LoraPanelProps {
 }
 
 export default function LoraPanel({
+  modelFamily,
   fixedLoras,
   onAddFixedLora,
   onUpdateFixedLora,
@@ -86,6 +88,7 @@ export default function LoraPanel({
     <div className="space-y-3">
       <LoraFixedSection
         fixedLoras={fixedLoras}
+        modelFamily={modelFamily}
         onAdd={openFixedAdd}
         onEdit={openFixedEdit}
       />
