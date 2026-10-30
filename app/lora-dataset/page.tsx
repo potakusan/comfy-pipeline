@@ -39,7 +39,7 @@ export default function LoraDatasetPage() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkApplying, setBulkApplying] = useState(false);
-  const [removeTarget, setRemoveTarget] = useState<{ tag: string; count: number } | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{ tag: string; count: number; ids?: Set<number> } | null>(null);
   const [bulkRemoving, setBulkRemoving] = useState(false);
 
   const selectedDataset = useMemo(
@@ -108,6 +108,14 @@ export default function LoraDatasetPage() {
       return entries.every(([tag, state]) => (state === "include" ? tags.has(tag) : !tags.has(tag)));
     });
   }, [images, imageTags, tagFilters, tagCounts]);
+
+  const selectedTagCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const id of selectedIds) {
+      for (const tag of imageTags.get(id) ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+    return counts;
+  }, [selectedIds, imageTags]);
 
   const handleToggleTag = (tag: string) => {
     setTagFilters((prev) => {
@@ -178,8 +186,8 @@ export default function LoraDatasetPage() {
   // 画像ごとのタグ編集(ImageTagEditorDialog.removeTag)と同じ規則で、全画像から当該タグを外す
   const handleBulkRemoveTag = async () => {
     if (!selectedDataset || !removeTarget) return;
-    const { tag } = removeTarget;
-    const targets = images.filter((img) => imageTags.get(img.id)?.has(tag));
+    const { tag, ids } = removeTarget;
+    const targets = images.filter((img) => imageTags.get(img.id)?.has(tag) && (!ids || ids.has(img.id)));
 
     setBulkRemoving(true);
     try {
@@ -200,11 +208,13 @@ export default function LoraDatasetPage() {
         }),
       );
       await loadImages(selectedDataset.folder);
-      setTagFilters((prev) => {
-        const next = { ...prev };
-        delete next[tag];
-        return next;
-      });
+      if (!ids) {
+        setTagFilters((prev) => {
+          const next = { ...prev };
+          delete next[tag];
+          return next;
+        });
+      }
       toast.success(`「${tag}」を${targets.length}件の画像から削除しました`);
       setRemoveTarget(null);
     } catch (e) {
@@ -427,6 +437,11 @@ export default function LoraDatasetPage() {
                 selectedCount={selectedIds.size}
                 applying={bulkApplying}
                 onApply={handleBulkApplyTag}
+                selectedTagCounts={selectedTagCounts}
+                removing={bulkRemoving}
+                onRemove={(tag) =>
+                  setRemoveTarget({ tag, count: selectedTagCounts.get(tag) ?? 0, ids: new Set(selectedIds) })
+                }
               />
             )}
             {selectedFolder && (
@@ -449,9 +464,9 @@ export default function LoraDatasetPage() {
       <DeleteConfirmDialog
         open={removeTarget !== null}
         onOpenChange={(v) => !v && !bulkRemoving && setRemoveTarget(null)}
-        title={`タグ「${removeTarget?.tag ?? ""}」を全画像から削除しますか?`}
+        title={`タグ「${removeTarget?.tag ?? ""}」を${removeTarget?.ids ? "選択した画像" : "全画像"}から削除しますか?`}
         description={`${removeTarget?.count ?? 0}件の画像のキャプションからこのタグを外します。画像ごとのタグ編集から、後で個別に戻せます。`}
-        confirmLabel="全画像から削除"
+        confirmLabel={removeTarget?.ids ? "選択画像から削除" : "全画像から削除"}
         confirming={bulkRemoving}
         onConfirm={handleBulkRemoveTag}
       />
