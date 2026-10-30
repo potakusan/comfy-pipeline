@@ -10,7 +10,8 @@ const DEFAULT_GALLERY_RESIZE = {
 };
 
 /** POST /api/gallery/mosaic/run
- *  Body: { folder: string, mosaic: MosaicConfigValue, resize?: { scalePercent: number, quality: number } }
+ *  Body: { folder: string, files?: string[], mosaic: MosaicConfigValue, resize?: { scalePercent: number, quality: number } }
+ *  files を指定すると、folder 直下のそれらの画像だけを処理する(1枚ずつのモザイクプレビュー用)。
  *  Thin wrapper around the shared /process pipeline (lib/process-run.ts).
  *  Resize always runs (before mosaic, same order as /process); scalePercent
  *  defaults to 40% if the caller doesn't specify one. Poll progress via the
@@ -18,8 +19,9 @@ const DEFAULT_GALLERY_RESIZE = {
  *  it as-is).
  */
 export async function POST(req: NextRequest) {
-  const { folder, mosaic, resize } = (await req.json()) as {
+  const { folder, files, mosaic, resize } = (await req.json()) as {
     folder: string;
+    files?: string[];
     mosaic: MosaicConfigValue;
     resize?: { scalePercent: number; quality: number };
   };
@@ -27,6 +29,7 @@ export async function POST(req: NextRequest) {
 
   const body: RunRequest = {
     folder,
+    files,
     mosaic: { ...mosaic, enabled: true },
     resize: { enabled: true, ...DEFAULT_GALLERY_RESIZE, ...resize },
   };

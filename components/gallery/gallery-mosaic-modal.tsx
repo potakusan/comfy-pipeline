@@ -102,10 +102,16 @@ export default function GalleryMosaicModal({
   open,
   onClose,
   folder,
+  files,
+  onCompleted,
 }: {
   open: boolean;
   onClose: () => void;
   folder: string;
+  /** 指定時は folder 直下のこれらの画像だけを処理する(1枚ずつのプレビュー用) */
+  files?: string[];
+  /** 処理が完了(成功)したとき。モザイク一覧の更新などに使う */
+  onCompleted?: () => void;
 }) {
   const [config, setConfig] = useState<MosaicConfigValue>(DEFAULT_MOSAIC);
   const [resizeConfig, setResizeConfig] = useState<GalleryResizeValue>(
@@ -116,6 +122,10 @@ export default function GalleryMosaicModal({
   const [submitting, setSubmitting] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const onCompletedRef = useRef(onCompleted);
+  useEffect(() => {
+    onCompletedRef.current = onCompleted;
+  });
 
   useEffect(() => {
     if (!open) {
@@ -135,6 +145,7 @@ export default function GalleryMosaicModal({
         if (data.status === "completed" || data.status === "failed") {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
+          if (data.status === "completed") onCompletedRef.current?.();
         }
       } catch {}
     }, 1000);
@@ -151,7 +162,7 @@ export default function GalleryMosaicModal({
       const res = await fetch("/api/gallery/mosaic/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folder, mosaic: config, resize: resizeConfig }),
+        body: JSON.stringify({ folder, files, mosaic: config, resize: resizeConfig }),
       });
       const data = await res.json();
       if (data.jobId) {
@@ -182,7 +193,9 @@ export default function GalleryMosaicModal({
       <DialogContent className="flex max-h-[88vh] w-full! max-w-3xl! flex-col gap-3">
         <DialogHeader>
           <DialogTitle className="font-mono text-sm">
-            モザイク処理 — {folder}
+            {files
+              ? `モザイク処理(${files.length}枚) — ${folder}/${files[0]}`
+              : `モザイク処理 — ${folder}`}
           </DialogTitle>
         </DialogHeader>
 
@@ -289,6 +302,20 @@ export default function GalleryMosaicModal({
                   {job.log.join("\n")}
                 </div>
               )}
+            </div>
+          )}
+
+          {files && results.length === 1 && results[0].outputPath && (
+            <div className="rounded-lg border bg-card/30 p-2">
+              <img
+                src={imageUrl(results[0].outputPath)}
+                alt="処理後"
+                className="mx-auto max-h-[50vh] max-w-full rounded object-contain"
+              />
+              <p className="mt-1 truncate text-center font-mono text-[10px] text-muted-foreground">
+                {results[0].outputPath}
+                {results[0].regionCount === 0 && "(対象が見つかりませんでした)"}
+              </p>
             </div>
           )}
 

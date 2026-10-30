@@ -1,9 +1,5 @@
 "use client";
-import { useState } from "react";
 import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getPoseGroup } from "@/lib/gallery";
 import type { GalleryImageEntry } from "@/lib/gallery";
 
@@ -25,56 +21,6 @@ export function computePoseStats(images: GalleryImageEntry[]): PoseStat[] {
   return Array.from(map.values());
 }
 
-/** そのポーズ(プリセット)のランダム部分を引き直して、あと n 枚生成する */
-function GenerateMoreButton({
-  pose,
-  onGenerateMore,
-}: {
-  pose: string;
-  onGenerateMore: (pose: string, count: number) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [count, setCount] = useState(4);
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          title="このポーズをあとn枚生成(ランダム部分は引き直し)"
-        >
-          <Plus className="h-3 w-3" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-56 space-y-2 p-3">
-        <p className="truncate font-mono text-[10px] text-muted-foreground">{pose}</p>
-        <label className="flex items-center gap-2 text-xs">
-          <span className="font-semibold">追加枚数</span>
-          <Input
-            type="number"
-            min={1}
-            value={count}
-            onChange={(e) => setCount(Number(e.target.value))}
-            className="h-7 w-20 text-xs"
-          />
-        </label>
-        <p className="text-[10px] text-muted-foreground">
-          seed・ランダム抽選の行・ランダム変数を引き直し、同じ構成でキューに追加します。
-        </p>
-        <Button
-          size="sm"
-          className="h-7 w-full text-xs"
-          onClick={() => {
-            setOpen(false);
-            onGenerateMore(pose, count);
-          }}
-        >
-          キューに追加
-        </Button>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 export default function GalleryPoseSummary({
   stats,
   activePose,
@@ -84,7 +30,7 @@ export default function GalleryPoseSummary({
   stats: PoseStat[];
   activePose: string | null;
   onSelectPose: (pose: string) => void;
-  onGenerateMore?: (pose: string, count: number) => void;
+  onGenerateMore?: (pose: string) => void;
 }) {
   if (stats.length === 0) {
     return (
@@ -116,7 +62,15 @@ export default function GalleryPoseSummary({
               {s.released}/{s.total}
             </span>
           </button>
-          {onGenerateMore && <GenerateMoreButton pose={s.pose} onGenerateMore={onGenerateMore} />}
+          {onGenerateMore && (
+            <button
+              className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              title="このポーズをあと何枚か生成(ランダム部分は引き直し)"
+              onClick={() => onGenerateMore(s.pose)}
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          )}
         </div>
       ))}
     </div>

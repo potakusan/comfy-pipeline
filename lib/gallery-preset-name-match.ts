@@ -10,7 +10,7 @@ import { sanitizeFilePrefix, type BatchPresetSet, type ReleasedSeed } from "./co
  * それも消してしまいsanitizeFilePrefix(preset.name)と一致しなくなるため、
  * この用途専用に末尾の"_"を保持したまま返す別実装にしている。
  */
-function extractFilePrefixFromFilename(filename: string): string {
+export function extractFilePrefixFromFilename(filename: string): string {
   const stem = filename.replace(/\.[^.]+$/, "");
   const withoutRev = stem.replace(/(?:_rev_\d+)+$/, "");
   const withoutCounter = withoutRev.replace(/_\d{5}_?$/, "");

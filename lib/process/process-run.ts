@@ -35,8 +35,9 @@ function isValidModelName(name: string): boolean {
   return path.basename(name) === name && name.toLowerCase().endsWith(".pt");
 }
 
+const IMAGE_EXTS = /\.(png|jpe?g|webp|avif|bmp)$/i;
+
 function countImages(dir: string): number {
-  const IMAGE_EXTS = /\.(png|jpe?g|webp|avif|bmp)$/i;
   let count = 0;
   try {
     const walk = (d: string) => {
@@ -53,6 +54,8 @@ function countImages(dir: string): number {
 
 export interface RunRequest {
   folder: string;
+  /** 指定時は folder 直下のこれらのファイル名の画像だけを処理する(出力先は通常どおり folder 配下) */
+  files?: string[];
   mosaic: {
     enabled: boolean;
     mosaicSize: number;
@@ -214,6 +217,20 @@ export async function startProcessRun(
   const inputPath = safePath(outputDir, folder);
   if (!inputPath) return { error: "Invalid path", status: 400 };
 
+  const singleFiles = body.files ?? [];
+  if (
+    body.files &&
+    (singleFiles.length === 0 ||
+      singleFiles.some(
+        (f) =>
+          path.basename(f) !== f ||
+          !IMAGE_EXTS.test(f) ||
+          !fs.existsSync(path.join(inputPath, f)),
+      ))
+  ) {
+    return { error: "Invalid files", status: 400 };
+  }
+
   if (runningFolders.has(inputPath)) {
     return { error: "このフォルダは既に処理中です", status: 409 };
   }
@@ -223,16 +240,35 @@ export async function startProcessRun(
   const automosaicDir = getAutomosaicDir();
   const python = getPythonPath();
 
-  const total = countImages(inputPath);
+  const total = body.files ? singleFiles.length : countImages(inputPath);
   const jobId = crypto.randomUUID();
   // jobIDを含めてジョブごとに一意にし、同一フォルダへの多重実行が
   // 互いの一時ファイルを削除し合わないようにする
   const tempResizeDir = path.join(inputPath, `_resize_tmp_${jobId}`);
+  // ファイル指定時は対象だけを一時フォルダへコピーし、リサイズ/モザイクの入力にする
+  const stagedDir = body.files ? path.join(inputPath, `_single_tmp_${jobId}`) : null;
+  const sourcePath = stagedDir ?? inputPath;
   createJob(jobId, total);
   updateJob(jobId, { status: "running" });
 
   (async () => {
     try {
+      if (stagedDir) {
+        try {
+          fs.mkdirSync(stagedDir, { recursive: true });
+          for (const f of singleFiles) {
+            fs.copyFileSync(path.join(inputPath, f), path.join(stagedDir, f));
+          }
+        } catch (e) {
+          updateJob(jobId, {
+            status: "failed",
+            error: `対象画像の準備に失敗しました: ${(e as Error).message}`,
+            finishedAt: Date.now(),
+          });
+          return;
+        }
+      }
+
       // -----------------------------------------------------------------------
       // Step 1: Resize  (runs FIRST so mosaic works on smaller images)
       // -----------------------------------------------------------------------
@@ -253,7 +289,7 @@ export async function startProcessRun(
 
         const resizeArgs = [
           path.join(automosaicDir, "resize.py"),
-          inputPath,
+          sourcePath,
           "-o",
           resizeOutputPath,
           "-s",
@@ -290,7 +326,7 @@ export async function startProcessRun(
       // Step 2: Mosaic  (applied to resized images if resize ran, else originals)
       // -----------------------------------------------------------------------
       if (mosaic.enabled) {
-        const mosaicInputPath = resize.enabled ? tempResizeDir : inputPath;
+        const mosaicInputPath = resize.enabled ? tempResizeDir : sourcePath;
         appendLog(jobId, `[mosaic] 開始: ${folder}`);
 
         const models = (
@@ -350,6 +386,11 @@ export async function startProcessRun(
 
       updateJob(jobId, { status: "completed", finishedAt: Date.now() });
     } finally {
+      if (stagedDir) {
+        try {
+          fs.rmSync(stagedDir, { recursive: true, force: true });
+        } catch {}
+      }
       runningFolders.delete(inputPath);
     }
   })();

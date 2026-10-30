@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,8 +18,13 @@ import {
   BookmarkCheck,
   Grid2x2,
   Images,
+  ScanEye,
 } from "lucide-react";
 import { useGallery } from "@/hooks/gallery/use-gallery";
+import {
+  useMoreGeneration,
+  type MoreGenerationTarget,
+} from "@/hooks/gallery/use-more-generation";
 import AppHeader from "@/components/common/app-header";
 import GalleryFolderList from "@/components/gallery/gallery-folder-list";
 import GallerySeedArchiveList from "@/components/gallery/gallery-seed-archive-list";
@@ -33,10 +37,10 @@ import GalleryGeneratingWindow from "@/components/gallery/gallery-generating-win
 import GalleryPoseSummary, { computePoseStats } from "@/components/gallery/gallery-pose-summary";
 import GalleryDeleteConfirmDialog from "@/components/gallery/gallery-delete-confirm-dialog";
 import GalleryMosaicModal from "@/components/gallery/gallery-mosaic-modal";
+import GalleryMoreGenerationDialog from "@/components/gallery/gallery-more-generation-dialog";
 import I2iPoolManagerDialog from "@/components/pipeline/prompt/i2i-pool-manager-dialog";
 import { getPoseGroup, type GalleryImageEntry } from "@/lib/gallery";
-import type { MoreGenerationRequest } from "@/lib/comfy";
-import { MORE_GENERATION_STORAGE_KEY } from "@/lib/gallery-more-generation";
+import { extractFilePrefixFromFilename } from "@/lib/gallery-preset-name-match";
 
 function imageUrl(path: string) {
   return `/api/comfy/output/image?path=${encodeURIComponent(path)}`;
@@ -44,10 +48,12 @@ function imageUrl(path: string) {
 
 export default function GalleryPage() {
   const gallery = useGallery();
-  const router = useRouter();
   const [deleteTarget, setDeleteTarget] = useState<GalleryImageEntry | null>(null);
   const [i2iSourcePath, setI2iSourcePath] = useState<string | null>(null);
   const [mosaicModalOpen, setMosaicModalOpen] = useState(false);
+  // 表示中の1枚だけのモザイク処理(プレビュー)の対象ファイル名
+  const [singleMosaicFile, setSingleMosaicFile] = useState<string | null>(null);
+  const [moreTarget, setMoreTarget] = useState<(MoreGenerationTarget & { pose: string }) | null>(null);
   const [selectedMosaicPath, setSelectedMosaicPath] = useState<string | null>(null);
   const [justSavedMosaicPath, setJustSavedMosaicPath] = useState<string | null>(null);
   // 差し替え後にパスが変わらない(jpg→jpg)場合でもエディタを再ロードさせるためのキー
@@ -78,39 +84,6 @@ export default function GalleryPage() {
     if (idx >= 0) gallery.setSelectedIndex(idx);
   };
 
-  // そのポーズ(プリセット)の最新レシピを使い、ランダム部分を引き直して追加生成する(キューはパイプライン画面側)
-  const handleGenerateMore = (pose: string, count: number) => {
-    const latest = gallery.images
-      .filter((i) => getPoseGroup(i.filename) === pose && i.meta?.recipe)
-      .sort((a, b) => (b.meta?.createdAt ?? 0) - (a.meta?.createdAt ?? 0))[0];
-    const meta = latest?.meta;
-    if (!meta?.recipe || !meta.settings) {
-      toast.error("このポーズにはレシピが保存された画像がありません");
-      return;
-    }
-    const request: MoreGenerationRequest = {
-      count,
-      group: {
-        key: pose,
-        batchPresetId: meta.batchPresetId,
-        name: meta.recipe.batchPreset?.name || pose,
-        queueLabel: meta.queueLabel,
-        batchRun: meta.batchRun,
-        seeds: [],
-        recipe: meta.recipe,
-        settings: meta.settings,
-        bindings: meta.bindings,
-      },
-    };
-    try {
-      sessionStorage.setItem(MORE_GENERATION_STORAGE_KEY, JSON.stringify(request));
-    } catch {
-      toast.error("追加生成の情報を引き継げませんでした");
-      return;
-    }
-    router.push("/?runMore=1");
-  };
-
   // Arrow keys = prev/next image in the current (possibly filtered) set.
   // Space = toggle the selected image's release state.
   const keyStateRef = useRef({
@@ -126,6 +99,49 @@ export default function GalleryPage() {
     setSelectedIndex: gallery.setSelectedIndex,
     toggleRelease: gallery.toggleRelease,
     selectedMosaicPath,
+  };
+
+  // 追加生成で1枚保存されるたびに一覧を更新する(いま見ている画像の選択位置は保つ)
+  const handleImageSaved = async () => {
+    const folder = moreTarget?.folder;
+    if (!folder) return;
+    const prevPath = keyStateRef.current.selected?.path;
+    const list = await gallery.refreshImages(folder);
+    if (prevPath) {
+      const visible = gallery.showReleasedOnly ? list.filter((i) => i.releasePath) : list;
+      const idx = visible.findIndex((i) => i.path === prevPath);
+      if (idx >= 0) gallery.setSelectedIndex(idx);
+    }
+  };
+  const more = useMoreGeneration(handleImageSaved);
+
+  // そのポーズ(プリセット)の最新レシピを使い、保存先を既存画像と同じフォルダ・接頭辞にして追加生成する
+  const handleGenerateMore = (pose: string) => {
+    const latest = gallery.images
+      .filter((i) => getPoseGroup(i.filename) === pose && i.meta?.recipe && i.meta.settings)
+      .sort((a, b) => (b.meta?.createdAt ?? 0) - (a.meta?.createdAt ?? 0))[0];
+    const meta = latest?.meta;
+    if (!latest || !meta?.recipe || !meta.settings) {
+      toast.error("このポーズにはレシピが保存された画像がありません");
+      return;
+    }
+    more.reset();
+    setMoreTarget({
+      pose,
+      folder: latest.path.split("/")[0],
+      prefix: extractFilePrefixFromFilename(latest.filename),
+      group: {
+        key: pose,
+        batchPresetId: meta.batchPresetId,
+        name: meta.recipe.batchPreset?.name || pose,
+        queueLabel: meta.queueLabel,
+        batchRun: meta.batchRun,
+        seeds: [],
+        recipe: meta.recipe,
+        settings: meta.settings,
+        bindings: meta.bindings,
+      },
+    });
   };
 
   useEffect(() => {
@@ -265,6 +281,16 @@ export default function GalleryPage() {
                     >
                       <Sparkles className="h-3 w-3" />
                       別シードで再生成
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1 text-xs"
+                      onClick={() => setSingleMosaicFile(selected.filename)}
+                      title="この1枚だけモザイク処理して mosaic フォルダへ保存"
+                    >
+                      <ScanEye className="h-3 w-3" />
+                      モザイク
                     </Button>
                     <Button
                       variant="outline"
@@ -425,6 +451,27 @@ export default function GalleryPage() {
           folder={gallery.selectedFolder}
         />
       )}
+
+      {gallery.selectedFolder && singleMosaicFile && (
+        <GalleryMosaicModal
+          open
+          onClose={() => setSingleMosaicFile(null)}
+          folder={gallery.selectedFolder}
+          files={[singleMosaicFile]}
+          onCompleted={() => {
+            if (gallery.selectedFolder) void gallery.refreshMosaicImages(gallery.selectedFolder);
+          }}
+        />
+      )}
+
+      <GalleryMoreGenerationDialog
+        target={moreTarget}
+        controller={more}
+        onClose={() => {
+          setMoreTarget(null);
+          void gallery.refreshFolders();
+        }}
+      />
 
       <I2iPoolManagerDialog
         open={i2iSourcePath !== null}

@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -11,10 +11,7 @@ import QuickAddToBatch from "@/components/pipeline/queue/quick-add-to-batch";
 import {
   type QueueItem,
   type SeedSource,
-  type MoreGenerationRequest,
-  buildMoreGenerationRun,
 } from "@/lib/comfy";
-import { MORE_GENERATION_STORAGE_KEY } from "@/lib/gallery-more-generation";
 import { apiFetch } from "@/lib/api-client";
 import { uploadImageToComfyInput } from "@/lib/comfy-upload";
 import type { PipelineHook } from "@/hooks/pipeline/use-pipeline";
@@ -101,31 +98,6 @@ export default function CenterPanel({
       cancelled = true;
     };
   }, [seedSourceFolderParam]);
-
-  // ギャラリーのポーズ別集計から ?runMore=1 付きで遷移してきたら、引き継いだレシピを
-  // ランダム部分を引き直してそのままキューへ追加する。設定の読み込み完了を待つため少し遅らせて実行する
-  const runMoreParam = searchParams.get("runMore");
-  const runBatchRef = useRef(runBatchPresets);
-  useEffect(() => {
-    runBatchRef.current = runBatchPresets;
-  });
-  useEffect(() => {
-    if (!runMoreParam) return;
-    const timer = setTimeout(() => {
-      try {
-        const raw = sessionStorage.getItem(MORE_GENERATION_STORAGE_KEY);
-        sessionStorage.removeItem(MORE_GENERATION_STORAGE_KEY);
-        const req = raw ? (JSON.parse(raw) as MoreGenerationRequest) : null;
-        const run = req ? buildMoreGenerationRun(req.group, req.count) : null;
-        if (run) void runBatchRef.current(run.presets, run.overrides);
-        else toast.error("追加生成の情報が見つかりませんでした");
-      } catch {
-        toast.error("追加生成の情報を読み込めませんでした");
-      }
-      router.replace("/");
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [runMoreParam, router]);
 
   // 作成画面の「保存済みプリセット」モーダルから選ばれたフォルダを一括キューへ引き継ぐ
   const handleSelectSavedPreset = (folder: string) => {

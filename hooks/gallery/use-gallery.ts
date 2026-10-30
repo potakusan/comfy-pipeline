@@ -373,6 +373,7 @@ export function useGallery() {
     selectedFolder,
     selectFolder,
     refreshFolders,
+    refreshImages,
     images,
     visibleImages,
     imagesLoading,

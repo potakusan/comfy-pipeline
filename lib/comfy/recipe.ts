@@ -341,12 +341,6 @@ export function buildRecipeSet(
   };
 }
 
-/** ギャラリーの「あとn枚」がパイプライン画面へ渡す、レシピ1件分の追加生成リクエスト */
-export interface MoreGenerationRequest {
-  count: number;
-  group: SeedRecipeGroup;
-}
-
 /**
  * 保存済みレシピと同じプリセット構成で、ランダム部分(seed・ランダム抽選プリセット・追加プロンプトのランダム行・
  * ランダム変数)を引き直して count 枚追加生成するための実行内容を作る。入力モードの変数は前回値を引き継ぐ。
