@@ -1,6 +1,6 @@
 import type { LoraEntry, GenerationSettings, Preset } from "./comfy-types";
 import type { NodeRef } from "./workflow-builder";
-import { resolveLoraName } from "./lora-family";
+import { isLoraUsableForFamily, resolveLoraName } from "./lora-family";
 import { buildBasePipeline, buildSamplingAndSaveTail } from "./workflow-builder";
 
 /** カップルモードで同時に配置できるリージョンの上限数。
@@ -325,7 +325,7 @@ export function buildColorMaskWorkflow({
     const rcmId = `rcm${i}`;
     let clipRef: NodeRef = clip;
 
-    if (region.lora) {
+    if (region.lora && isLoraUsableForFamily(region.lora, settings.modelFamily)) {
       const hookId = `hookLora${i}`;
       const setClipId = `setClip${i}`;
       const loraName = `${resolveLoraName(region.lora.name, settings.modelFamily)}.safetensors`;

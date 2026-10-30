@@ -1,4 +1,4 @@
-import type { ModelFamily } from "./comfy-types";
+import type { LoraEntry, ModelFamily } from "./comfy-types";
 
 /** 系統ごとにファイルが分かれている同一スタイルのLoRA。名前がどれかに一致したら、現在の系統のファイルへ差し替える。 */
 export const LORA_FAMILY_PAIRS: { label: string; files: Record<ModelFamily, string> }[] = [
@@ -31,4 +31,13 @@ export function describeLoraForFamily(
 function findLoraPair(name: string) {
   const n = stem(name);
   return LORA_FAMILY_PAIRS.find((p) => Object.values(p.files).includes(n));
+}
+
+/**
+ * このLoRAを現在の系統で適用してよいか。系統が合わないLoRAはキーが読み込まれず無効なので外す。
+ * 系統別ペアは必ず使える(系統に合うファイルへ差し替わる)。
+ */
+export function isLoraUsableForFamily(lora: LoraEntry, family: ModelFamily = "sdxl"): boolean {
+  if (findLoraPair(lora.name)) return true;
+  return (lora.families ?? ["sdxl"]).includes(family);
 }

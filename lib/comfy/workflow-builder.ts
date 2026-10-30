@@ -1,5 +1,5 @@
 import type { GenerationSettings, LoraEntry } from "./comfy-types";
-import { resolveLoraName } from "./lora-family";
+import { isLoraUsableForFamily, resolveLoraName } from "./lora-family";
 import { appendAdetailerChain, type AdetailerTarget, type NodeRef } from "./adetailer";
 
 export type { NodeRef };
@@ -77,7 +77,7 @@ export function buildBasePipeline(
     };
   }
 
-  loras.forEach((lora, i) => {
+  loras.filter((l) => isLoraUsableForFamily(l, settings.modelFamily)).forEach((lora, i) => {
     const id = `lora${i}`;
     const loraName = `${resolveLoraName(lora.name, settings.modelFamily)}.safetensors`;
     wf[id] = {

@@ -17,6 +17,8 @@ export interface LoraEntry {
   triggerWords: string;
   /** true = 実LoRAファイルを適用せず、プロンプト/フォルダ分け用のタイトルとしてのみ使う */
   isPromptOnly?: boolean;
+  /** 使えるモデル系統。省略時は "sdxl" のみ(系統別ペアのLoRAは除く)。非対応の系統では適用しない */
+  families?: ModelFamily[];
   /** true = 可変LoRAの下部アーカイブ欄に格納されている（通常リストやプリセット実行時の選択肢からは除外される） */
   isArchived?: boolean;
 }

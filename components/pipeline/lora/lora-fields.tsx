@@ -142,6 +142,32 @@ export default function LoraFields({
       </div>
 
       {!draft.isPromptOnly && (
+        <div className="flex items-center gap-3 text-xs">
+          <span className={`${labelClass} text-muted-foreground`}>対応系統</span>
+          {(["sdxl", "anima"] as const).map((f) => {
+            const families = draft.families ?? ["sdxl"];
+            return (
+              <label key={f} className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={families.includes(f)}
+                  onChange={(e) =>
+                    set(
+                      "families",
+                      e.target.checked
+                        ? [...families.filter((x) => x !== f), f]
+                        : families.filter((x) => x !== f),
+                    )
+                  }
+                />
+                {f === "sdxl" ? "SDXL" : "Anima"}
+              </label>
+            );
+          })}
+        </div>
+      )}
+
+      {!draft.isPromptOnly && (
         <div className="grid grid-cols-2 gap-3">
           <div>
             <div className="mb-1 flex items-center justify-between">

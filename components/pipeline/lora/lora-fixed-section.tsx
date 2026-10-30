@@ -1,4 +1,9 @@
-import { type LoraEntry, type ModelFamily, describeLoraForFamily } from "@/lib/comfy";
+import {
+  type LoraEntry,
+  type ModelFamily,
+  describeLoraForFamily,
+  isLoraUsableForFamily,
+} from "@/lib/comfy";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil } from "lucide-react";
@@ -56,6 +61,13 @@ export default function LoraFixedSection({
                 >
                   {lora.name || "(名前未設定)"}
                 </p>
+                {!isLoraUsableForFamily(lora, modelFamily) && (
+                  <p className="text-[10px]">
+                    <Badge variant="outline" className="h-4 px-1 text-[9px] text-destructive">
+                      {modelFamily === "anima" ? "Animaでは無効(SDXL専用)" : "SDXLでは無効"}
+                    </Badge>
+                  </p>
+                )}
                 {paired && (
                   <p className="flex items-center gap-1 text-[10px]">
                     <Badge variant="outline" className="h-4 px-1 text-[9px]">

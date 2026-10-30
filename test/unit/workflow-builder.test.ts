@@ -314,7 +314,7 @@ describe("Anima (modelFamily: anima)", () => {
   it("LoRAはUNet/CLIPの出力に連結され、デコード・アップスケール再エンコード・ADetailer が個別VAEを参照する", () => {
     const { workflow } = buildWorkflow({
       settings: { ...anima(), upscaleSteps: 10 },
-      loras: [makeLora()],
+      loras: [makeLora({ families: ["anima"] })],
       positivePrompt: "1girl",
       negativePrompt: "bad",
       outputPrefix: "o/x",
@@ -348,6 +348,36 @@ describe("系統別LoRAペア (ai-styles-dump)", () => {
   });
 
   it("ペア定義の無いLoRAはそのまま使う", () => {
-    expect(loraFile("anima", "sexy_details_v5")).toBe("sexy_details_v5.safetensors");
+    expect(loraFile("sdxl", "sexy_details_v5")).toBe("sexy_details_v5.safetensors");
+  });
+});
+
+describe("LoRAの対応系統", () => {
+  const loraNames = (family: "sdxl" | "anima", loras: LoraEntry[]) => {
+    const wf: Record<string, unknown> = {};
+    buildBasePipeline(wf, makeSettings({ modelFamily: family }), loras);
+    return Object.keys(wf)
+      .filter((k) => k.startsWith("lora"))
+      .map((k) => (wf[k] as { inputs: { lora_name: string } }).inputs.lora_name);
+  };
+
+  it("対応系統を指定していないLoRAはAnimaでは適用しない(SDXLは従来どおり)", () => {
+    const loras = [makeLora({ name: "sdxl_only" })];
+    expect(loraNames("anima", loras)).toEqual([]);
+    expect(loraNames("sdxl", loras)).toEqual(["sdxl_only.safetensors"]);
+  });
+
+  it("families に anima を含むLoRAはAnimaで適用し、除いたSDXLでは外す", () => {
+    const loras = [makeLora({ name: "anima_lora", families: ["anima"] })];
+    expect(loraNames("anima", loras)).toEqual(["anima_lora.safetensors"]);
+    expect(loraNames("sdxl", loras)).toEqual([]);
+  });
+
+  it("除外されたLoRAの後ろのLoRAも正しく連結される", () => {
+    const loras = [makeLora({ name: "sdxl_only" }), makeLora({ name: "both", families: ["sdxl", "anima"] })];
+    const wf: Record<string, unknown> = {};
+    const { model } = buildBasePipeline(wf, makeSettings({ modelFamily: "anima" }), loras);
+    expect(model).toEqual(["lora0", 0]);
+    expect((wf["lora0"] as { inputs: { model: unknown } }).inputs.model).toEqual(["unet", 0]);
   });
 });
