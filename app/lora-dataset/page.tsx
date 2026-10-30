@@ -11,6 +11,7 @@ import ImageTagEditorDialog from "@/components/lora-dataset/image-tag-editor-dia
 import RemoteSyncButton from "@/components/lora-dataset/remote-sync-button";
 import KohyaTrainModal from "@/components/lora-dataset/kohya-train-modal";
 import AddFromUrlPanel from "@/components/lora-dataset/add-from-url-panel";
+import DeleteConfirmDialog from "@/components/common/delete-confirm-dialog";
 import { apiFetch } from "@/lib/api-client";
 import { captionTags, formatTag } from "@/lib/lora-dataset/caption-format";
 import type { DanbooruPost, DanbooruRating, DatasetImageEntry, DatasetInfo, TagCategory } from "@/lib/lora-dataset/types";
@@ -38,6 +39,8 @@ export default function LoraDatasetPage() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkApplying, setBulkApplying] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<{ tag: string; count: number } | null>(null);
+  const [bulkRemoving, setBulkRemoving] = useState(false);
 
   const selectedDataset = useMemo(
     () => datasets.find((d) => d.folder === selectedFolder) ?? null,
@@ -169,6 +172,46 @@ export default function LoraDatasetPage() {
       toast.error(e instanceof Error ? e.message : "一括適用に失敗しました");
     } finally {
       setBulkApplying(false);
+    }
+  };
+
+  // 画像ごとのタグ編集(ImageTagEditorDialog.removeTag)と同じ規則で、全画像から当該タグを外す
+  const handleBulkRemoveTag = async () => {
+    if (!selectedDataset || !removeTarget) return;
+    const { tag } = removeTarget;
+    const targets = images.filter((img) => imageTags.get(img.id)?.has(tag));
+
+    setBulkRemoving(true);
+    try {
+      await Promise.all(
+        targets.map((img) => {
+          const { removedTags, extraTags } = img.manifest;
+          const inExtra = extraTags.includes(tag);
+          return apiFetch("/api/lora-dataset/images", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              folder: selectedDataset.folder,
+              id: String(img.id),
+              removedTags: inExtra ? removedTags : [...removedTags, tag],
+              extraTags: extraTags.filter((t) => t !== tag),
+            }),
+          });
+        }),
+      );
+      await loadImages(selectedDataset.folder);
+      setTagFilters((prev) => {
+        const next = { ...prev };
+        delete next[tag];
+        return next;
+      });
+      toast.success(`「${tag}」を${targets.length}件の画像から削除しました`);
+      setRemoveTarget(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "一括削除に失敗しました");
+      await loadImages(selectedDataset.folder);
+    } finally {
+      setBulkRemoving(false);
     }
   };
 
@@ -373,6 +416,7 @@ export default function LoraDatasetPage() {
               onToggle={handleToggleTag}
               onHover={setHoveredTag}
               onClear={() => setTagFilters({})}
+              onRemove={(tag, count) => setRemoveTarget({ tag, count })}
             />
             {selectedFolder && (
               <BulkTagAddBar
@@ -401,6 +445,16 @@ export default function LoraDatasetPage() {
           </div>
         </div>
       </div>
+
+      <DeleteConfirmDialog
+        open={removeTarget !== null}
+        onOpenChange={(v) => !v && !bulkRemoving && setRemoveTarget(null)}
+        title={`タグ「${removeTarget?.tag ?? ""}」を全画像から削除しますか?`}
+        description={`${removeTarget?.count ?? 0}件の画像のキャプションからこのタグを外します。画像ごとのタグ編集から、後で個別に戻せます。`}
+        confirmLabel="全画像から削除"
+        confirming={bulkRemoving}
+        onConfirm={handleBulkRemoveTag}
+      />
 
       {selectedDataset && (
         <ImageTagEditorDialog

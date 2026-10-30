@@ -12,10 +12,12 @@ interface Props {
   onToggle: (tag: string) => void;
   onHover: (tag: string | null) => void;
   onClear: () => void;
+  /** 指定時、各タグに「全画像から削除」の×ボタンを出す */
+  onRemove?: (tag: string, count: number) => void;
 }
 
 /** クリックで neutral -> include -> exclude -> neutral と3状態を巡回するタグ一覧。 */
-export default function DatasetTagFilter({ tagCounts, filters, onToggle, onHover, onClear }: Props) {
+export default function DatasetTagFilter({ tagCounts, filters, onToggle, onHover, onClear, onRemove }: Props) {
   const hasFilters = Object.keys(filters).length > 0;
   if (tagCounts.length === 0 && !hasFilters) return null;
 
@@ -35,6 +37,20 @@ export default function DatasetTagFilter({ tagCounts, filters, onToggle, onHover
             onClick={() => onToggle(tag)}
           >
             {tag} ({count})
+            {onRemove && (
+              <button
+                type="button"
+                className="-mr-1 ml-1 rounded-full p-0.5 hover:bg-foreground/20"
+                title={`「${tag}」を全画像から削除`}
+                aria-label={`「${tag}」を全画像から削除`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove(tag, count);
+                }}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </Badge>
         );
       })}
