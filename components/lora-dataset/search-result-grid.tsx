@@ -35,7 +35,7 @@ export default function SearchResultGrid({ posts, addedIds, addingId, onAdd }: P
             title={post.available ? `#${post.id} を追加` : "この投稿は画像として取得できません"}
           >
             {post.previewUrl ? (
-              <img src={post.previewUrl} alt={`danbooru #${post.id}`} className="h-full w-full object-cover" />
+              <img src={post.previewUrl} alt={`danbooru #${post.id}`} className="h-full w-full object-contain" />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
                 プレビューなし

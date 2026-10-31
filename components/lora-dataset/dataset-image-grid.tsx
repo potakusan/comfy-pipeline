@@ -55,7 +55,7 @@ export default function DatasetImageGrid({
                 alt={`#${image.id}`}
                 loading="lazy"
                 decoding="async"
-                className={cn("h-full w-full object-cover", selectionMode && selected && "opacity-80")}
+                className={cn("h-full w-full object-contain", selectionMode && selected && "opacity-80")}
               />
             </button>
             {selectionMode ? (
