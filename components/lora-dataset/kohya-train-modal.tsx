@@ -15,6 +15,9 @@ import { apiFetch } from "@/lib/api-client";
 import type { TrainingJob, TrainingParams } from "@/lib/kohya/types";
 import type { DatasetImageEntry, DatasetInfo, TagCategory } from "@/lib/lora-dataset/types";
 import { toast } from "sonner";
+
+/** 学習のベースモデルの既定。ファイル名の先頭一致で選ぶ */
+const PREFERRED_BASE_CHECKPOINT = "waiIllustriousSDXL_v170";
 import { defaultParams, recommendSettings } from "@/components/lora-dataset/kohya-train-helpers";
 import KohyaTrainRecommendation from "@/components/lora-dataset/kohya-train-recommendation";
 import KohyaTrainFields, {
@@ -67,7 +70,8 @@ export default function KohyaTrainModal({ dataset, onUpdateDataset }: Props) {
     apiFetch<{ items: CheckpointItem[] }>("/api/models/checkpoints")
       .then(({ items }) => {
         setCheckpoints(items);
-        setCheckpointFileName((prev) => prev || items[0]?.fileName || "");
+        const preferred = items.find((c) => c.fileName.startsWith(PREFERRED_BASE_CHECKPOINT));
+        setCheckpointFileName((prev) => prev || preferred?.fileName || items[0]?.fileName || "");
       })
       .catch(() => toast.error("チェックポイント一覧の取得に失敗しました"));
     apiFetch<{ images: DatasetImageEntry[] }>(`/api/lora-dataset/images?folder=${encodeURIComponent(dataset.folder)}`)

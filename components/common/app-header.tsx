@@ -2,7 +2,8 @@
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { HardDrive, Wand2, Images, Settings, Tags, Menu } from "lucide-react";
+import { HardDrive, Wand2, Images, Settings, Tags, Menu, MemoryStick, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import ModelManagerDialog from "@/components/models/model-manager-dialog";
 import SettingsDialog from "@/components/settings/settings-dialog";
 import AppMenuDialog, { type AppMenuItem } from "@/components/common/app-menu-dialog";
@@ -43,6 +44,20 @@ export default function AppHeader({
   const setModelManagerOpen = onModelManagerOpenChange ?? setInternalModelManagerOpen;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [freeing, setFreeing] = useState(false);
+
+  const handleFreeMemory = async () => {
+    setFreeing(true);
+    try {
+      const res = await fetch("/api/comfy/free", { method: "POST" });
+      if (!res.ok) throw new Error();
+      toast.success("ComfyUIのモデルを解放しました");
+    } catch {
+      toast.error("メモリの解放に失敗しました（ComfyUIに接続できません）");
+    } finally {
+      setFreeing(false);
+    }
+  };
 
   const menuItems: AppMenuItem[] = [
     {
@@ -95,6 +110,18 @@ export default function AppHeader({
       {children}
 
       <div className="flex-1" />
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="gap-1.5 text-xs"
+        disabled={freeing}
+        onClick={handleFreeMemory}
+        title="ComfyUIが保持しているモデルをVRAM/RAMから解放します"
+      >
+        {freeing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MemoryStick className="h-3.5 w-3.5" />}
+        メモリ解放
+      </Button>
 
       <Button
         variant="ghost"
