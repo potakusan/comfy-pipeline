@@ -7,6 +7,7 @@ import { formatTag } from "@/lib/lora-dataset/caption-format";
 import { getAccelerateExePath, getSdxlTrainScriptPath, getTrainingEnv, validateKohyaInstall } from "@/lib/kohya/paths";
 import { writeDatasetToml, writeTrainingToml } from "@/lib/kohya/toml";
 import { createTrainingJob, updateTrainingJob, appendTrainingLog, getTrainingJob } from "@/lib/kohya/training-jobs";
+import type { LoraEntry } from "@/lib/comfy/comfy-types";
 import type { TrainingParams } from "@/lib/kohya/types";
 
 const CAPTION_EXTENSION = ".txt";
@@ -71,6 +72,9 @@ export function startTraining(params: TrainingParams): { jobId: string } | { err
   return { jobId: job.id };
 }
 
+/** 登録用テンプレート(LoraEntry形式)。LoRAピッカーで選ぶと強度・トリガー・対応系統が自動で入る */
+export const LORA_TEMPLATE_SUFFIX = ".lora-template.json";
+
 /**
  * モデルマネージャーが既に読んでいる「<LoRAファイル名>.civitai.json」の
  * {trainedWords} 形式で書く（app/api/models/loras/route.tsのreadCivitaiMeta参照）。
@@ -80,6 +84,18 @@ export function startTraining(params: TrainingParams): { jobId: string } | { err
 function writeLoraMetadata(loraDir: string, outputName: string, triggerWord: string): void {
   const trigger = formatTag(triggerWord.trim());
   if (!trigger) return;
+  const template: LoraEntry = {
+    name: outputName,
+    strength: 1,
+    clipStrength: 1,
+    triggerWords: trigger,
+    families: ["sdxl"],
+  };
+  try {
+    fs.writeFileSync(path.join(loraDir, `${outputName}${LORA_TEMPLATE_SUFFIX}`), JSON.stringify(template, null, 2));
+  } catch {
+    // テンプレート保存の失敗も学習成功を損なわない
+  }
   const metaPath = path.join(loraDir, `${outputName}.civitai.json`);
   try {
     fs.writeFileSync(

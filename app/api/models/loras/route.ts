@@ -4,6 +4,7 @@ import path from 'path';
 import { getLoraDir, getRemoteProcessUrl } from '@/lib/setup/config';
 import { proxyJson } from '@/lib/server/remote-proxy';
 import { apiError } from '@/lib/server/api-error';
+import type { LoraEntry } from '@/lib/comfy/comfy-types';
 
 const MODEL_EXTS = ['.safetensors', '.ckpt', '.pt'];
 const THUMB_EXTS = ['.jpg', '.jpeg', '.png', '.webp'];
@@ -29,6 +30,22 @@ function readCivitaiMeta(
     };
   } catch {
     return { trainedWords: [] };
+  }
+}
+
+const TEMPLATE_SUFFIX = '.lora-template.json';
+
+function readTemplate(dir: string, baseName: string): Partial<LoraEntry> | undefined {
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(dir, baseName + TEMPLATE_SUFFIX), 'utf-8'));
+    return {
+      strength: typeof data.strength === 'number' ? data.strength : undefined,
+      clipStrength: typeof data.clipStrength === 'number' ? data.clipStrength : undefined,
+      triggerWords: typeof data.triggerWords === 'string' ? data.triggerWords : undefined,
+      families: Array.isArray(data.families) ? data.families : undefined,
+    };
+  } catch {
+    return undefined;
   }
 }
 
@@ -60,6 +77,7 @@ export async function GET() {
             : null,
           trainedWords,
           civitaiModelId: modelId,
+          template: readTemplate(LORA_DIR, baseName),
         };
       })
       .sort((a, b) => b.mtime.localeCompare(a.mtime));
@@ -92,7 +110,7 @@ export async function DELETE(req: NextRequest) {
   try {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     const baseName = safe.replace(/\.(safetensors|ckpt|pt)$/, '');
-    for (const ext of [...THUMB_EXTS, '.civitai.json']) {
+    for (const ext of [...THUMB_EXTS, '.civitai.json', TEMPLATE_SUFFIX]) {
       const tp = path.join(LORA_DIR, baseName + ext);
       if (fs.existsSync(tp)) fs.unlinkSync(tp);
     }

@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ImageOff, Loader2 } from 'lucide-react'
 import { usePublicSettings } from '@/hooks/use-public-settings'
+import type { LoraEntry } from '@/lib/comfy/comfy-types'
 import { apiFetch } from '@/lib/api-client'
 
 const PAGE_SIZE = 50;
@@ -17,6 +18,8 @@ export interface LmLoraItem {
   civitai?: {
     trainedWords?: string[]
   }
+  /** 学習で出力された登録用テンプレート(強度・トリガー・対応系統) */
+  template?: Partial<LoraEntry>
   /** ローカルAPIから取得したサムネイルURL（フル絶対パス） */
   _thumbnailSrc?: string
 }
@@ -29,6 +32,7 @@ interface LocalLoraItem {
   name: string
   thumbnail: string | null
   trainedWords: string[]
+  template?: Partial<LoraEntry>
 }
 
 function LoraPickerItem({
@@ -127,6 +131,7 @@ export function LoraPickerDialog({ open, onClose, onSelect }: LoraPickerDialogPr
         preview_nsfw_level: 0,
         base_model: '',
         civitai: { trainedWords: item.trainedWords },
+        template: item.template,
         _thumbnailSrc: item.thumbnail ?? undefined,
       }))
       setLocalItems(converted)

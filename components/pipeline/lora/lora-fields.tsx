@@ -49,8 +49,16 @@ export default function LoraFields({
     onChange({ ...draft, [key]: val });
 
   const handlePickerSelect = (item: LmLoraItem) => {
-    const triggerWords = item.civitai?.trainedWords?.join(", ") ?? "";
-    onChange({ ...draft, name: item.file_name, triggerWords });
+    const t = item.template;
+    const triggerWords = t?.triggerWords ?? item.civitai?.trainedWords?.join(", ") ?? "";
+    onChange({
+      ...draft,
+      name: item.file_name,
+      triggerWords,
+      ...(t?.strength !== undefined && { strength: t.strength }),
+      ...(t?.clipStrength !== undefined && { clipStrength: t.clipStrength }),
+      ...(t?.families && { families: t.families }),
+    });
   };
 
   const handleDanbooruImport = async () => {
