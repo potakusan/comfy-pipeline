@@ -19,6 +19,7 @@ import {
   Grid2x2,
   Images,
   ScanEye,
+  FolderInput,
 } from "lucide-react";
 import { useGallery } from "@/hooks/gallery/use-gallery";
 import {
@@ -37,6 +38,7 @@ import GalleryGeneratingWindow from "@/components/gallery/gallery-generating-win
 import GalleryPoseSummary, { computePoseStats } from "@/components/gallery/gallery-pose-summary";
 import GalleryDeleteConfirmDialog from "@/components/gallery/gallery-delete-confirm-dialog";
 import GalleryMosaicModal from "@/components/gallery/gallery-mosaic-modal";
+import GalleryReleaseCopyDialog from "@/components/gallery/gallery-release-copy-dialog";
 import GalleryMoreGenerationDialog from "@/components/gallery/gallery-more-generation-dialog";
 import I2iPoolManagerDialog from "@/components/pipeline/prompt/i2i-pool-manager-dialog";
 import { getPoseGroup, type GalleryImageEntry } from "@/lib/gallery";
@@ -51,6 +53,7 @@ export default function GalleryPage() {
   const [deleteTarget, setDeleteTarget] = useState<GalleryImageEntry | null>(null);
   const [i2iSourcePath, setI2iSourcePath] = useState<string | null>(null);
   const [mosaicModalOpen, setMosaicModalOpen] = useState(false);
+  const [releaseCopyOpen, setReleaseCopyOpen] = useState(false);
   // 表示中の1枚だけのモザイク処理(プレビュー)の対象ファイル名
   const [singleMosaicFile, setSingleMosaicFile] = useState<string | null>(null);
   const [moreTarget, setMoreTarget] = useState<(MoreGenerationTarget & { pose: string }) | null>(null);
@@ -365,10 +368,21 @@ export default function GalleryPage() {
                     </label>
                   </>
                 )}
+                {gallery.showMosaicOnly && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto h-6 gap-1 px-2 text-[10px]"
+                    disabled={gallery.mosaicImages.length === 0}
+                    onClick={() => setReleaseCopyOpen(true)}
+                    title="モザイク処理済みの画像をリリース用フォルダへ連番でコピー"
+                  >
+                    <FolderInput className="h-3 w-3" />
+                    リリース用にコピー
+                  </Button>
+                )}
                 <label
-                  className={`flex items-center gap-1.5 text-[10px] text-muted-foreground ${
-                    gallery.showMosaicOnly ? "ml-auto" : ""
-                  }`}
+                  className="flex items-center gap-1.5 text-[10px] text-muted-foreground"
                 >
                   <Checkbox
                     checked={gallery.showMosaicOnly}
@@ -443,6 +457,12 @@ export default function GalleryPage() {
           onRetry={gallery.redoRegenerate}
         />
       )}
+
+      <GalleryReleaseCopyDialog
+        open={releaseCopyOpen}
+        onClose={() => setReleaseCopyOpen(false)}
+        paths={gallery.mosaicImages.map((m) => m.path)}
+      />
 
       {gallery.selectedFolder && (
         <GalleryMosaicModal

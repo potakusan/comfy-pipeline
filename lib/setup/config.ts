@@ -18,6 +18,8 @@ export interface SetupConfig {
   danbooruLogin?: string
   danbooruApiKey?: string
   kohyaGuiPath?: string
+  /** モザイク済み画像のリリース用コピー先のルート(例: X:\) */
+  releaseRootDir?: string
 }
 
 export function readSetupConfig(): SetupConfig {
@@ -114,6 +116,10 @@ export function getCivitaiApiKey(): string | undefined {
 
 export function getLoraDatasetDir(): string {
   return getField("loraDatasetDir", path.join(process.cwd(), "lora-datasets"))
+}
+
+export function getReleaseRootDir(): string {
+  return getField("releaseRootDir", "X:\\")
 }
 
 export function getDanbooruLogin(): string | undefined {
