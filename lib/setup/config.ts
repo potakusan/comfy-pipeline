@@ -1,6 +1,11 @@
 import fs from "fs"
 import path from "path"
 import os from "os"
+import {
+  normalizeOutputImageSettings,
+  type OutputFormat,
+  type OutputImageSettings,
+} from "./output-format"
 
 const CONFIG_PATH = path.join(process.cwd(), ".comfy-pipeline.json")
 
@@ -20,6 +25,14 @@ export interface SetupConfig {
   kohyaGuiPath?: string
   /** モザイク済み画像のリリース用コピー先のルート(例: X:\) */
   releaseRootDir?: string
+  /** 生成画像の保存形式。ComfyUIはPNGで出力するため、png以外は生成直後にサーバーで変換する */
+  outputFormat?: OutputFormat
+  /** jpg/webp時の品質(1-100) */
+  outputQuality?: number
+  /** webp時にロスレスで保存する */
+  outputLossless?: boolean
+  /** jpg時にクロマサブサンプリングを4:4:4にする(オフは4:2:0で小さくなる) */
+  outputChroma444?: boolean
 }
 
 export function readSetupConfig(): SetupConfig {
@@ -70,11 +83,17 @@ export function applySetupConfigUpdate(
   return { config: updated }
 }
 
-function getField(key: keyof SetupConfig, fallback: string): string {
+/** 文字列値の設定キー(画像保存の数値・真偽値は getOutputImageSettings 経由で読む) */
+type StringConfigKey = Exclude<
+  keyof SetupConfig,
+  "outputFormat" | "outputQuality" | "outputLossless" | "outputChroma444"
+>
+
+function getField(key: StringConfigKey, fallback: string): string {
   return readSetupConfig()[key] || fallback
 }
 
-function getOptionalField(key: keyof SetupConfig): string | undefined {
+function getOptionalField(key: StringConfigKey): string | undefined {
   return readSetupConfig()[key] || undefined
 }
 
@@ -120,6 +139,16 @@ export function getLoraDatasetDir(): string {
 
 export function getReleaseRootDir(): string {
   return getField("releaseRootDir", "X:\\")
+}
+
+export function getOutputImageSettings(): OutputImageSettings {
+  const c = readSetupConfig()
+  return normalizeOutputImageSettings({
+    format: c.outputFormat,
+    quality: c.outputQuality,
+    lossless: c.outputLossless,
+    chroma444: c.outputChroma444,
+  })
 }
 
 export function getDanbooruLogin(): string | undefined {

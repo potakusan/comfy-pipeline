@@ -13,13 +13,20 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SetupConfig } from "@/lib/setup/config";
 import { apiFetch } from "@/lib/api-client";
+import OutputFormatFields from "@/components/settings/output-format-fields";
 
 interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
 }
 
-type FieldKey = keyof SetupConfig;
+type FieldKey = Exclude<
+  keyof SetupConfig,
+  "outputFormat" | "outputQuality" | "outputLossless" | "outputChroma444"
+>;
+
+/** 文字列入力ではなく専用UIで編集するグループ */
+const OUTPUT_FORMAT_GROUP = "画像保存";
 
 const FIELD_GROUPS: { title: string; fields: { key: FieldKey; label: string; placeholder?: string }[] }[] = [
   {
@@ -39,6 +46,7 @@ const FIELD_GROUPS: { title: string; fields: { key: FieldKey; label: string; pla
       { key: "upscalerDir", label: "アップスケーラーフォルダ" },
     ],
   },
+  { title: OUTPUT_FORMAT_GROUP, fields: [] },
   {
     title: "リモート",
     fields: [{ key: "remoteProcessUrl", label: "リモート処理サーバーURL" }],
@@ -134,6 +142,12 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             </nav>
 
             <div className="flex-1 space-y-3 overflow-y-auto p-5">
+              {group.title === OUTPUT_FORMAT_GROUP && (
+                <OutputFormatFields
+                  config={config}
+                  onChange={(patch) => setConfig((prev) => ({ ...prev, ...patch }))}
+                />
+              )}
               {group.fields.map((f) => (
                 <div key={f.key} className="space-y-1">
                   <Label htmlFor={f.key} className="text-xs">

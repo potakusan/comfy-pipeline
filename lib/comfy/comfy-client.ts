@@ -80,7 +80,7 @@ export async function pollForCompletion(
 
 /**
  * ワークフローを送信し完了をポーリングして、送信前後でoutputフォルダに
- * 新規追加されたファイル名の一覧を返す。use-pipeline.ts(バッチキュー)と
+ * 新規追加されたファイル名の一覧(保存形式への変換後の名前)を返す。use-pipeline.ts(バッチキュー)と
  * use-gallery.ts(単体再生成)で共通の「送信→ポーリング→新規ファイル差分」
  * コアロジック(前後のリトライループ/redo制御・成功後の後処理は
  * 呼び出し元ごとに異なるためここには含めない)。
@@ -95,7 +95,28 @@ export async function submitAndAwaitNewFiles(
   const promptId = await submitPromptHttp(workflow, clientId, signal);
   await pollForCompletion(promptId, signal);
   const filesAfter = await listOutputFiles(folder);
-  return filesAfter.filter((f) => !filesBefore.includes(f));
+  const newFiles = filesAfter.filter((f) => !filesBefore.includes(f));
+  return convertToOutputFormat(folder, newFiles);
+}
+
+/**
+ * 設定の保存形式(JPG/WebP)へサーバーで変換し、変換後のファイル名を返す。変換に失敗しても
+ * 生成自体は成功しているので、元のファイル名のまま返して記録を落とさない。
+ */
+async function convertToOutputFormat(folder: string, files: string[]): Promise<string[]> {
+  if (files.length === 0) return files;
+  try {
+    const res = await fetch("/api/comfy/output/convert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder, files }),
+    });
+    if (!res.ok) return files;
+    const data = (await res.json()) as { files?: string[] };
+    return Array.isArray(data.files) && data.files.length === files.length ? data.files : files;
+  } catch {
+    return files;
+  }
 }
 
 export type CancelOutcome = "retry" | "cancelled" | "error";
